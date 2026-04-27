@@ -232,12 +232,12 @@ class GameManager {
                 // Level complete overlay
                 if (this.levels.levelComplete) {
                     ctx.fillStyle = '#22c55e';
-                    ctx.font = '900 28px Orbitron';
+                    ctx.font = '900 32px Orbitron';
                     ctx.textAlign = 'center';
-                    ctx.fillText('DÜĞÜM TEMİZLENDİ!', W / 2, H / 2 - 15);
+                    ctx.fillText('DÜĞÜM TEMİZLENDİ!', W / 2, H / 2 - 70);
                     ctx.fillStyle = '#64748b';
-                    ctx.font = '500 16px Rajdhani';
-                    ctx.fillText(`Skor: ${this.levels.score} | Max Combo: x${this.levels.maxCombo}`, W / 2, H / 2 + 20);
+                    ctx.font = '500 18px Rajdhani';
+                    ctx.fillText(`Skor: ${this.levels.score} | Max Combo: x${this.levels.maxCombo}`, W / 2, H / 2 - 35);
                 }
             },
             exit: () => this.ui.clearButtons(),
