@@ -475,6 +475,20 @@ class GameManager {
             () => this.state.change(this.state.STATES.MENU),
             { color: '#475569' }
         );
+
+        // Verileri Sıfırla
+        this.ui.addButton('reset', '🗑 SIFIRLA', W - 75, H - 35, 110, 32,
+            () => {
+                console.log("SIFIRLA BUTONUNA BASILDI");
+                if (window.confirm('Tüm sistem verilerini silip sıfırdan başlamak istediğine emin misin?')) {
+                    console.log("ONAY VERILDI, VERILER SILINIYOR...");
+                    localStorage.removeItem('sb_progress');
+                    localStorage.removeItem('sb_energy');
+                    window.location.href = window.location.href; // Mobil Tarayıcılar / Live Server için garantili reload
+                }
+            },
+            { color: '#ef4444' }
+        );
     }
 
     _renderHubConnections(ctx) {
