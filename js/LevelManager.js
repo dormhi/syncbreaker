@@ -35,6 +35,10 @@ class LevelManager {
         // Particles (simple)
         this.particles = [];
 
+        // Theme animation state
+        this.hitFlashTimer = 0;
+        this.gameTime = 0;
+
         this._loadProgress();
     }
 
@@ -45,7 +49,7 @@ class LevelManager {
             { id: 3, name: 'REMOVE_MALWARE', desc: 'Detect and remove malicious software', difficulty: 3, barSpeed: 1.1, targetSize: 0.15, requiredHits: 12, maxTime: 30, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 3 },
             { id: 4, name: 'RESET_CREDS', desc: 'Reset compromised credentials', difficulty: 4, barSpeed: 1.4, targetSize: 0.12, requiredHits: 14, maxTime: 35, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 4 },
             { id: 5, name: 'FIREWALL', desc: 'Rebuild the firewall', difficulty: 5, barSpeed: 1.7, targetSize: 0.10, requiredHits: 16, maxTime: 40, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 5 },
-            { id: 6, name: 'CUT_ACCESS', desc: 'Completely sever the attacker\'s connection', difficulty: 6, barSpeed: 2.1, targetSize: 0.08, requiredHits: 18, maxTime: 45, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 6 }
+            { id: 6, name: 'CUT_ACCESS', desc: 'Completely sever the attacker\'s connection', difficulty: 6, barSpeed: 2.0, targetSize: 0.08, requiredHits: 18, maxTime: 60, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 6 }
         ];
     }
 
@@ -60,7 +64,7 @@ class LevelManager {
         this.score = 0;
         this.combo = 0;
         this.maxCombo = 0;
-        
+    
         // Dinamik yanma hakkı
         if (index <= 2) {
             this.maxLives = 3;
@@ -88,6 +92,10 @@ class LevelManager {
 
     update(dt) {
         if (!this.currentLevel || this.levelComplete || this.levelFailed) return;
+
+        // Animation timers
+        this.gameTime += dt;
+        if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt * 3;
 
         // Timer
         this.timer -= dt;
@@ -124,6 +132,7 @@ class LevelManager {
 
         const pos = this.barPosition;
         const inZone = pos >= this.targetZoneStart && pos <= this.targetZoneEnd;
+        const theme = getLevelTheme(this.currentLevel.id);
 
         if (inZone) {
             const center = (this.targetZoneStart + this.targetZoneEnd) / 2;
@@ -133,12 +142,16 @@ class LevelManager {
                 this.combo++;
                 this.score += 100 * this.combo;
                 this.lastHitResult = 'perfect';
-                this._spawnParticles(pos, '#22c55e', 8);
+                this._spawnParticles(pos, theme.hitColors.perfect, 8);
+                Sound.playPerfect(theme);
+                this.hitFlashTimer = 1;
             } else {
                 this.combo++;
                 this.score += 50 * this.combo;
                 this.lastHitResult = 'good';
-                this._spawnParticles(pos, '#3b82f6', 5);
+                this._spawnParticles(pos, theme.hitColors.good, 5);
+                Sound.playGood(theme);
+                this.hitFlashTimer = 0.6;
             }
             this.hitCount++;
             if (this.combo > this.maxCombo) this.maxCombo = this.combo;
@@ -146,10 +159,12 @@ class LevelManager {
             this.combo = 0;
             this.lives--;
             this.lastHitResult = 'miss';
-            this._spawnParticles(pos, '#ef4444', 6);
+            this._spawnParticles(pos, theme.hitColors.miss, 6);
+            Sound.playMiss();
 
             if (this.lives <= 0) {
                 this.levelFailed = true;
+                Sound.playLevelFail();
                 return;
             }
         }
@@ -176,6 +191,7 @@ class LevelManager {
         const next = this.currentLevelIndex + 1;
         if (next < this.levels.length) this.levels[next].unlocked = true;
         this._saveProgress();
+        Sound.playLevelComplete();
     }
 
     _generateTargetZone() {
@@ -186,15 +202,18 @@ class LevelManager {
     }
 
     _spawnParticles(barPos, color, count) {
+        const theme = getLevelTheme(this.currentLevel.id);
+        const syms = theme.particleSymbols;
         for (let i = 0; i < count; i++) {
             this.particles.push({
                 barPos, color,
+                symbol: syms[Utils.randInt(0, syms.length - 1)],
                 x: 0, y: 0,
-                vx: Utils.randFloat(-60, 60),
-                vy: Utils.randFloat(-100, -20),
+                vx: Utils.randFloat(-80, 80),
+                vy: Utils.randFloat(-120, -30),
                 life: 1,
-                decay: Utils.randFloat(1.5, 3),
-                size: Utils.randFloat(2, 4)
+                decay: Utils.randFloat(1.2, 2.5),
+                size: Utils.randFloat(2, 5)
             });
         }
     }
@@ -204,73 +223,101 @@ class LevelManager {
     render(ctx, W, H) {
         if (!this.currentLevel) return;
 
+        const theme = getLevelTheme(this.currentLevel.id);
         const barY = H * 0.55;
         const barX = W * 0.12;
         const barW = W * 0.76;
         const barH = 12;
+        const t = this.gameTime;
+
+        // Hit flash — CG: Screen-space color overlay
+        if (this.hitFlashTimer > 0) {
+            ctx.save();
+            ctx.globalAlpha = this.hitFlashTimer * 0.06;
+            ctx.fillStyle = theme.zoneColor;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        ctx.save();
+
+        // Bar glow — CG: Shadow / bloom effect
+        const pulse = 4 + Math.sin(t * 4) * 2;
+        ctx.shadowColor = theme.barGlow;
+        ctx.shadowBlur = pulse;
 
         // Bar background
-        ctx.save();
         ctx.fillStyle = 'rgba(30,41,59,0.6)';
         Utils.roundRect(ctx, barX, barY - barH / 2, barW, barH, 6);
         ctx.fill();
+        ctx.shadowBlur = 0;
 
-        // Target zone
+        // Target zone — themed color + breathing opacity
         const zoneX = barX + this.targetZoneStart * barW;
         const zoneW = (this.targetZoneEnd - this.targetZoneStart) * barW;
-        ctx.fillStyle = 'rgba(34,197,94,0.2)';
-        ctx.strokeStyle = '#22c55e';
+        const breathe = 0.8 + Math.sin(t * 3) * 0.2;
+        ctx.globalAlpha = breathe;
+        ctx.fillStyle = theme.zoneBg;
+        ctx.strokeStyle = theme.zoneColor;
         ctx.lineWidth = 1.5;
         Utils.roundRect(ctx, zoneX, barY - barH / 2 - 4, zoneW, barH + 8, 4);
         ctx.fill();
         ctx.stroke();
+        ctx.globalAlpha = 1;
 
-        // Indicator (moving line)
+        // Indicator line — themed color
         const ix = barX + this.barPosition * barW;
-        ctx.strokeStyle = '#f59e0b';
+        ctx.strokeStyle = theme.indicatorColor;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(ix, barY - barH - 2);
         ctx.lineTo(ix, barY + barH + 2);
         ctx.stroke();
 
-        // Indicator tip triangle
-        ctx.fillStyle = '#f59e0b';
-        ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 2);
-        ctx.lineTo(ix - 5, barY - barH - 10);
-        ctx.lineTo(ix + 5, barY - barH - 10);
-        ctx.closePath();
-        ctx.fill();
+        // Indicator icon — themed emoji instead of triangle
+        const bob = Math.sin(t * 6) * 2;
+        ctx.font = '18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(theme.icon, ix, barY - barH - 4 + bob);
 
         ctx.restore();
 
-        // Hit result text
+        // Hit result text — themed words
         if (this.lastHitResult) {
-            const labels = {
-                perfect: { text: 'PERFECT', color: '#22c55e' },
-                good: { text: 'GOOD', color: '#3b82f6' },
-                miss: { text: 'MISS', color: '#ef4444' }
-            };
-            const r = labels[this.lastHitResult];
+            const words = theme.hitWords;
+            const colors = theme.hitColors;
+            const text = words[this.lastHitResult];
+            const color = colors[this.lastHitResult];
             const alpha = Utils.clamp(this.hitAnimTimer / 0.5, 0, 1);
+            const scale = 1 + (1 - alpha) * 0.15;
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.fillStyle = r.color;
-            ctx.font = '700 26px Orbitron';
+            ctx.fillStyle = color;
+            ctx.font = `700 ${Math.round(26 * scale)}px Orbitron`;
             ctx.textAlign = 'center';
-            ctx.fillText(r.text, W / 2, barY - 45);
+            ctx.fillText(text, W / 2, barY - 45);
             ctx.restore();
         }
 
-        // Particles
+        // Particles — themed symbols
         for (const p of this.particles) {
             ctx.save();
             ctx.globalAlpha = p.life;
             ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(barX + p.barPos * barW + p.x, barY + p.y, p.size * p.life, 0, Math.PI * 2);
-            ctx.fill();
+            const px = barX + p.barPos * barW + p.x;
+            const py = barY + p.y;
+            // Draw symbol for bigger particles, circle for small
+            if (p.size > 3 && p.symbol) {
+                ctx.font = `${Math.round(p.size * 3 * p.life)}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.symbol, px, py);
+            } else {
+                ctx.beginPath();
+                ctx.arc(px, py, p.size * p.life, 0, Math.PI * 2);
+                ctx.fill();
+            }
             ctx.restore();
         }
 
@@ -281,8 +328,9 @@ class LevelManager {
     _renderInfo(ctx, W, H) {
         ctx.save();
 
-        // Level name
-        ctx.fillStyle = '#e2e8f0';
+        // Level name — themed color
+        const theme = getLevelTheme(this.currentLevel.id);
+        ctx.fillStyle = theme.zoneColor;
         ctx.font = '600 16px Orbitron';
         ctx.textAlign = 'center';
         ctx.fillText(this.currentLevel.name, W / 2, 75);
@@ -395,6 +443,7 @@ class LevelManager {
 
         const pos = this.barPosition;
         const inZone = pos >= this.targetZoneStart && pos <= this.targetZoneEnd;
+        const theme = getLevelTheme(this.currentLevel.id);
 
         if (inZone) {
             const center = (this.targetZoneStart + this.targetZoneEnd) / 2;
@@ -404,12 +453,16 @@ class LevelManager {
                 this.combo++;
                 this.score += 100 * this.combo * this.endlessWave;
                 this.lastHitResult = 'perfect';
-                this._spawnParticles(pos, '#22c55e', 8);
+                this._spawnParticles(pos, theme.hitColors.perfect, 8);
+                Sound.playPerfect(theme);
+                this.hitFlashTimer = 1;
             } else {
                 this.combo++;
                 this.score += 50 * this.combo * this.endlessWave;
                 this.lastHitResult = 'good';
-                this._spawnParticles(pos, '#3b82f6', 5);
+                this._spawnParticles(pos, theme.hitColors.good, 5);
+                Sound.playGood(theme);
+                this.hitFlashTimer = 0.6;
             }
             this.hitCount++;
             this.endlessHitsInWave++;
@@ -421,23 +474,25 @@ class LevelManager {
                 this.endlessHitsInWave = 0;
                 this.endlessWaveFlash = 1.0;
                 this._endlessScaleUp();
+                Sound.playWaveUp();
             }
         } else {
             this.combo = 0;
             this.lives--;
             this.lastHitResult = 'miss';
-            this._spawnParticles(pos, '#ef4444', 6);
+            this._spawnParticles(pos, theme.hitColors.miss, 6);
+            Sound.playMiss();
 
             if (this.lives <= 0) {
                 this.levelFailed = true;
                 this._saveEndlessBest();
+                Sound.playLevelFail();
                 return;
             }
         }
 
         this.hitAnimTimer = 0.5;
         this._generateTargetZone();
-        // Small speed increase per hit
         this.barSpeed = Math.min(this.barSpeed + 0.008, 4.0);
     }
 
@@ -463,6 +518,10 @@ class LevelManager {
      */
     updateEndless(dt) {
         if (!this.currentLevel || this.levelFailed) return;
+
+        // Animation timers
+        this.gameTime += dt;
+        if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt * 3;
 
         // Bar hareketi
         this.barPosition += this.barSpeed * this.barDirection * dt;
@@ -497,73 +556,98 @@ class LevelManager {
     renderEndless(ctx, W, H) {
         if (!this.currentLevel) return;
 
+        const theme = getLevelTheme(this.currentLevel.id);
         const barY = H * 0.55;
         const barX = W * 0.12;
         const barW = W * 0.76;
         const barH = 12;
+        const t = this.gameTime;
+
+        // Hit flash
+        if (this.hitFlashTimer > 0) {
+            ctx.save();
+            ctx.globalAlpha = this.hitFlashTimer * 0.06;
+            ctx.fillStyle = theme.zoneColor;
+            ctx.fillRect(0, 0, W, H);
+            ctx.restore();
+        }
+
+        ctx.save();
+
+        // Bar glow
+        const pulse = 4 + Math.sin(t * 4) * 2;
+        ctx.shadowColor = theme.barGlow;
+        ctx.shadowBlur = pulse;
 
         // Bar background
-        ctx.save();
         ctx.fillStyle = 'rgba(30,41,59,0.6)';
         Utils.roundRect(ctx, barX, barY - barH / 2, barW, barH, 6);
         ctx.fill();
+        ctx.shadowBlur = 0;
 
-        // Target zone
+        // Target zone — themed
         const zoneX = barX + this.targetZoneStart * barW;
         const zoneW = (this.targetZoneEnd - this.targetZoneStart) * barW;
-        ctx.fillStyle = 'rgba(34,197,94,0.2)';
-        ctx.strokeStyle = '#22c55e';
+        const breathe = 0.8 + Math.sin(t * 3) * 0.2;
+        ctx.globalAlpha = breathe;
+        ctx.fillStyle = theme.zoneBg;
+        ctx.strokeStyle = theme.zoneColor;
         ctx.lineWidth = 1.5;
         Utils.roundRect(ctx, zoneX, barY - barH / 2 - 4, zoneW, barH + 8, 4);
         ctx.fill();
         ctx.stroke();
+        ctx.globalAlpha = 1;
 
-        // Indicator
+        // Indicator line — themed
         const ix = barX + this.barPosition * barW;
-        ctx.strokeStyle = '#f59e0b';
+        ctx.strokeStyle = theme.indicatorColor;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.moveTo(ix, barY - barH - 2);
         ctx.lineTo(ix, barY + barH + 2);
         ctx.stroke();
 
-        // Indicator triangle
-        ctx.fillStyle = '#f59e0b';
-        ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 2);
-        ctx.lineTo(ix - 5, barY - barH - 10);
-        ctx.lineTo(ix + 5, barY - barH - 10);
-        ctx.closePath();
-        ctx.fill();
+        // Indicator icon
+        const bob = Math.sin(t * 6) * 2;
+        ctx.font = '18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(theme.icon, ix, barY - barH - 4 + bob);
 
         ctx.restore();
 
-        // Hit result text
+        // Hit result text — themed
         if (this.lastHitResult) {
-            const labels = {
-                perfect: { text: 'PERFECT', color: '#22c55e' },
-                good: { text: 'GOOD', color: '#3b82f6' },
-                miss: { text: 'MISS', color: '#ef4444' }
-            };
-            const r = labels[this.lastHitResult];
+            const text = theme.hitWords[this.lastHitResult];
+            const color = theme.hitColors[this.lastHitResult];
             const alpha = Utils.clamp(this.hitAnimTimer / 0.5, 0, 1);
+            const scale = 1 + (1 - alpha) * 0.15;
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.fillStyle = r.color;
-            ctx.font = '700 26px Orbitron';
+            ctx.fillStyle = color;
+            ctx.font = `700 ${Math.round(26 * scale)}px Orbitron`;
             ctx.textAlign = 'center';
-            ctx.fillText(r.text, W / 2, barY - 45);
+            ctx.fillText(text, W / 2, barY - 45);
             ctx.restore();
         }
 
-        // Particles
+        // Particles — themed symbols
         for (const p of this.particles) {
             ctx.save();
             ctx.globalAlpha = p.life;
             ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(barX + p.barPos * barW + p.x, barY + p.y, p.size * p.life, 0, Math.PI * 2);
-            ctx.fill();
+            const px = barX + p.barPos * barW + p.x;
+            const py = barY + p.y;
+            if (p.size > 3 && p.symbol) {
+                ctx.font = `${Math.round(p.size * 3 * p.life)}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(p.symbol, px, py);
+            } else {
+                ctx.beginPath();
+                ctx.arc(px, py, p.size * p.life, 0, Math.PI * 2);
+                ctx.fill();
+            }
             ctx.restore();
         }
 
@@ -614,7 +698,7 @@ class LevelManager {
 
         // Lives (solda)
         ctx.textAlign = 'right';
-        ctx.font = '18px sans-serif';
+        ctx.font = '19px sans-serif';
         for (let i = 0; i < Math.max(this.lives, 3); i++) {
             ctx.fillStyle = i < this.lives ? '#ef4444' : 'rgba(239,68,68,0.2)';
             ctx.fillText('♥', W - 16 - i * 24, 75);

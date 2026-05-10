@@ -226,7 +226,7 @@ class LockpickSystem {
         const nodeSize = 32;
 
         ctx.save();
-        // Hocam burada işlem kolaylığı için ekranın merkez noktasını (origin) asıl çizim yapacağımız cx, cy noktasına taşıyoruz (Translation)
+        //  burada işlem kolaylığı için ekranın merkez noktasını (origin) asıl çizim yapacağımız cx, cy noktasına taşıyoruz (Translation)
         ctx.translate(cx, cy);
 
         // 0. Dış dekoratif halka — CG: Rotation transformation
