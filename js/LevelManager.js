@@ -64,7 +64,7 @@ class LevelManager {
         this.score = 0;
         this.combo = 0;
         this.maxCombo = 0;
-    
+
         // Dinamik yanma hakkı
         if (index <= 2) {
             this.maxLives = 3;
@@ -87,6 +87,7 @@ class LevelManager {
         this.usedRevive = false;
 
         this._generateTargetZone();
+        this._initBgObjects();
         return true;
     }
 
@@ -230,6 +231,9 @@ class LevelManager {
         const barH = 12;
         const t = this.gameTime;
 
+        // Level-specific background animation — CG: Themed scene rendering
+        this._renderLevelBg(ctx, W, H, theme, t);
+
         // Hit flash — CG: Screen-space color overlay
         if (this.hitFlashTimer > 0) {
             ctx.save();
@@ -265,21 +269,46 @@ class LevelManager {
         ctx.stroke();
         ctx.globalAlpha = 1;
 
-        // Indicator line — themed color
+        // Indicator — the icon IS the slider
         const ix = barX + this.barPosition * barW;
+        const bob = Math.sin(t * 6) * 3;
+        const iSize = (theme.iconSize || 26) + 6;
+
+        // Center marker — thin line through the bar so player sees exact position
+        ctx.shadowBlur = 0;
         ctx.strokeStyle = theme.indicatorColor;
-        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 2);
-        ctx.lineTo(ix, barY + barH + 2);
+        ctx.moveTo(ix, barY - barH - 3);
+        ctx.lineTo(ix, barY + barH + 3);
         ctx.stroke();
 
-        // Indicator icon — themed emoji instead of triangle
-        const bob = Math.sin(t * 6) * 2;
-        ctx.font = '18px sans-serif';
+        // Small triangle pointer above
+        ctx.fillStyle = theme.indicatorColor;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(ix, barY - barH - 3);
+        ctx.lineTo(ix - 4, barY - barH - 9);
+        ctx.lineTo(ix + 4, barY - barH - 9);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glowing circle behind the icon
+        ctx.globalAlpha = 0.2;
+        ctx.beginPath();
+        ctx.arc(ix, barY + bob, iSize * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Icon with strong glow — double draw for brightness
+        ctx.shadowColor = theme.indicatorColor;
+        ctx.shadowBlur = 12;
+        ctx.font = `${iSize}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(theme.icon, ix, barY - barH - 4 + bob);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(theme.icon, ix, barY + bob);
+        ctx.fillText(theme.icon, ix, barY + bob);
 
         ctx.restore();
 
@@ -433,6 +462,7 @@ class LevelManager {
         this.endlessBest = this._loadEndlessBest();
 
         this._generateTargetZone();
+        this._initBgObjects();
     }
 
     /**
@@ -563,6 +593,9 @@ class LevelManager {
         const barH = 12;
         const t = this.gameTime;
 
+        // Level background animation
+        this._renderLevelBg(ctx, W, H, theme, t);
+
         // Hit flash
         if (this.hitFlashTimer > 0) {
             ctx.save();
@@ -598,21 +631,46 @@ class LevelManager {
         ctx.stroke();
         ctx.globalAlpha = 1;
 
-        // Indicator line — themed
+        // Indicator — icon slider
         const ix = barX + this.barPosition * barW;
+        const bob = Math.sin(t * 6) * 3;
+        const iSize = (theme.iconSize || 26) + 6;
+
+        // Center marker line
+        ctx.shadowBlur = 0;
         ctx.strokeStyle = theme.indicatorColor;
-        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.6;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 2);
-        ctx.lineTo(ix, barY + barH + 2);
+        ctx.moveTo(ix, barY - barH - 3);
+        ctx.lineTo(ix, barY + barH + 3);
         ctx.stroke();
 
-        // Indicator icon
-        const bob = Math.sin(t * 6) * 2;
-        ctx.font = '18px sans-serif';
+        // Small triangle pointer
+        ctx.fillStyle = theme.indicatorColor;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(ix, barY - barH - 3);
+        ctx.lineTo(ix - 4, barY - barH - 9);
+        ctx.lineTo(ix + 4, barY - barH - 9);
+        ctx.closePath();
+        ctx.fill();
+
+        // Glowing circle behind icon
+        ctx.globalAlpha = 0.2;
+        ctx.beginPath();
+        ctx.arc(ix, barY + bob, iSize * 0.65, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Icon with glow
+        ctx.shadowColor = theme.indicatorColor;
+        ctx.shadowBlur = 12;
+        ctx.font = `${iSize}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(theme.icon, ix, barY - barH - 4 + bob);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(theme.icon, ix, barY + bob);
+        ctx.fillText(theme.icon, ix, barY + bob);
 
         ctx.restore();
 
@@ -724,5 +782,186 @@ class LevelManager {
 
     _loadEndlessBest() {
         try { return parseInt(localStorage.getItem('sb_endless_best')) || 0; } catch (e) { return 0; }
+    }
+
+    // ════════════════════════════════════════
+    //  LEVEL BACKGROUND ANIMATIONS
+    //  CG Concepts: Particle systems, transforms
+    // ════════════════════════════════════════
+
+    _initBgObjects() {
+        this.bgObjects = [];
+        const theme = getLevelTheme(this.currentLevel.id);
+        const type = theme.bgType;
+
+        if (type === 'binary' || type === 'password') {
+            // Falling columns of text
+            for (let i = 0; i < 12; i++) {
+                this.bgObjects.push({
+                    x: Math.random(),
+                    y: Math.random(),
+                    speed: 0.02 + Math.random() * 0.04,
+                    char: (theme.bgChars || '01')[Math.floor(Math.random() * (theme.bgChars || '01').length)],
+                    size: 10 + Math.random() * 8,
+                    alpha: 0.03 + Math.random() * 0.06,
+                });
+            }
+        } else if (type === 'scanlines') {
+            for (let i = 0; i < 6; i++) {
+                this.bgObjects.push({
+                    y: Math.random(),
+                    speed: 0.005 + Math.random() * 0.01,
+                    width: 0.3 + Math.random() * 0.5,
+                    alpha: 0.02 + Math.random() * 0.04,
+                });
+            }
+        } else if (type === 'virus') {
+            for (let i = 0; i < 8; i++) {
+                const chars = theme.bgChars || '☠';
+                this.bgObjects.push({
+                    x: Math.random(),
+                    y: Math.random(),
+                    vx: (Math.random() - 0.5) * 0.01,
+                    vy: (Math.random() - 0.5) * 0.008,
+                    char: chars[Math.floor(Math.random() * chars.length)],
+                    size: 14 + Math.random() * 12,
+                    alpha: 0.04 + Math.random() * 0.06,
+                    rot: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 0.5,
+                });
+            }
+        } else if (type === 'embers') {
+            for (let i = 0; i < 15; i++) {
+                this.bgObjects.push({
+                    x: Math.random(),
+                    y: 0.8 + Math.random() * 0.3,
+                    speed: 0.02 + Math.random() * 0.04,
+                    size: 1 + Math.random() * 3,
+                    alpha: 0.05 + Math.random() * 0.1,
+                    drift: (Math.random() - 0.5) * 0.005,
+                });
+            }
+        } else if (type === 'electric') {
+            for (let i = 0; i < 4; i++) {
+                this.bgObjects.push({
+                    x1: Math.random(), y1: Math.random() * 0.4 + 0.1,
+                    x2: Math.random(), y2: Math.random() * 0.4 + 0.4,
+                    timer: Math.random() * 3,
+                    interval: 1.5 + Math.random() * 3,
+                    alpha: 0,
+                });
+            }
+        }
+    }
+
+    _renderLevelBg(ctx, W, H, theme, t) {
+        if (!this.bgObjects || this.bgObjects.length === 0) return;
+        const type = theme.bgType;
+
+        ctx.save();
+
+        if (type === 'binary' || type === 'password') {
+            // Falling text columns — Matrix-style rain
+            ctx.font = '500 14px monospace';
+            ctx.textAlign = 'center';
+            for (const o of this.bgObjects) {
+                o.y += o.speed * 0.016;
+                if (o.y > 1.1) {
+                    o.y = -0.05;
+                    o.x = Math.random();
+                    o.char = (theme.bgChars || '01')[Math.floor(Math.random() * (theme.bgChars || '01').length)];
+                }
+                ctx.globalAlpha = o.alpha;
+                ctx.fillStyle = theme.bgColor;
+                ctx.font = `${o.size}px monospace`;
+                ctx.fillText(o.char, o.x * W, o.y * H);
+            }
+        } else if (type === 'scanlines') {
+            // Horizontal scanning lines
+            for (const o of this.bgObjects) {
+                o.y += o.speed * 0.016;
+                if (o.y > 1.2) o.y = -0.1;
+                ctx.globalAlpha = o.alpha;
+                ctx.strokeStyle = theme.bgColor;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 8]);
+                const startX = (1 - o.width) * W * 0.5;
+                ctx.beginPath();
+                ctx.moveTo(startX, o.y * H);
+                ctx.lineTo(startX + o.width * W, o.y * H);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        } else if (type === 'virus') {
+            // Drifting skulls/virus icons
+            for (const o of this.bgObjects) {
+                o.x += o.vx * 0.016;
+                o.y += o.vy * 0.016;
+                o.rot += o.rotSpeed * 0.016;
+                // Wrap around
+                if (o.x < -0.05) o.x = 1.05;
+                if (o.x > 1.05) o.x = -0.05;
+                if (o.y < -0.05) o.y = 1.05;
+                if (o.y > 1.05) o.y = -0.05;
+
+                ctx.globalAlpha = o.alpha;
+                ctx.save();
+                ctx.translate(o.x * W, o.y * H);
+                ctx.rotate(o.rot);
+                ctx.font = `${o.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(o.char, 0, 0);
+                ctx.restore();
+            }
+        } else if (type === 'embers') {
+            // Rising ember sparks
+            for (const o of this.bgObjects) {
+                o.y -= o.speed * 0.016;
+                o.x += o.drift;
+                if (o.y < -0.05) {
+                    o.y = 1.0 + Math.random() * 0.2;
+                    o.x = Math.random();
+                }
+                ctx.globalAlpha = o.alpha * (1 - Math.abs(o.y - 0.5) * 1.5);
+                ctx.fillStyle = theme.bgColor;
+                ctx.beginPath();
+                ctx.arc(o.x * W, o.y * H, o.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else if (type === 'electric') {
+            // Electric arc flashes
+            for (const o of this.bgObjects) {
+                o.timer += 0.016;
+                if (o.timer > o.interval) {
+                    o.timer = 0;
+                    o.alpha = 0.12;
+                    o.x1 = Math.random();
+                    o.y1 = 0.1 + Math.random() * 0.3;
+                    o.x2 = Math.random();
+                    o.y2 = 0.5 + Math.random() * 0.3;
+                }
+                if (o.alpha > 0) {
+                    o.alpha *= 0.92;
+                    ctx.globalAlpha = o.alpha;
+                    ctx.strokeStyle = theme.bgColor;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(o.x1 * W, o.y1 * H);
+                    // Jagged line with 3-4 segments
+                    const segments = 3;
+                    for (let s = 1; s <= segments; s++) {
+                        const frac = s / (segments + 1);
+                        const mx = o.x1 + (o.x2 - o.x1) * frac + (Math.random() - 0.5) * 0.1;
+                        const my = o.y1 + (o.y2 - o.y1) * frac + (Math.random() - 0.5) * 0.05;
+                        ctx.lineTo(mx * W, my * H);
+                    }
+                    ctx.lineTo(o.x2 * W, o.y2 * H);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        ctx.restore();
     }
 }

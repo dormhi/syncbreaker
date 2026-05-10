@@ -62,6 +62,7 @@ class GameManager {
         this.state.register(S.MENU, {
             enter: () => {
                 this.ui.clearButtons();
+                Sound.startAmbient();
                 const cx = this.canvas.width / 2;
                 this.ui.addButton('start', '▶  START MISSION', cx, 520, 240, 48,
                     () => this.state.change(S.HUB));
@@ -156,6 +157,7 @@ class GameManager {
         this.state.register(S.HUB, {
             enter: () => {
                 this.ui.clearButtons();
+                Sound.startAmbient();
                 this._buildHubButtons();
             },
             render: (ctx) => {
@@ -199,7 +201,7 @@ class GameManager {
 
         // ── LEVEL (Gameplay) ──
         this.state.register(S.LEVEL, {
-            enter: () => this.ui.clearButtons(),
+            enter: () => { this.ui.clearButtons(); Sound.stopAmbient(); },
             update: (dt) => {
                 this.levels.update(dt);
 
@@ -251,6 +253,7 @@ class GameManager {
         this.state.register(S.LOCKPICK, {
             enter: (context) => {
                 this.ui.clearButtons();
+                Sound.stopAmbient();
                 const lCtx = context || {};
                 this._lockpickReason = lCtx.reason || 'shortcut';
                 this._lockpickLevelIndex = lCtx.levelIndex;
@@ -429,6 +432,7 @@ class GameManager {
         this.state.register(S.ENDLESS, {
             enter: () => {
                 this.ui.clearButtons();
+                Sound.stopAmbient();
                 // If returning from revive, continue without reset
                 if (!this.levels.endlessMode) {
                     this.levels.startEndless();
