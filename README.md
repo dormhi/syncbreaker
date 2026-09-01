@@ -2,7 +2,7 @@
 
 **SyncBreaker** is a browser-based, cyberpunk-themed defense game built as a **Computer Graphics Final Project**. The game focuses on fundamental graphics programming concepts—such as transformations, physics, particle systems, and rendering loops—built entirely from scratch using **Vanilla JavaScript** and the **HTML5 Canvas API** without any external game engines.
 
-🔗 **[Play the Game Live](https://dormhi.github.io/syncbreaker/)**
+🔗 **[Play the Game Live](www.dormhi.info)**
 
 ## 🎮 Gameplay
 You are tasked with defending a system against an active cyber attack. You must clean infected nodes and rebuild the firewall using two core mechanics:
