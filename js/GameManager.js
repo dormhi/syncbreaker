@@ -424,6 +424,10 @@ class GameManager {
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
+                if (e.code === 'Space') {
+                    this.levels.startLevel(this._goLevelIndex);
+                    this.state.change(S.LEVEL);
+                }
                 if (e.code === 'Escape') this.state.change(S.HUB);
             }
         });
