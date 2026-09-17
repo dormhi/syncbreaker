@@ -12,7 +12,9 @@ class StateManager {
             LOCKPICK: 'LOCKPICK',
             GAME_OVER: 'GAME_OVER',
             ENDLESS: 'ENDLESS',
-            ENDLESS_OVER: 'ENDLESS_OVER'
+            ENDLESS_OVER: 'ENDLESS_OVER',
+            PROFILE_SETUP: 'PROFILE_SETUP',
+            LEADERBOARD: 'LEADERBOARD'
         };
 
         this.currentState = this.STATES.MENU;

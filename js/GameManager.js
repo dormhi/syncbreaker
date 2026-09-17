@@ -14,6 +14,7 @@ class GameManager {
         this.ui = new UIManager(ctx, canvas);
         this.lockpick = new LockpickSystem();
         this.levels = new LevelManager();
+        this.leaderboard = new LeaderboardService();
 
         // Background effects — CG: Animation + Rendering
         this.bgTime = 0;
@@ -207,7 +208,14 @@ class GameManager {
 
                 if (this.levels.levelComplete === true) {
                     this.levels.levelComplete = 'handled';
-                    setTimeout(() => this.state.change(S.HUB), 1500);
+                    const unlockedEndless = this.levels.isAllCompleted();
+                    setTimeout(() => {
+                        if (unlockedEndless && !this.leaderboard.hasProfile()) {
+                            this.state.change(S.PROFILE_SETUP, { returnState: S.HUB });
+                        } else {
+                            this.state.change(S.HUB);
+                        }
+                    }, 1500);
                 }
 
                 if (this.levels.levelFailed === true) {
@@ -490,6 +498,21 @@ class GameManager {
                 this._eoMaxCombo = lCtx.maxCombo || 0;
                 this._eoHitCount = lCtx.hitCount || 0;
                 this._eoNoRevive = lCtx.noRevive || false;
+                this._endlessUploadStatus = '';
+
+                if (this._eoScore > 0 && this._eoHitCount > 0) {
+                    this.leaderboard.recordResult({
+                        score: this._eoScore,
+                        wave: this._eoWave,
+                        hitCount: this._eoHitCount
+                    }).then(() => {
+                        this._endlessUploadStatus = this.leaderboard.hasProfile()
+                            ? 'Score synced to leaderboard'
+                            : 'Score saved; create a profile to sync it';
+                    }).catch(() => {
+                        this._endlessUploadStatus = 'Score saved locally — sync will retry later';
+                    });
+                }
 
                 // Endless mode revive — unlimited as long as energy lasts!
                 if (!this._eoNoRevive && this.energy.canAfford('REVIVE')) {
@@ -566,6 +589,12 @@ class GameManager {
                     ctx.fillText('Recovery protocol failed', cx, cy + 32);
                 }
 
+                if (this._endlessUploadStatus) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '400 12px Rajdhani';
+                    ctx.fillText(this._endlessUploadStatus, cx, cy + 50);
+                }
+
                 this.ui.renderButtons();
             },
             exit: () => this.ui.clearButtons(),
@@ -574,9 +603,232 @@ class GameManager {
             }
         });
 
+        // ── PROFILE SETUP ──
+        this.state.register(S.PROFILE_SETUP, {
+            enter: (context) => {
+                this.ui.clearButtons();
+                const lCtx = context || {};
+                this._profileReturnState = lCtx.returnState || S.HUB;
+                this._profileName = '';
+                this._profileStatus = 'Connecting to leaderboard...';
+                this._profileSubmitting = false;
+                const cx = this.canvas.width / 2;
+                const cy = this.canvas.height / 2;
+
+                this.ui.addButton('profile-submit', 'CREATE OPERATOR', cx, cy + 95, 220, 42,
+                    () => this._submitProfileName(), { color: '#f59e0b' });
+                this.ui.addButton('profile-mobile-name', 'ENTER NAME', cx, cy + 145, 180, 36,
+                    () => {
+                        const entered = window.prompt('Choose a unique operator name (3–16 characters):', this._profileName);
+                        if (entered !== null) this._profileName = entered.trim().slice(0, 16);
+                    }, { color: '#3b82f6' });
+                this.ui.addButton('profile-skip', '← BACK', cx, cy + 195, 160, 36,
+                    () => this.state.change(this._profileReturnState), { color: '#64748b' });
+
+                if (!this.leaderboard.isConfigured()) {
+                    this._profileStatus = 'Leaderboard is not configured yet.';
+                    return;
+                }
+                this.leaderboard.initialize().then((profile) => {
+                    if (this.state.currentState !== S.PROFILE_SETUP) return;
+                    if (profile) {
+                        this.state.change(this._profileReturnState);
+                    } else {
+                        this._profileStatus = 'Choose your unique operator name.';
+                    }
+                }).catch(() => {
+                    if (this.state.currentState === S.PROFILE_SETUP) {
+                        this._profileStatus = 'Offline: choose a name and retry when connected.';
+                    }
+                });
+            },
+            render: (ctx) => this._renderProfileSetup(ctx),
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => this._handleProfileKey(e)
+        });
+
+        // ── LEADERBOARD ──
+        this.state.register(S.LEADERBOARD, {
+            enter: () => {
+                this.ui.clearButtons();
+                const cx = this.canvas.width / 2;
+                const H = this.canvas.height;
+                this._leaderboardEntries = [];
+                this._leaderboardMe = null;
+                this._leaderboardStatus = 'Connecting...';
+                this.ui.addButton('leaderboard-retry', '↻ REFRESH', cx - 115, H - 45, 180, 36,
+                    () => this._loadLeaderboard(), { color: '#3b82f6' });
+                this.ui.addButton('leaderboard-hub', '← NODE SELECT', cx + 115, H - 45, 180, 36,
+                    () => this.state.change(S.HUB), { color: '#64748b' });
+
+                this.leaderboard.initialize().then((profile) => {
+                    if (this.state.currentState !== S.LEADERBOARD) return;
+                    if (!profile) this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD });
+                    else this._loadLeaderboard();
+                }).catch(() => {
+                    if (this.state.currentState === S.LEADERBOARD) {
+                        this._leaderboardStatus = 'Leaderboard unavailable. Check your connection.';
+                    }
+                });
+            },
+            render: (ctx) => this._renderLeaderboard(ctx),
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => { if (e.code === 'Escape') this.state.change(S.HUB); }
+        });
+
         // Enter initial state
         const menuH = this.state._handlers[S.MENU];
         if (menuH) menuH.enter();
+    }
+
+    async _submitProfileName() {
+        if (this._profileSubmitting) return;
+        if (!this.leaderboard.isConfigured()) {
+            this._profileStatus = 'Leaderboard is not configured yet.';
+            return;
+        }
+        this._profileSubmitting = true;
+        this._profileStatus = 'Creating operator profile...';
+        try {
+            await this.leaderboard.createProfile(this._profileName);
+            this.state.change(this._profileReturnState);
+        } catch (error) {
+            const message = error && error.message ? error.message : 'Unable to create profile.';
+            this._profileStatus = /duplicate|unique/i.test(message)
+                ? 'That operator name is already taken.'
+                : message;
+        } finally {
+            this._profileSubmitting = false;
+        }
+    }
+
+    _handleProfileKey(e) {
+        if (e.code === 'Escape') {
+            this.state.change(this._profileReturnState);
+            return;
+        }
+        if (e.code === 'Enter') {
+            this._submitProfileName();
+            return;
+        }
+        if (e.code === 'Backspace') {
+            this._profileName = this._profileName.slice(0, -1);
+            return;
+        }
+        if (e.key && /^[A-Za-z0-9_ -]$/.test(e.key) && this._profileName.length < 16) {
+            this._profileName += e.key;
+        }
+    }
+
+    _renderProfileSetup(ctx) {
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const cx = W / 2;
+        const cy = H / 2;
+        ctx.save();
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '700 24px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.fillText('OPERATOR PROFILE', cx, cy - 125);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '400 15px Rajdhani';
+        ctx.fillText('Choose a unique name for the Endless leaderboard', cx, cy - 95);
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        ctx.strokeStyle = '#f59e0b';
+        Utils.roundRect(ctx, cx - 180, cy - 55, 360, 52, 6);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = this._profileName ? '#e2e8f0' : '#64748b';
+        ctx.font = '600 22px Rajdhani';
+        ctx.fillText(this._profileName || 'TYPE YOUR NAME', cx, cy - 22);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '400 12px Rajdhani';
+        ctx.fillText(`${this._profileName.length}/16  •  letters, numbers, spaces, _ or -`, cx, cy + 23);
+        ctx.fillStyle = this._profileStatus.includes('taken') || this._profileStatus.includes('not configured') ? '#ef4444' : '#94a3b8';
+        ctx.font = '400 14px Rajdhani';
+        ctx.fillText(this._profileStatus, cx, cy + 48);
+        ctx.restore();
+        this.ui.renderButtons();
+    }
+
+    async _loadLeaderboard() {
+        this._leaderboardStatus = 'Loading leaderboard...';
+        try {
+            const result = await this.leaderboard.getLeaderboard();
+            this._leaderboardEntries = result.entries;
+            this._leaderboardMe = result.me;
+            this._leaderboardStatus = result.entries.length ? '' : 'No Endless scores yet. Set the first record!';
+        } catch (error) {
+            this._leaderboardStatus = error && error.message
+                ? error.message
+                : 'Leaderboard unavailable. Try again.';
+        }
+    }
+
+    _renderLeaderboard(ctx) {
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const cx = W / 2;
+        ctx.save();
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '700 24px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.fillText('∞ ENDLESS LEADERBOARD', cx, 60);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '400 14px Rajdhani';
+        ctx.fillText('Top 10 operators by best score', cx, 82);
+
+        const x = cx - 300;
+        const y = 110;
+        const rowH = 34;
+        ctx.fillStyle = 'rgba(15,23,42,0.78)';
+        ctx.strokeStyle = '#1e293b';
+        Utils.roundRect(ctx, x, y, 600, rowH * 11, 6);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#64748b';
+        ctx.font = '600 13px Rajdhani';
+        ctx.textAlign = 'left';
+        ctx.fillText('RANK', x + 20, y + 22);
+        ctx.fillText('OPERATOR', x + 100, y + 22);
+        ctx.textAlign = 'right';
+        ctx.fillText('WAVE', x + 480, y + 22);
+        ctx.fillText('SCORE', x + 575, y + 22);
+
+        this._leaderboardEntries.forEach((entry, index) => {
+            const rowY = y + rowH * (index + 1);
+            const mine = this.leaderboard.profile && entry.display_name === this.leaderboard.profile.displayName;
+            ctx.fillStyle = mine ? 'rgba(245,158,11,0.12)' : 'rgba(30,41,59,0.28)';
+            ctx.fillRect(x + 1, rowY, 598, rowH - 1);
+            ctx.fillStyle = index < 3 ? '#f59e0b' : '#cbd5e1';
+            ctx.font = '600 15px Rajdhani';
+            ctx.textAlign = 'left';
+            ctx.fillText(`#${index + 1}`, x + 20, rowY + 22);
+            ctx.fillText(entry.display_name, x + 100, rowY + 22);
+            ctx.textAlign = 'right';
+            ctx.fillText(String(entry.best_wave), x + 480, rowY + 22);
+            ctx.fillText(Number(entry.best_score).toLocaleString(), x + 575, rowY + 22);
+        });
+
+        if (this._leaderboardMe && this._leaderboardMe.rank > 10) {
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = '600 16px Rajdhani';
+            ctx.textAlign = 'center';
+            ctx.fillText(`YOUR RANK  #${this._leaderboardMe.rank}  •  ${Number(this._leaderboardMe.best_score).toLocaleString()} points`, cx, 515);
+        } else if (!this._leaderboardMe && !this._leaderboardStatus) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '400 14px Rajdhani';
+            ctx.textAlign = 'center';
+            ctx.fillText('Finish an Endless run to claim your place.', cx, 515);
+        }
+        if (this._leaderboardStatus) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '400 14px Rajdhani';
+            ctx.textAlign = 'center';
+            ctx.fillText(this._leaderboardStatus, cx, 515);
+        }
+        ctx.restore();
+        this.ui.renderButtons();
     }
 
     // ── HUB Buttons ──
@@ -644,6 +896,10 @@ class GameManager {
             this.ui.addButton('endless', '∞ ENDLESS MODE', W / 2, endlessY, 240, 50,
                 () => this.state.change(this.state.STATES.ENDLESS),
                 { color: '#f59e0b', subtitle: endlessSubtitle }
+            );
+            this.ui.addButton('leaderboard', '🏆 LEADERBOARD', W / 2, endlessY + 60, 220, 38,
+                () => this.state.change(this.state.STATES.LEADERBOARD),
+                { color: '#f59e0b' }
             );
         } else {
             const remaining = this.levels.levels.filter(l => !l.completed).length;

@@ -12,6 +12,7 @@ You are tasked with defending a system against an active cyber attack. You must 
 ## ✨ Features
 - **Object-Oriented Architecture:** Fully decoupled systems for UI, Game State, Energy Management, and Level configurations.
 - **Endless Mode:** Survive an infinite wave of attacks where difficulty progressively scales up.
+- **Online Endless Leaderboard:** Unlock Endless Mode, choose a unique operator name, and compete on the shared top 10 leaderboard.
 - **Energy & Progression System:** Energy depletes when taking shortcuts or reviving, and slowly regenerates over time (persists via `localStorage`).
 - **Mobile-Ready:** Fully supports touch interactions (Tap to shoot, Swipe to lockpick) for a seamless mobile experience.
 
@@ -30,6 +31,8 @@ No build tools or installations are required.
    git clone https://github.com/dormhi/syncbreaker.git
    ```
 2. Open `index.html` in any modern browser or use a local extension like VS Code Live Server.
+
+To enable the shared leaderboard, complete the one-time [Supabase setup](SUPABASE_SETUP.md) before deploying.
 
 ## 🎓 About
 Developed as a Computer Graphics University Final Project.
