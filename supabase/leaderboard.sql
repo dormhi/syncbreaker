@@ -59,7 +59,7 @@ begin
 
     insert into public.profiles (id, display_name)
     values (auth.uid(), v_name)
-    on conflict (id) do nothing;
+    on conflict on constraint profiles_pkey do nothing;
 
     return query
     select p.id, p.display_name
