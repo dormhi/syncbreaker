@@ -147,6 +147,13 @@ class GameManager {
                 ctx.font = '300 12px Rajdhani';
                 ctx.textAlign = 'center';
                 ctx.fillText('v0.1 Beta — Computer Graphics Final Project', cx, H - 16);
+
+                // Credits
+                ctx.fillStyle = 'rgba(148,163,184,0.55)';
+                ctx.font = '300 12px Rajdhani';
+                ctx.textAlign = 'right';
+                ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
+                ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
