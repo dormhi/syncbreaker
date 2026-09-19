@@ -1113,14 +1113,14 @@ class GameManager {
         const H = this.canvas.height;
         const levels = this.levels.levels;
         const cols = 3;
-        const cardW = 210;
-        const cardH = 104;
+        const cardW = 280;
+        const cardH = 112;
         const gapX = 16;
         const totalW = cols * cardW + (cols - 1) * gapX;
         const startX = (W - totalW) / 2 + cardW / 2;
-        const row1Y = 172;
-        const row2Y = 356;
-        this._hubLockY = 247;
+        const row1Y = 170;
+        const row2Y = 360;
+        this._hubLockY = 248;
         const group2 = this.levels.isGroup2Unlocked();
 
         this._hubPositions = [];
@@ -1217,14 +1217,14 @@ class GameManager {
     _renderHubConnections(ctx) {
         const W = this.canvas.width;
         const cols = 3;
-        const cardW = 210;
-        const cardH = 104;
+        const cardW = 280;
+        const cardH = 112;
         const gapX = 16;
         const totalW = cols * cardW + (cols - 1) * gapX;
         const left = (W - totalW) / 2 - 18;
         const panelW = totalW + 36;
-        const row1Y = 172;
-        const row2Y = 356;
+        const row1Y = 170;
+        const row2Y = 360;
         const panel1Top = row1Y - cardH / 2 - 34;
         const panel1H = cardH + 34;
         const panel2Top = row2Y - cardH / 2 - 34;

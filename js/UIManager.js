@@ -167,29 +167,31 @@ class UIManager {
 
         // Name
         ctx.fillStyle = locked ? '#64748b' : '#e2e8f0';
-        ctx.font = '600 12px Orbitron';
-        ctx.fillText(this._fitText(btn.label, textMaxW), textX, top + 28);
+        ctx.font = '600 14px Orbitron';
+        ctx.fillText(this._fitText(btn.label, textMaxW), textX, top + 30);
 
         // Description
         if (btn.subtitle) {
             ctx.fillStyle = '#64748b';
-            ctx.font = '400 10px Rajdhani';
-            ctx.fillText(this._fitText(btn.subtitle, textMaxW), textX, top + 45);
+            ctx.font = '400 11px Rajdhani';
+            ctx.fillText(this._fitText(btn.subtitle, textMaxW), textX, top + 48);
         }
 
         // Status line
         if (btn.status === 'completed') {
             ctx.fillStyle = '#22c55e';
             ctx.font = '500 11px Rajdhani';
-            ctx.fillText('CLEARED', textX, top + h - 12);
+            ctx.fillText('CLEARED', textX, top + h - 13);
         } else if (locked) {
-            ctx.fillStyle = '#475569';
+            // Site-coloured vector lock (no emoji)
+            this._drawLockGlyph(ctx, textX, top + h - 22, 10, '#94a3b8');
+            ctx.fillStyle = '#94a3b8';
             ctx.font = '600 11px Rajdhani';
-            ctx.fillText('LOCKED', textX, top + h - 12);
+            ctx.fillText('LOCKED', textX + 15, top + h - 13);
         } else {
             ctx.fillStyle = '#3b82f6';
             ctx.font = '500 11px Rajdhani';
-            ctx.fillText('READY', textX, top + h - 12);
+            ctx.fillText('READY', textX, top + h - 13);
         }
 
         // Best score
@@ -197,11 +199,29 @@ class UIManager {
             ctx.textAlign = 'right';
             ctx.fillStyle = '#475569';
             ctx.font = '400 11px Rajdhani';
-            ctx.fillText('BEST ' + btn.score, left + w - 12, top + h - 12);
+            ctx.fillText('BEST ' + btn.score, left + w - 12, top + h - 13);
         }
 
         ctx.restore();
 
+        ctx.restore();
+    }
+
+    /** Small vector padlock in a given colour. (x, y) is the body top-left. */
+    _drawLockGlyph(ctx, x, y, size, color) {
+        const w = size;
+        const h = size * 0.78;
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(1.2, size * 0.16);
+        ctx.lineCap = 'round';
+        // Shackle
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y, w * 0.3, Math.PI, 0, false);
+        ctx.stroke();
+        // Body
+        Utils.roundRect(ctx, x, y, w, h, size * 0.18);
+        ctx.stroke();
         ctx.restore();
     }
 
