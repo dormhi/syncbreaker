@@ -154,33 +154,42 @@ class UIManager {
             ctx.restore();
         }
 
-        // Name
+        // Text block — clipped to the card so long names never spill out
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(left + 54, top + 2, w - 60, h - 4);
+        ctx.clip();
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
+
+        const textX = left + 58;
+        const textMaxW = w - 68;
+
+        // Name
         ctx.fillStyle = locked ? '#64748b' : '#e2e8f0';
-        ctx.font = '600 14px Orbitron';
-        ctx.fillText(btn.label, left + 62, top + 30);
+        ctx.font = '600 12px Orbitron';
+        ctx.fillText(this._fitText(btn.label, textMaxW), textX, top + 28);
 
         // Description
         if (btn.subtitle) {
             ctx.fillStyle = '#64748b';
-            ctx.font = '400 11px Rajdhani';
-            ctx.fillText(btn.subtitle, left + 62, top + 48);
+            ctx.font = '400 10px Rajdhani';
+            ctx.fillText(this._fitText(btn.subtitle, textMaxW), textX, top + 45);
         }
 
         // Status line
         if (btn.status === 'completed') {
             ctx.fillStyle = '#22c55e';
             ctx.font = '500 11px Rajdhani';
-            ctx.fillText('CLEARED', left + 62, top + h - 12);
+            ctx.fillText('CLEARED', textX, top + h - 12);
         } else if (locked) {
             ctx.fillStyle = '#475569';
-            ctx.font = '600 12px Rajdhani';
-            ctx.fillText('🔒 LOCKED', left + 62, top + h - 12);
+            ctx.font = '600 11px Rajdhani';
+            ctx.fillText('LOCKED', textX, top + h - 12);
         } else {
             ctx.fillStyle = '#3b82f6';
             ctx.font = '500 11px Rajdhani';
-            ctx.fillText('READY', left + 62, top + h - 12);
+            ctx.fillText('READY', textX, top + h - 12);
         }
 
         // Best score
@@ -192,6 +201,29 @@ class UIManager {
         }
 
         ctx.restore();
+
+        ctx.restore();
+    }
+
+    /** Truncate text with an ellipsis so it fits `maxWidth` at the current font. */
+    _fitText(text, maxWidth) {
+        if (!text) return '';
+        const ctx = this.ctx;
+        const widthOf = (s) => {
+            try {
+                const m = ctx.measureText(s);
+                return (m && typeof m.width === 'number' && isFinite(m.width)) ? m.width : 0;
+            } catch (e) { return 0; }
+        };
+        if (widthOf(text) <= maxWidth) return text;
+        const ell = '…';
+        let lo = 0, hi = text.length;
+        while (lo < hi) {
+            const mid = Math.ceil((lo + hi) / 2);
+            if (widthOf(text.slice(0, mid) + ell) <= maxWidth) lo = mid;
+            else hi = mid - 1;
+        }
+        return text.slice(0, lo) + ell;
     }
 
     renderEnergyBar(energy) {

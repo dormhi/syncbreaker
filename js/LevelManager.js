@@ -51,12 +51,12 @@ class LevelManager {
 
     _createLevels() {
         return [
-            { id: 1, name: 'CLEAR_LOGS', desc: 'Delete the attacker\'s log files', difficulty: 1, barSpeed: 0.7, targetSize: 0.22, requiredHits: 8, maxTime: 25, unlocked: true, completed: false, bestScore: 0, lockpickDiff: 1 },
+            { id: 1, name: 'CLEAR_LOGS', desc: 'Delete attacker log files', difficulty: 1, barSpeed: 0.7, targetSize: 0.22, requiredHits: 8, maxTime: 25, unlocked: true, completed: false, bestScore: 0, lockpickDiff: 1 },
             { id: 2, name: 'CLOSE_PORTS', desc: 'Shut down open backdoors', difficulty: 2, barSpeed: 0.9, targetSize: 0.18, requiredHits: 10, maxTime: 28, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 2 },
-            { id: 3, name: 'REMOVE_MALWARE', desc: 'Detect and remove malicious software', difficulty: 3, barSpeed: 1.1, targetSize: 0.15, requiredHits: 12, maxTime: 30, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 3 },
-            { id: 4, name: 'RESET_CREDS', desc: 'Reset compromised credentials', difficulty: 4, barSpeed: 1.2, targetSize: 0.12, requiredHits: 14, maxTime: 35, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 4 },
+            { id: 3, name: 'REMOVE_MALWARE', desc: 'Remove malicious software', difficulty: 3, barSpeed: 1.1, targetSize: 0.15, requiredHits: 12, maxTime: 30, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 3 },
+            { id: 4, name: 'RESET_CREDS', desc: 'Reset leaked credentials', difficulty: 4, barSpeed: 1.2, targetSize: 0.12, requiredHits: 14, maxTime: 35, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 4 },
             { id: 5, name: 'FIREWALL', desc: 'Rebuild the firewall', difficulty: 5, barSpeed: 1.35, targetSize: 0.10, requiredHits: 16, maxTime: 40, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 5 },
-            { id: 6, name: 'CUT_ACCESS', desc: 'Completely sever the attacker\'s connection', difficulty: 6, barSpeed: 1.5, targetSize: 0.08, requiredHits: 18, maxTime: 60, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 6 }
+            { id: 6, name: 'CUT_ACCESS', desc: 'Sever the attacker\'s link', difficulty: 6, barSpeed: 1.5, targetSize: 0.08, requiredHits: 18, maxTime: 60, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 6 }
         ];
     }
 
