@@ -516,6 +516,9 @@ class GameManager {
                 this._goLevelIndex = lCtx.levelIndex;
                 this._noRevive = lCtx.noRevive || false;
                 this._revivesUsed = lCtx.revivesUsed || 0;
+                // Short cooldown so players can't mash restart right after a
+                // failure — gives the hands a moment to cool off.
+                this._goCooldown = 1.0;
                 const maxRevives = this.levels.maxRevives || 2;
                 const revivesLeft = Math.max(0, maxRevives - this._revivesUsed);
 
@@ -539,18 +542,22 @@ class GameManager {
 
                 // Retry
                 this.ui.addButton('retry', '↻ RETRY', cx, cy + 85, 200, 40,
-                    () => {
-                        this.levels.startLevel(this._goLevelIndex);
-                        this.state.change(S.LEVEL);
-                    },
+                    () => this._restartFromGameOver(),
                     { color: '#3b82f6' }
                 );
+                this._updateRetryButton();
 
                 // Back to hub
                 this.ui.addButton('hub', '← NODE SELECT', cx, cy + 135, 200, 40,
                     () => this.state.change(S.HUB),
                     { color: '#64748b' }
                 );
+            },
+            update: (dt) => {
+                if (this._goCooldown > 0) {
+                    this._goCooldown = Math.max(0, this._goCooldown - dt);
+                    this._updateRetryButton();
+                }
             },
             render: (ctx) => {
                 const W = this.canvas.width;
@@ -577,14 +584,17 @@ class GameManager {
                     ctx.fillText('No recovery charges left for this node', cx, cy);
                 }
 
+                if (this._goCooldown > 0) {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '600 15px Rajdhani';
+                    ctx.fillText(`Restart unlocks in ${this._goCooldown.toFixed(1)}s`, cx, cy + 175);
+                }
+
                 this.ui.renderButtons();
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
-                if (e.code === 'Space') {
-                    this.levels.startLevel(this._goLevelIndex);
-                    this.state.change(S.LEVEL);
-                }
+                if (e.code === 'Space') this._restartFromGameOver();
                 if (e.code === 'Escape') this.state.change(S.HUB);
             }
         });
@@ -1413,6 +1423,26 @@ class GameManager {
             }
         }
         return false;
+    }
+
+    /** Retry from the failure screen, gated by the restart cooldown. */
+    _restartFromGameOver() {
+        if ((this._goCooldown || 0) > 0) return;
+        this.levels.startLevel(this._goLevelIndex);
+        this.state.change(this.state.STATES.LEVEL);
+    }
+
+    /** Reflect the restart cooldown on the RETRY button. */
+    _updateRetryButton() {
+        const btn = this.ui.buttons.find(b => b.id === 'retry');
+        if (!btn) return;
+        if (this._goCooldown > 0) {
+            btn.disabled = true;
+            btn.label = `↻ RETRY (${this._goCooldown.toFixed(1)}s)`;
+        } else {
+            btn.disabled = false;
+            btn.label = '↻ RETRY';
+        }
     }
 
     // ── Input ──

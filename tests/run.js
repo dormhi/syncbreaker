@@ -768,6 +768,41 @@ suite('Input sampling aligns with the rendered bar', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('GAME OVER restart cooldown', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const handler = gm.state._handlers[gm.state.STATES.GAME_OVER];
+
+    gm.state.currentState = gm.state.STATES.GAME_OVER;
+    gm.state.transitioning = false;
+    gm.state.pendingState = null;
+    handler.enter({ levelIndex: 0, score: 0, revivesUsed: 0 });
+
+    ok('cooldown starts at 1s', Math.abs(gm._goCooldown - 1.0) < 1e-9);
+
+    // Space during the cooldown must not restart.
+    handler.onKey({ code: 'Space' });
+    ok('Space is blocked during cooldown', gm.state.pendingState === null);
+
+    // The RETRY button is disabled and shows the countdown.
+    const retry = gm.ui.buttons.find(b => b.id === 'retry');
+    ok('retry button disabled during cooldown', retry && retry.disabled === true);
+    ok('retry button shows the countdown', retry && /RETRY \(\d\.\ds\)/.test(retry.label));
+
+    // Tick the cooldown down.
+    for (let i = 0; i < 70; i++) handler.update(1 / 60);
+    ok('cooldown expires', gm._goCooldown === 0);
+    ok('retry button re-enabled', retry && retry.disabled === false && retry.label === '↻ RETRY');
+
+    // Now Space restarts.
+    gm.state.pendingState = null;
+    handler.onKey({ code: 'Space' });
+    ok('Space restarts after cooldown', gm.state.pendingState === gm.state.STATES.LEVEL);
+});
+
+// ─────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50));
 console.log(`PASS ${passed}   FAIL ${failed}`);
 if (failures.length) {
