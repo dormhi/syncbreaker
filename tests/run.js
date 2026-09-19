@@ -828,16 +828,18 @@ suite('Sound mute toggle + HUB button', () => {
 
     const btn = gm.ui.buttons.find(b => b.id === 'sound');
     ok('HUB has a sound button', !!btn);
+    ok('sound button is compact', btn.w <= 60 && btn.h <= 40);
 
     s.setMuted(false);
     gm._updateSoundButton();
-    ok('label shows SOUND ON', /SOUND ON/.test(btn.label));
+    ok('button reflects unmuted', btn.muted === false);
 
     s.setMuted(true);
     gm._updateSoundButton();
-    ok('label shows MUTED', /MUTED/.test(btn.label));
+    ok('button reflects muted', btn.muted === true);
 
     s.setMuted(false);
+    gm._updateSoundButton();
 });
 
 // ─────────────────────────────────────────────

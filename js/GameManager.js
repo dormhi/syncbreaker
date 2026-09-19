@@ -1201,13 +1201,13 @@ class GameManager {
         );
 
         // Sound toggle
-        this.ui.addButton('sound', '', W / 2, H - 35, 170, 32,
+        this.ui.addButton('sound', '', W / 2, H - 35, 44, 30,
             () => {
                 Sound.toggleMute();
                 this._updateSoundButton();
                 if (!Sound.isMuted()) Sound.startAmbient();
             },
-            { color: '#475569' }
+            { color: '#475569', custom: 'sound' }
         );
         this._updateSoundButton();
 
@@ -1460,7 +1460,7 @@ class GameManager {
     _updateSoundButton() {
         const btn = this.ui.buttons.find(b => b.id === 'sound');
         if (!btn) return;
-        btn.label = Sound.isMuted() ? '🔇  MUTED' : '🔊  SOUND ON';
+        btn.muted = Sound.isMuted();
     }
 
     // ── Input ──

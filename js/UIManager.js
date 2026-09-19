@@ -22,6 +22,7 @@ class UIManager {
             subtitle: style.subtitle || null,
             // Card style (level selector)
             card: style.card || false,
+            custom: style.custom || null,
             icon: style.icon,
             status: style.status || null, // 'completed' | 'unlocked' | 'locked'
             score: style.score || 0,
@@ -76,6 +77,7 @@ class UIManager {
         for (const btn of this.buttons) {
             if (btn.hidden) continue;
             if (btn.card) { this._renderCard(btn); continue; }
+            if (btn.custom === 'sound') { this._renderSoundButton(btn); continue; }
             const hovered = !btn.disabled && this.isHovered(btn);
             const alpha = btn.disabled ? 0.3 : 1;
 
@@ -222,6 +224,61 @@ class UIManager {
         // Body
         Utils.roundRect(ctx, x, y, w, h, size * 0.18);
         ctx.stroke();
+        ctx.restore();
+    }
+
+    /** Compact speaker button (muted = crossed out). */
+    _renderSoundButton(btn) {
+        const ctx = this.ctx;
+        const left = btn.x - btn.w / 2;
+        const top = btn.y - btn.h / 2;
+        const hovered = !btn.disabled && this.isHovered(btn);
+        const muted = !!btn.muted;
+        const color = muted ? '#64748b' : '#3b82f6';
+
+        ctx.save();
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = hovered ? 1.8 : 1.2;
+        Utils.roundRect(ctx, left, top, btn.w, btn.h, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        const cx = btn.x, cy = btn.y, s = 9;
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        // Speaker body
+        ctx.beginPath();
+        ctx.moveTo(cx - s, cy - s * 0.38);
+        ctx.lineTo(cx - s * 0.4, cy - s * 0.38);
+        ctx.lineTo(cx + s * 0.3, cy - s * 0.95);
+        ctx.lineTo(cx + s * 0.3, cy + s * 0.95);
+        ctx.lineTo(cx - s * 0.4, cy + s * 0.38);
+        ctx.lineTo(cx - s, cy + s * 0.38);
+        ctx.closePath();
+        ctx.fill();
+
+        if (muted) {
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(cx + s * 0.6, cy - s * 0.45);
+            ctx.lineTo(cx + s * 1.15, cy + s * 0.45);
+            ctx.moveTo(cx + s * 1.15, cy - s * 0.45);
+            ctx.lineTo(cx + s * 0.6, cy + s * 0.45);
+            ctx.stroke();
+        } else {
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.arc(cx + s * 0.4, cy, s * 0.55, -Math.PI / 3, Math.PI / 3);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx + s * 0.4, cy, s * 0.9, -Math.PI / 3, Math.PI / 3);
+            ctx.stroke();
+        }
+
         ctx.restore();
     }
 
