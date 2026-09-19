@@ -218,11 +218,11 @@ class GameManager {
                 ctx.font = '700 22px Orbitron';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'alphabetic';
-                ctx.fillText('INFECTED NODES', W / 2, 34);
+                ctx.fillText('INFECTED NODES', W / 2, 30);
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '400 13px Rajdhani';
-                ctx.fillText('Select system nodes to clean', W / 2, 53);
+                ctx.fillText('Select system nodes to clean', W / 2, 48);
 
                 // Header: global node progress + divider
                 this._renderHubHeader(ctx, W);
@@ -1109,19 +1109,38 @@ class GameManager {
 
     // ── HUB Buttons ──
 
+    /** Single source of truth for the HUB layout (prevents overlap drift). */
+    _hubLayout() {
+        const W = this.canvas.width;
+        const cols = 3;
+        const cardW = 280;
+        const cardH = 104;
+        const gapX = 16;
+        const totalW = cols * cardW + (cols - 1) * gapX;
+        const left = (W - totalW) / 2 - 18;
+        const panelW = totalW + 36;
+        const startX = (W - totalW) / 2 + cardW / 2;
+        const row1Y = 164;
+        const row2Y = 372;
+        const headH = 30;
+        const panel1Top = row1Y - cardH / 2 - headH;
+        const panel1H = cardH + headH;
+        const panel2Top = row2Y - cardH / 2 - headH;
+        const panel2H = cardH + headH;
+        const lockY = (panel1Top + panel1H + panel2Top) / 2;
+        return {
+            W, cols, cardW, cardH, gapX, totalW, left, panelW, startX,
+            row1Y, row2Y, headH, panel1Top, panel1H, panel2Top, panel2H, lockY
+        };
+    }
+
     _buildHubButtons() {
         const W = this.canvas.width;
         const H = this.canvas.height;
         const levels = this.levels.levels;
-        const cols = 3;
-        const cardW = 280;
-        const cardH = 112;
-        const gapX = 16;
-        const totalW = cols * cardW + (cols - 1) * gapX;
-        const startX = (W - totalW) / 2 + cardW / 2;
-        const row1Y = 170;
-        const row2Y = 360;
-        this._hubLockY = 248;
+        const L = this._hubLayout();
+        const { cols, cardW, cardH, gapX, startX, row1Y, row2Y } = L;
+        this._hubLockY = L.lockY;
         const group2 = this.levels.isGroup2Unlocked();
 
         this._hubPositions = [];
@@ -1232,7 +1251,7 @@ class GameManager {
         const n = levels.length;
         const done = levels.filter(l => l.completed).length;
 
-        const segW = 26, gap = 4, barH = 6, y = 66;
+        const segW = 26, gap = 4, barH = 6, y = 58;
         const totalW = n * segW + (n - 1) * gap;
         let x = W / 2 - totalW / 2;
 
@@ -1253,8 +1272,8 @@ class GameManager {
         ctx.strokeStyle = 'rgba(71,85,105,0.25)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(40, 78);
-        ctx.lineTo(W - 40, 78);
+        ctx.moveTo(40, 72);
+        ctx.lineTo(W - 40, 72);
         ctx.stroke();
 
         ctx.textBaseline = 'alphabetic';
@@ -1300,21 +1319,9 @@ class GameManager {
     }
 
     _renderHubConnections(ctx) {
-        const W = this.canvas.width;
-        const cols = 3;
-        const cardW = 280;
-        const cardH = 112;
-        const gapX = 16;
-        const totalW = cols * cardW + (cols - 1) * gapX;
-        const left = (W - totalW) / 2 - 18;
-        const panelW = totalW + 36;
-        const row1Y = 170;
-        const row2Y = 360;
-        const panel1Top = row1Y - cardH / 2 - 34;
-        const panel1H = cardH + 34;
-        const panel2Top = row2Y - cardH / 2 - 34;
-        const panel2H = cardH + 34;
-        const lockY = this._hubLockY || 247;
+        const L = this._hubLayout();
+        const { W, left, panelW, panel1Top, panel1H, panel2Top, panel2H, lockY } = L;
+        const gateR = 20;
 
         ctx.save();
 
@@ -1366,10 +1373,10 @@ class GameManager {
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(W / 2, panel1Top + panel1H);
-        ctx.lineTo(W / 2, lockY - 24);
+        ctx.lineTo(W / 2, lockY - gateR);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(W / 2, lockY + 24);
+        ctx.moveTo(W / 2, lockY + gateR);
         ctx.lineTo(W / 2, panel2Top);
         ctx.stroke();
 
@@ -1377,9 +1384,10 @@ class GameManager {
     }
 
     _renderHubLockNode(ctx) {
-        const W = this.canvas.width;
-        const x = W / 2;
-        const y = this._hubLockY || 247;
+        const L = this._hubLayout();
+        const x = L.W / 2;
+        const y = L.lockY;
+        const r = 20;
         const unlocked = this.levels.isGroup2Unlocked();
         const color = unlocked ? '#22c55e' : '#f59e0b';
 
@@ -1389,7 +1397,7 @@ class GameManager {
         ctx.strokeStyle = color;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(x, y, 24, 0, Math.PI * 2);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
@@ -1420,7 +1428,7 @@ class GameManager {
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(x, y, 24 + pulse * 10, 0, Math.PI * 2);
+            ctx.arc(x, y, r + pulse * 8, 0, Math.PI * 2);
             ctx.stroke();
             ctx.globalAlpha = 1;
         }
