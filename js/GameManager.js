@@ -46,16 +46,19 @@ class GameManager {
     // ── Game Loop ──
 
     update(dt) {
-        if (typeof performance !== 'undefined') {
-            // Wall-clock anchor for the current simulation frontier. Input
-            // arriving since this instant is extrapolated from here.
-            this._lastSimWall = performance.now();
-        }
         this.energy.update(dt);
         this.bgTime += dt;
         this._updateBgParticles(dt);
         this._updateDataRain(dt);
         this.state.update(dt);
+
+        if (typeof performance !== 'undefined') {
+            // Wall-clock anchor for the simulation frontier. MUST be captured
+            // AFTER state.update(), because that is when timingBar.time is
+            // advanced. Capturing it before would make input sampling
+            // overshoot by a full fixed step, shifting the effective hit zone.
+            this._lastSimWall = performance.now();
+        }
     }
 
     render(ctx, alpha = 0) {

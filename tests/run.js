@@ -683,6 +683,54 @@ suite('Bar speed is normalized across levels', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Input sampling aligns with the rendered bar', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+
+    // Capture the wall time at the END of state.update (the sim frontier).
+    let wallAtStateEnd = 0;
+    const origUpdate = gm.state.update.bind(gm.state);
+    gm.state.update = (dt) => { origUpdate(dt); wallAtStateEnd = performance.now(); };
+
+    gm.levels.levels[5].unlocked = true; // unlock the hardest level for the test
+    gm.levels.startLevel(5); // hardest level
+    gm.state.currentState = gm.state.STATES.LEVEL;
+    gm.state.transitioning = false;
+    gm.update(1 / 60);
+
+    ok('sim-time anchor captured AFTER the update',
+        gm._lastSimWall >= wallAtStateEnd,
+        `anchor=${gm._lastSimWall} frontier=${wallAtStateEnd}`);
+
+    // A press exactly at the frontier has zero offset and matches the render.
+    ok('zero offset at the frontier', gm._computeInputOffset(gm._lastSimWall) === 0);
+    const rendered = gm.levels._renderPos(0);
+    const pressed = gm.levels.timingBar.sample(gm._computeInputOffset(gm._lastSimWall));
+    ok('press at frontier matches rendered position', Math.abs(rendered - pressed) < 1e-12);
+
+    // Pressing a hair after the frontier must still land where it looks.
+    const pos = gm.levels.timingBar.position;
+    gm.levels.timingBar.zone.start = pos - 0.04;
+    gm.levels.timingBar.zone.end = pos + 0.04;
+    gm.levels._syncZone();
+    const before = gm.levels.hitCount;
+    gm._dispatchKey({ code: 'Space', timestamp: gm._lastSimWall + 1 });
+    ok('press just after the frontier registers', gm.levels.hitCount === before + 1,
+        'hits=' + gm.levels.hitCount);
+
+    // A line visually on the zone boundary must count as inside (inclusive).
+    const pos2 = gm.levels.timingBar.position;
+    gm.levels.timingBar.zone.start = pos2;
+    gm.levels.timingBar.zone.end = pos2 + 0.08;
+    gm.levels._syncZone();
+    const before2 = gm.levels.hitCount;
+    gm._dispatchKey({ code: 'Space', timestamp: gm._lastSimWall });
+    ok('boundary press is a hit, not a miss', gm.levels.hitCount === before2 + 1);
+});
+
+// ─────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50));
 console.log(`PASS ${passed}   FAIL ${failed}`);
 if (failures.length) {
