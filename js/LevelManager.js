@@ -201,9 +201,12 @@ class LevelManager {
         if (this.score > l.bestScore) l.bestScore = this.score;
         l.completed = true;
         const next = this.currentLevelIndex + 1;
-        // ACT I (levels 1-3) advances by completion. ACT II (4-6) is gated
-        // behind Packet Purge, not by completing level 3.
-        if (next < this.levels.length && next <= 2) this.levels[next].unlocked = true;
+        // Sequential progression. ACT I (levels 1-3) advances by completion.
+        // ACT II (levels 4-6) additionally requires the Packet Purge gate;
+        // within ACT II each node still needs the previous one completed.
+        if (next < this.levels.length && (next <= 2 || this.group2Unlocked)) {
+            this.levels[next].unlocked = true;
+        }
         // Flag the single moment Endless Mode is first earned, so the
         // congratulations screen is shown exactly once.
         this.justUnlockedEndless = this.levels.every(x => x.completed) && !wasAllCompleted && !this.congratsSeen;
@@ -487,8 +490,9 @@ class LevelManager {
     }
 
     _applyGroup2Unlock() {
-        // Levels 4, 5 and 6 (indices 3-5) become playable.
-        for (let i = 3; i < this.levels.length; i++) this.levels[i].unlocked = true;
+        // Breaching the gate only opens the FIRST ACT II node (level 4).
+        // Levels 5 and 6 still unlock sequentially by completion.
+        if (this.levels[3]) this.levels[3].unlocked = true;
     }
 
     unlockGroup2() {
@@ -501,6 +505,11 @@ class LevelManager {
     }
 
     isGroup2Unlocked() { return this.group2Unlocked; }
+
+    /** ACT I = the first three nodes (levels 1-3). */
+    isActOneComplete() {
+        return this.levels.slice(0, 3).every(l => l.completed);
+    }
 
     // ════════════════════════════════════════
     //  ENDLESS MODE

@@ -521,16 +521,33 @@ suite('LevelManager — ACT II gate & revives', () => {
     lm.group2Unlocked = false;
 
     ok('ACT II starts locked', !lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
+    ok('ACT I not complete initially', !lm.isActOneComplete());
 
+    // Simulate ACT I being nearly cleared.
+    lm.levels[0].completed = true;
+    lm.levels[1].completed = true;
     lm.currentLevelIndex = 2;
     lm.currentLevel = lm.levels[2];
     lm.score = 100;
     lm._onComplete();
     ok('completing ACT I does not unlock level 4', !lm.levels[3].unlocked);
+    ok('ACT I is now complete', lm.isActOneComplete());
 
     lm.unlockGroup2();
-    ok('Packet Purge unlock opens levels 4-6',
-        lm.levels[3].unlocked && lm.levels[4].unlocked && lm.levels[5].unlocked);
+    ok('gate opens level 4 ONLY', lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
+
+    // Sequential progression continues inside ACT II.
+    lm.currentLevelIndex = 3;
+    lm.currentLevel = lm.levels[3];
+    lm.score = 200;
+    lm._onComplete();
+    ok('completing 4 unlocks 5 (not 6)', lm.levels[4].unlocked && !lm.levels[5].unlocked);
+
+    lm.currentLevelIndex = 4;
+    lm.currentLevel = lm.levels[4];
+    lm.score = 300;
+    lm._onComplete();
+    ok('completing 5 unlocks 6', lm.levels[5].unlocked);
 
     lm.startLevel(0);
     ok('revives reset per level', lm.revivesUsed === 0 && lm.maxRevives === 2);
@@ -573,7 +590,7 @@ suite('HUB redesign + generic MINIGAME host', () => {
     ok('clicking hidden energy cell starts Dual Ring', handled === true);
     ok('Dual Ring state queued', gm.state.pendingState === gm.state.STATES.MINIGAME);
 
-    // Clicking the gate node starts Packet Purge.
+    // Clicking the gate node starts Packet Purge (ACT I is cleared here).
     gm.state.currentState = gm.state.STATES.HUB;
     gm.state.transitioning = false;
     gm.state.pendingState = null;
@@ -584,17 +601,37 @@ suite('HUB redesign + generic MINIGAME host', () => {
     const pending = gm.state.pendingContext;
     ok('Packet Purge mechanic provided', pending && pending.mechanic);
 
-    // Run the MINIGAME host to completion and confirm the group unlocks.
+    // Run the MINIGAME host to completion and confirm the gate opens level 4 only.
     gm.state.pendingState = null;
     gm.state.transitioning = false;
     gm.state.change(gm.state.STATES.MINIGAME, pending);
-    // Let the transition enter the minigame.
     for (let i = 0; i < 20; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
     ok('minigame became active', !!gm._activeMinigame);
-    // Force success and let the result delay elapse.
     if (gm._activeMinigame) gm._activeMinigame.result = 'success';
     for (let i = 0; i < 120; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
-    ok('Packet Purge success unlocks ACT II', gm.levels.isGroup2Unlocked() === true);
+    ok('Packet Purge success unlocks ACT II gate', gm.levels.isGroup2Unlocked() === true);
+    ok('gate opens level 4 only, 5/6 stay sequential',
+        gm.levels.levels[3].unlocked === true &&
+        gm.levels.levels[4].unlocked === false &&
+        gm.levels.levels[5].unlocked === false);
+});
+
+// ─────────────────────────────────────────────
+suite('Packet Purge gate is blocked before ACT I is cleared', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+
+    gm.levels.levels.forEach((l, i) => { l.unlocked = i === 0; l.completed = false; });
+    gm.levels.group2Unlocked = false;
+    gm.state.currentState = gm.state.STATES.HUB;
+    gm.state.transitioning = false;
+    gm.state.pendingState = null;
+
+    gm._tryStartPacketPurge();
+    ok('gate does not start before ACT I', gm.state.pendingState !== gm.state.STATES.MINIGAME);
+    ok('a helpful message is shown', !!gm._hubMessage);
 });
 
 // ─────────────────────────────────────────────

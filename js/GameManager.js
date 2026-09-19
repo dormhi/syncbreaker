@@ -1130,10 +1130,14 @@ class GameManager {
                     () => this._tryShortcutUnlock(i),
                     { color: '#475569', subtitle: level.desc, card: true, icon: level.id, status: 'locked' });
             } else if (status === 'locked') {
-                // ACT II locked nodes require Packet Purge (no shortcut).
+                // ACT II: no shortcut. Locked either by the gate or by the
+                // previous node not being completed yet.
+                const lockMsg = !group2
+                    ? 'Breach the lock between the acts first'
+                    : 'Complete the previous node first';
                 this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
                     () => {
-                        this._hubMessage = 'Breach the lock between the acts first';
+                        this._hubMessage = lockMsg;
                         this._hubMessageTimer = 2.5;
                     },
                     { color: '#334155', subtitle: level.desc, card: true, icon: level.id, status: 'locked', disabled: true });
@@ -1352,6 +1356,11 @@ class GameManager {
 
     _tryStartPacketPurge() {
         if (this.levels.isGroup2Unlocked()) return;
+        if (!this.levels.isActOneComplete()) {
+            this._hubMessage = 'Clear all ACT I nodes first';
+            this._hubMessageTimer = 2.5;
+            return;
+        }
         const WINDOW = 3 * 60 * 1000;
         const MAX = 2;
         if (!this.packetGate.canAttempt(WINDOW, MAX)) {
