@@ -19,8 +19,26 @@ class UIManager {
             id, label, x, y, w, h, onClick,
             color: style.color || '#3b82f6',
             disabled: style.disabled || false,
-            subtitle: style.subtitle || null
+            subtitle: style.subtitle || null,
+            // Card style (level selector)
+            card: style.card || false,
+            icon: style.icon,
+            status: style.status || null, // 'completed' | 'unlocked' | 'locked'
+            score: style.score || 0,
+            hidden: style.hidden || false
         });
+    }
+
+    /** Energy cell geometry — must match renderEnergyBar() exactly. */
+    getEnergyCellRect(index, max) {
+        const W = this.canvas.width;
+        const x = W - 170;
+        const y = 12;
+        const cellW = 22;
+        const cellH = 14;
+        const gap = 3;
+        if (index < 0 || index >= max) return null;
+        return { x: x + index * (cellW + gap), y, w: cellW, h: cellH };
     }
 
     clearButtons() {
@@ -56,6 +74,8 @@ class UIManager {
     renderButtons() {
         const ctx = this.ctx;
         for (const btn of this.buttons) {
+            if (btn.hidden) continue;
+            if (btn.card) { this._renderCard(btn); continue; }
             const hovered = !btn.disabled && this.isHovered(btn);
             const alpha = btn.disabled ? 0.3 : 1;
 
@@ -88,6 +108,90 @@ class UIManager {
 
             ctx.restore();
         }
+    }
+
+    // ── Level card ──
+
+    _renderCard(btn) {
+        const ctx = this.ctx;
+        const left = btn.x - btn.w / 2;
+        const top = btn.y - btn.h / 2;
+        const w = btn.w;
+        const h = btn.h;
+        const hovered = !btn.disabled && this.isHovered(btn);
+        const locked = btn.status === 'locked';
+
+        ctx.save();
+        ctx.globalAlpha = locked ? 0.65 : 1;
+
+        // Frame
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
+        ctx.strokeStyle = btn.color;
+        ctx.lineWidth = hovered ? 2 : 1.2;
+        Utils.roundRect(ctx, left, top, w, h, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        // Status accent stripe
+        ctx.fillStyle = btn.color;
+        ctx.globalAlpha = locked ? 0.25 : 0.9;
+        Utils.roundRect(ctx, left, top, 4, h, 2);
+        ctx.fill();
+        ctx.globalAlpha = locked ? 0.65 : 1;
+
+        // Icon badge
+        const iconX = left + 34;
+        const iconY = btn.y;
+        ctx.strokeStyle = btn.color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(iconX, iconY, 19, 0, Math.PI * 2);
+        ctx.stroke();
+        if (typeof LevelIcons !== 'undefined' && btn.icon !== undefined) {
+            ctx.save();
+            ctx.translate(iconX, iconY);
+            LevelIcons.draw(ctx, btn.icon, 20, btn.color);
+            ctx.restore();
+        }
+
+        // Name
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = locked ? '#64748b' : '#e2e8f0';
+        ctx.font = '600 14px Orbitron';
+        ctx.fillText(btn.label, left + 62, top + 30);
+
+        // Description
+        if (btn.subtitle) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '400 11px Rajdhani';
+            ctx.fillText(btn.subtitle, left + 62, top + 48);
+        }
+
+        // Status line
+        if (btn.status === 'completed') {
+            ctx.fillStyle = '#22c55e';
+            ctx.font = '500 11px Rajdhani';
+            ctx.fillText('CLEARED', left + 62, top + h - 12);
+        } else if (locked) {
+            ctx.fillStyle = '#475569';
+            ctx.font = '600 12px Rajdhani';
+            ctx.fillText('🔒 LOCKED', left + 62, top + h - 12);
+        } else {
+            ctx.fillStyle = '#3b82f6';
+            ctx.font = '500 11px Rajdhani';
+            ctx.fillText('READY', left + 62, top + h - 12);
+        }
+
+        // Best score
+        if (btn.score > 0) {
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#475569';
+            ctx.font = '400 11px Rajdhani';
+            ctx.fillText('BEST ' + btn.score, left + w - 12, top + h - 12);
+        }
+
+        ctx.restore();
     }
 
     renderEnergyBar(energy) {

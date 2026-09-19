@@ -15,7 +15,9 @@ class LevelManager {
         this.maxCombo = 0;
         this.lives = 3;
         this.timer = 0;
-        this.usedRevive = false; // 1 revive per level
+        this.usedRevive = false; // legacy (endless)
+        this.revivesUsed = 0;    // normal levels: up to maxRevives
+        this.maxRevives = 2;
 
         // Timing bar — deterministic analytic motion (see TimingBarMechanic)
         this.timingBar = new TimingBarMechanic();
@@ -43,6 +45,8 @@ class LevelManager {
 
         this._loadProgress();
         this.congratsSeen = this._loadCongratsSeen();
+        this.group2Unlocked = this._loadGroup2();
+        if (this.group2Unlocked) this._applyGroup2Unlock();
     }
 
     _createLevels() {
@@ -88,6 +92,7 @@ class LevelManager {
         this.particles = [];
         this.timer = level.maxTime;
         this.usedRevive = false;
+        this.revivesUsed = 0;
 
         this.timingBar.reset(level.barSpeed, level.targetSize);
         this._syncZone();
@@ -196,7 +201,9 @@ class LevelManager {
         if (this.score > l.bestScore) l.bestScore = this.score;
         l.completed = true;
         const next = this.currentLevelIndex + 1;
-        if (next < this.levels.length) this.levels[next].unlocked = true;
+        // ACT I (levels 1-3) advances by completion. ACT II (4-6) is gated
+        // behind Packet Purge, not by completing level 3.
+        if (next < this.levels.length && next <= 2) this.levels[next].unlocked = true;
         // Flag the single moment Endless Mode is first earned, so the
         // congratulations screen is shown exactly once.
         this.justUnlockedEndless = this.levels.every(x => x.completed) && !wasAllCompleted && !this.congratsSeen;
@@ -468,6 +475,32 @@ class LevelManager {
         this.congratsSeen = true;
         try { localStorage.setItem('sb_congrats_seen', '1'); } catch (e) { }
     }
+
+    // ── ACT II gate (Packet Purge) ──
+
+    _loadGroup2() {
+        try { return localStorage.getItem('sb_group2_unlocked') === '1'; } catch (e) { return false; }
+    }
+
+    _saveGroup2() {
+        try { localStorage.setItem('sb_group2_unlocked', this.group2Unlocked ? '1' : '0'); } catch (e) { }
+    }
+
+    _applyGroup2Unlock() {
+        // Levels 4, 5 and 6 (indices 3-5) become playable.
+        for (let i = 3; i < this.levels.length; i++) this.levels[i].unlocked = true;
+    }
+
+    unlockGroup2() {
+        const wasUnlocked = this.group2Unlocked;
+        this.group2Unlocked = true;
+        this._applyGroup2Unlock();
+        this._saveGroup2();
+        this._saveProgress();
+        return !wasUnlocked;
+    }
+
+    isGroup2Unlocked() { return this.group2Unlocked; }
 
     // ════════════════════════════════════════
     //  ENDLESS MODE

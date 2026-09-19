@@ -16,6 +16,21 @@ class GameManager {
         this.levels = new LevelManager();
         this.leaderboard = new LeaderboardService();
 
+        // Challenge attempt windows (easter egg / gate)
+        this.dualRingGate = new ChallengeGate('sb_dualring');
+        this.packetGate = new ChallengeGate('sb_packetpurge');
+
+        // Hidden energy easter egg + transient hub message
+        this._energyEggCell = null;
+        this._hubMessage = '';
+        this._hubMessageTimer = 0;
+
+        // Active generic minigame (S.MINIGAME)
+        this._activeMinigame = null;
+        this._mgConfig = null;
+        this._mgHandled = false;
+        this._mgEndTimer = 0;
+
         // Background effects — CG: Animation + Rendering
         this.bgTime = 0;
         this.bgParticles = this._createBgParticles(35);
@@ -180,8 +195,10 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.startAmbient();
                 this._buildHubButtons();
+                this._pickEnergyEggCell();
             },
-            update: () => {
+            update: (dt) => {
+                if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
                 // Migration / catch-up: if all nodes were already cleaned in a
                 // previous session, show the celebration exactly once.
                 if (this.levels.isAllCompleted() && !this.levels.congratsSeen) {
@@ -210,17 +227,29 @@ class GameManager {
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
 
-                // Network topology connections — CG: Line rendering
+                // Act panels + gate node (behind the level cards)
                 this._renderHubConnections(ctx);
+                this._renderHubLockNode(ctx);
 
-                // Buttons
+                // Cards
                 this.ui.renderButtons();
+
+                // Transient message (attempt limits, rewards, gate)
+                if (this._hubMessageTimer > 0 && this._hubMessage) {
+                    ctx.save();
+                    ctx.globalAlpha = Math.min(1, this._hubMessageTimer);
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '600 15px Rajdhani';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this._hubMessage, W / 2, H - 62);
+                    ctx.restore();
+                }
 
                 // Footer info
                 ctx.fillStyle = '#475569';
                 ctx.font = '400 13px Rajdhani';
                 ctx.textAlign = 'center';
-                ctx.fillText('🔒 Use code breaker to access locked nodes (2 energy)', W / 2, H - 16);
+                ctx.fillText('ACT I nodes can be skipped with the Code Breaker (2⚡) · ACT II needs the gate', W / 2, H - 16);
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
@@ -259,7 +288,7 @@ class GameManager {
                     this.state.change(S.GAME_OVER, {
                         levelIndex: this.levels.currentLevelIndex,
                         score: this.levels.score,
-                        usedRevive: this.levels.usedRevive
+                        revivesUsed: this.levels.revivesUsed
                     });
                 }
             },
@@ -322,7 +351,7 @@ class GameManager {
                         } else if (this._lockpickReason === 'revive') {
                             this.levels.lives = 1;
                             this.levels.levelFailed = false;
-                            this.levels.usedRevive = true;
+                            this.levels.revivesUsed = (this.levels.revivesUsed || 0) + 1;
                             this.state.change(S.LEVEL);
                         } else if (this._lockpickReason === 'endless_revive') {
                             // Continue from where left off in endless — 1 life
@@ -393,6 +422,85 @@ class GameManager {
             }
         });
 
+        // ── MINIGAME (generic host: Dual Ring, Packet Purge, …) ──
+        this.state.register(S.MINIGAME, {
+            enter: (context) => {
+                this.ui.clearButtons();
+                Sound.stopAmbient();
+                const c = context || {};
+                this._mgConfig = c;
+                this._activeMinigame = c.mechanic || null;
+                this._mgHandled = false;
+                this._mgEndTimer = 0;
+                if (this._activeMinigame && this._activeMinigame.init) {
+                    this._activeMinigame.init(Object.assign({
+                        width: this.canvas.width,
+                        height: this.canvas.height
+                    }, c));
+                }
+            },
+            update: (dt) => {
+                const m = this._activeMinigame;
+                if (!m) return;
+                m.update(dt);
+
+                if (m.result !== null && !this._mgHandled) {
+                    this._mgHandled = true;
+                    this._mgEndTimer = m.resultDuration || 1.2;
+                }
+                if (this._mgHandled) {
+                    this._mgEndTimer -= dt;
+                    if (this._mgEndTimer <= 0) {
+                        const cfg = this._mgConfig || {};
+                        const finished = m;
+                        this._activeMinigame = null;
+                        if (cfg.onComplete) cfg.onComplete(finished.result === 'success', finished);
+                    }
+                }
+            },
+            render: (ctx) => {
+                const W = this.canvas.width;
+                const H = this.canvas.height;
+                const cfg = this._mgConfig || {};
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = '700 22px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText(cfg.title || 'MINIGAME', W / 2, 44);
+
+                if (cfg.subtitle) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '400 13px Rajdhani';
+                    ctx.fillText(cfg.subtitle, W / 2, 64);
+                }
+                if (cfg.hint) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '400 14px Rajdhani';
+                    ctx.fillText(cfg.hint, W / 2, 84);
+                }
+
+                if (this._activeMinigame && this._activeMinigame.render) {
+                    this._activeMinigame.render(ctx, W, H, this.levels.gameTime);
+                }
+
+                this.ui.renderEnergyBar({
+                    current: this.energy.currentEnergy,
+                    max: this.energy.maxEnergy,
+                    nextRegenIn: this.energy.getTimeToNextRegen()
+                });
+            },
+            exit: () => { this.ui.clearButtons(); this._activeMinigame = null; },
+            onKey: (e) => {
+                const m = this._activeMinigame;
+                if (!m) return;
+                if (m.handleKey && m.handleKey(e.code)) return;
+                if ((e.code === 'Space' || e.code === 'Enter') && m.handleConfirm) {
+                    m.handleConfirm();
+                }
+            }
+        });
+
         // ── GAME OVER ──
         this.state.register(S.GAME_OVER, {
             enter: (context) => {
@@ -404,12 +512,14 @@ class GameManager {
                 this._goScore = lCtx.score || 0;
                 this._goLevelIndex = lCtx.levelIndex;
                 this._noRevive = lCtx.noRevive || false;
-                this._usedRevive = lCtx.usedRevive || false;
+                this._revivesUsed = lCtx.revivesUsed || 0;
+                const maxRevives = this.levels.maxRevives || 2;
+                const revivesLeft = Math.max(0, maxRevives - this._revivesUsed);
 
-                // Revive button: if energy available AND revive not yet used on this level
-                if (!this._noRevive && !this._usedRevive && this.energy.canAfford('REVIVE')) {
+                // Revive button: energy available AND recovery charges remain
+                if (!this._noRevive && revivesLeft > 0 && this.energy.canAfford('REVIVE')) {
                     const level = this.levels.levels[this._goLevelIndex];
-                    this.ui.addButton('revive', '🔄 TRY RECOVERY PROTOCOL (1⚡)', cx, cy + 30, 290, 42,
+                    this.ui.addButton('revive', `🔄 TRY RECOVERY PROTOCOL (1⚡) · ${revivesLeft} left`, cx, cy + 30, 320, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
                                 this.state.change(S.LOCKPICK, {
@@ -458,10 +568,10 @@ class GameManager {
                     ctx.fillStyle = '#ef4444';
                     ctx.font = '400 14px Rajdhani';
                     ctx.fillText('Recovery protocol failed', cx, cy);
-                } else if (this._usedRevive) {
+                } else if (this._revivesUsed >= (this.levels.maxRevives || 2)) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText('Recovery already used on this node', cx, cy);
+                    ctx.fillText('No recovery charges left for this node', cx, cy);
                 }
 
                 this.ui.renderButtons();
@@ -990,72 +1100,78 @@ class GameManager {
         const H = this.canvas.height;
         const levels = this.levels.levels;
         const cols = 3;
-        const btnW = 190;
-        const btnH = 70;
-        const gapX = 20;
-        const gapY = 18;
-        const totalW = cols * btnW + (cols - 1) * gapX;
-        const startX = (W - totalW) / 2 + btnW / 2;
-        const startY = 120;
+        const cardW = 210;
+        const cardH = 104;
+        const gapX = 16;
+        const totalW = cols * cardW + (cols - 1) * gapX;
+        const startX = (W - totalW) / 2 + cardW / 2;
+        const row1Y = 172;
+        const row2Y = 356;
+        this._hubLockY = 247;
+        const group2 = this.levels.isGroup2Unlocked();
 
-        // Save positions (for topology lines)
         this._hubPositions = [];
 
         for (let i = 0; i < levels.length; i++) {
             const level = levels[i];
             const col = i % cols;
             const row = Math.floor(i / cols);
-            const x = startX + col * (btnW + gapX);
-            const y = startY + row * (btnH + gapY);
+            const x = startX + col * (cardW + gapX);
+            const y = row === 0 ? row1Y : row2Y;
 
-            this._hubPositions.push({ x, y, w: btnW, h: btnH, level });
+            this._hubPositions.push({ x, y, w: cardW, h: cardH, level, row });
 
-            if (level.unlocked) {
-                const label = level.completed ? `✓ ${level.name}` : level.name;
+            let status = level.completed ? 'completed' : (level.unlocked ? 'unlocked' : 'locked');
+            if (i >= 3 && !group2) status = 'locked';
+
+            if (status === 'locked' && i <= 2) {
+                // ACT I locked nodes can be skipped with the Code Breaker.
+                this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
+                    () => this._tryShortcutUnlock(i),
+                    { color: '#475569', subtitle: level.desc, card: true, icon: level.id, status: 'locked' });
+            } else if (status === 'locked') {
+                // ACT II locked nodes require Packet Purge (no shortcut).
+                this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
+                    () => {
+                        this._hubMessage = 'Breach the lock between the acts first';
+                        this._hubMessageTimer = 2.5;
+                    },
+                    { color: '#334155', subtitle: level.desc, card: true, icon: level.id, status: 'locked', disabled: true });
+            } else {
                 const color = level.completed ? '#22c55e' : '#3b82f6';
-
-                this.ui.addButton(`lvl${i}`, label, x, y, btnW, btnH,
+                this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
                     () => {
                         this.levels.startLevel(i);
                         this.state.change(this.state.STATES.LEVEL);
                     },
-                    { color, subtitle: level.desc }
-                );
-            } else {
-                this.ui.addButton(`lvl${i}`, `🔒 ${level.name}`, x, y, btnW, btnH,
-                    () => {
-                        if (this.energy.canAfford('SHORTCUT')) {
-                            if (this.energy.spend('SHORTCUT')) {
-                                this.state.change(this.state.STATES.LOCKPICK, {
-                                    reason: 'shortcut',
-                                    difficulty: level.lockpickDiff,
-                                    levelIndex: i
-                                });
-                            }
-                        }
-                    },
-                    { color: '#475569', subtitle: level.desc }
-                );
+                    { color, subtitle: level.desc, card: true, icon: level.id, status, score: level.bestScore });
             }
         }
 
-        // Endless Mode button
+        // ACT II gate node (drawn manually, hidden clickable button)
+        if (!group2) {
+            this.ui.addButton('packet-purge', '', W / 2, this._hubLockY, 64, 64,
+                () => this._tryStartPacketPurge(),
+                { hidden: true });
+        }
+
+        // Endless Mode button (below ACT II)
         const allDone = this.levels.isAllCompleted();
-        const endlessY = startY + 2 * (btnH + gapY) + btnH / 2 + 30;
+        const endlessY = 458;
         if (allDone) {
             const bestScore = this.levels._loadEndlessBest();
             const endlessSubtitle = bestScore > 0 ? `Best: ${bestScore}` : 'Unlimited challenge, unlimited fun';
-            this.ui.addButton('endless', '∞ ENDLESS MODE', W / 2, endlessY, 240, 50,
+            this.ui.addButton('endless', '∞ ENDLESS MODE', W / 2, endlessY, 240, 46,
                 () => this.state.change(this.state.STATES.ENDLESS),
                 { color: '#f59e0b', subtitle: endlessSubtitle }
             );
-            this.ui.addButton('leaderboard', '🏆 LEADERBOARD', W / 2, endlessY + 60, 220, 38,
+            this.ui.addButton('leaderboard', '🏆 LEADERBOARD', W / 2, endlessY + 54, 220, 36,
                 () => this.state.change(this.state.STATES.LEADERBOARD),
                 { color: '#f59e0b' }
             );
         } else {
             const remaining = this.levels.levels.filter(l => !l.completed).length;
-            this.ui.addButton('endless', `🔒 ENDLESS MODE`, W / 2, endlessY, 240, 50,
+            this.ui.addButton('endless', `🔒 ENDLESS MODE`, W / 2, endlessY, 240, 46,
                 () => { },
                 { color: '#475569', disabled: true, subtitle: `${remaining} nodes remaining` }
             );
@@ -1070,12 +1186,11 @@ class GameManager {
         // Reset Data
         this.ui.addButton('reset', '🗑 RESET', W - 75, H - 35, 110, 32,
             () => {
-                console.log("Reset button clicked");
                 if (window.confirm('Are you sure you want to delete all data and start fresh?')) {
-                    console.log("Reset confirmed, clearing data...");
-                    localStorage.removeItem('sb_progress');
-                    localStorage.removeItem('sb_energy');
-                    window.location.href = window.location.href; // Guaranteed reload for mobile browsers / Live Server
+                    ['sb_progress', 'sb_energy', 'sb_congrats_seen',
+                        'sb_group2_unlocked', 'sb_dualring', 'sb_packetpurge']
+                        .forEach(k => localStorage.removeItem(k));
+                    window.location.href = window.location.href;
                 }
             },
             { color: '#ef4444' }
@@ -1083,35 +1198,209 @@ class GameManager {
     }
 
     _renderHubConnections(ctx) {
-        if (!this._hubPositions || this._hubPositions.length < 2) return;
+        const W = this.canvas.width;
+        const cols = 3;
+        const cardW = 210;
+        const cardH = 104;
+        const gapX = 16;
+        const totalW = cols * cardW + (cols - 1) * gapX;
+        const left = (W - totalW) / 2 - 18;
+        const panelW = totalW + 36;
+        const row1Y = 172;
+        const row2Y = 356;
+        const panel1Top = row1Y - cardH / 2 - 34;
+        const panel1H = cardH + 34;
+        const panel2Top = row2Y - cardH / 2 - 34;
+        const panel2H = cardH + 34;
+        const lockY = this._hubLockY || 247;
 
         ctx.save();
-        for (let i = 0; i < this._hubPositions.length - 1; i++) {
-            const a = this._hubPositions[i];
-            const b = this._hubPositions[i + 1];
-            const completed = a.level.completed;
 
-            // Line color: completed → green, unlocked → blue, locked → gray
-            ctx.strokeStyle = completed ? 'rgba(34,197,94,0.3)' : 'rgba(71,85,105,0.15)';
-            ctx.lineWidth = completed ? 2 : 1;
-
-            // Connection line (edge to edge)
-            ctx.beginPath();
-            ctx.moveTo(a.x + a.w * 0.4, a.y);
-            ctx.lineTo(b.x - b.w * 0.4, b.y);
+        // Act panels
+        const drawPanel = (top, h, color) => {
+            ctx.fillStyle = 'rgba(15,23,42,0.45)';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            Utils.roundRect(ctx, left, top, panelW, h, 12);
+            ctx.fill();
             ctx.stroke();
+        };
+        drawPanel(panel1Top, panel1H, 'rgba(59,130,246,0.25)');
+        drawPanel(panel2Top, panel2H, 'rgba(245,158,11,0.25)');
 
-            // Connection point (small dot in center)
-            if (completed) {
-                const mx = (a.x + b.x) / 2;
-                const my = (a.y + b.y) / 2;
-                ctx.fillStyle = 'rgba(34,197,94,0.4)';
-                ctx.beginPath();
-                ctx.arc(mx, my, 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
+        // Act labels
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#3b82f6';
+        ctx.font = '700 12px Orbitron';
+        ctx.fillText('ACT I  ·  SYSTEM BREACH', left + 16, panel1Top + 20);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillText('ACT II  ·  DEEP INCURSION', left + 16, panel2Top + 20);
+
+        // Connector to the gate
+        ctx.strokeStyle = 'rgba(71,85,105,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(W / 2, panel1Top + panel1H);
+        ctx.lineTo(W / 2, lockY - 24);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(W / 2, lockY + 24);
+        ctx.lineTo(W / 2, panel2Top);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    _renderHubLockNode(ctx) {
+        const W = this.canvas.width;
+        const x = W / 2;
+        const y = this._hubLockY || 247;
+        const unlocked = this.levels.isGroup2Unlocked();
+        const color = unlocked ? '#22c55e' : '#f59e0b';
+
+        ctx.save();
+        // Node
+        ctx.fillStyle = 'rgba(15,23,42,0.96)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Lock / check glyph
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 2;
+        if (unlocked) {
+            ctx.beginPath();
+            ctx.moveTo(x - 8, y);
+            ctx.lineTo(x - 2, y + 7);
+            ctx.lineTo(x + 9, y - 7);
+            ctx.stroke();
+        } else {
+            // Body
+            Utils.roundRect(ctx, x - 9, y - 2, 18, 13, 3);
+            ctx.fill();
+            // Shackle
+            ctx.beginPath();
+            ctx.arc(x, y - 2, 5, Math.PI, 0, false);
+            ctx.stroke();
         }
         ctx.restore();
+    }
+
+    // ── Hub interactions / easter egg ──
+
+    _tryShortcutUnlock(levelIndex) {
+        if (!this.energy.canAfford('SHORTCUT')) {
+            this._hubMessage = 'Not enough energy (2⚡ required)';
+            this._hubMessageTimer = 2.5;
+            return;
+        }
+        if (!this.energy.spend('SHORTCUT')) return;
+        const level = this.levels.levels[levelIndex];
+        this.state.change(this.state.STATES.LOCKPICK, {
+            reason: 'shortcut',
+            difficulty: level.lockpickDiff,
+            levelIndex
+        });
+    }
+
+    _pickEnergyEggCell() {
+        if (this.energy.currentEnergy >= this.energy.maxEnergy) {
+            this._energyEggCell = null;
+            return;
+        }
+        this._energyEggCell = Math.floor(Math.random() * this.energy.maxEnergy);
+    }
+
+    _tryStartDualRing() {
+        const WINDOW = 5 * 60 * 1000;
+        const MAX = 2;
+        if (!this.dualRingGate.canAttempt(WINDOW, MAX)) {
+            const wait = Math.ceil(this.dualRingGate.timeUntilReset(WINDOW, MAX));
+            this._hubMessage = `Recovery module recharging (${wait}s)`;
+            this._hubMessageTimer = 2.5;
+            return;
+        }
+        this.dualRingGate.record(WINDOW);
+        this._energyEggCell = null;
+
+        const mechanic = new DualRingMechanic({
+            maxEnergy: this.energy.maxEnergy,
+            currentEnergy: this.energy.currentEnergy
+        });
+        this.state.change(this.state.STATES.MINIGAME, {
+            mechanic,
+            title: 'ENERGY RECOVERY',
+            subtitle: 'Align both markers inside the target arcs',
+            hint: 'Press SPACE / tap when both markers line up',
+            onComplete: (success, m) => {
+                if (success) {
+                    const gained = this.energy.addEnergy(m.reward);
+                    this._hubMessage = `+${gained} ENERGY`;
+                } else {
+                    this._hubMessage = 'Recovery failed';
+                }
+                this._hubMessageTimer = 2.5;
+                this.state.change(this.state.STATES.HUB);
+            }
+        });
+    }
+
+    _tryStartPacketPurge() {
+        if (this.levels.isGroup2Unlocked()) return;
+        const WINDOW = 3 * 60 * 1000;
+        const MAX = 2;
+        if (!this.packetGate.canAttempt(WINDOW, MAX)) {
+            const wait = Math.ceil(this.packetGate.timeUntilReset(WINDOW, MAX));
+            this._hubMessage = `The lock is recalibrating (${wait}s)`;
+            this._hubMessageTimer = 2.5;
+            return;
+        }
+        this.packetGate.record(WINDOW);
+
+        const mechanic = new PacketPurgeMechanic();
+        this.state.change(this.state.STATES.MINIGAME, {
+            mechanic,
+            title: 'PACKET PURGE',
+            subtitle: 'Purge infected packets before they reach the core',
+            hint: 'Click / tap the RED packets — leave the blue ones',
+            onComplete: (success) => {
+                if (success) {
+                    this.levels.unlockGroup2();
+                    this._hubMessage = 'ACT II UNLOCKED';
+                } else {
+                    this._hubMessage = 'Purge failed — the lock holds';
+                }
+                this._hubMessageTimer = 3.0;
+                this.state.change(this.state.STATES.HUB);
+            }
+        });
+    }
+
+    /** Routes canvas presses: UI buttons → minigame → hidden energy easter egg. */
+    _hitTestUI(x, y) {
+        if (this.ui.handleClick(x, y)) return true;
+
+        if (this.state.currentState === this.state.STATES.MINIGAME &&
+            this._activeMinigame && this._activeMinigame.handlePointer) {
+            this._activeMinigame.handlePointer(x, y, 'down');
+            return true;
+        }
+
+        if (this.state.currentState === this.state.STATES.HUB &&
+            this._energyEggCell !== null &&
+            this.energy.currentEnergy < this.energy.maxEnergy) {
+            const r = this.ui.getEnergyCellRect(this._energyEggCell, this.energy.maxEnergy);
+            if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+                this._tryStartDualRing();
+                return true;
+            }
+        }
+        return false;
     }
 
     // ── Input ──
@@ -1122,7 +1411,7 @@ class GameManager {
         this._lastSimWall = (typeof performance !== 'undefined') ? performance.now() : 0;
 
         this.input = new InputManager(this.canvas, {
-            hitTestUI: (x, y) => this.ui.handleClick(x, y),
+            hitTestUI: (x, y) => this._hitTestUI(x, y),
             onMove: (x, y) => this.ui.updateMouse(x, y),
             onPress: (pointerType, ts) => this._handleConfirm(ts),
             onSwipe: (dir, ts) => this._handleSwipe(dir, ts),

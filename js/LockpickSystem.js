@@ -42,6 +42,12 @@ class LockpickSystem {
         this.resultTimer = 0;
         this.resultDuration = 1.5;
 
+        // Animation (independent of cursor angle so nothing jumps on wrap)
+        this.animTime = 0;
+        this.pulseTimer = 0;
+        this.pulseAngle = 0;
+        this.startFlash = 0;
+
         // Arrow directions
         this.DIRECTIONS = ['up', 'down', 'left', 'right'];
         this.DIR_KEYS = {
@@ -69,6 +75,9 @@ class LockpickSystem {
         this.started = false;       // Wait, start on first keypress
         this.resultTimer = 0;
         this.currentNodeIndex = 0;
+        this.animTime = 0;
+        this.pulseTimer = 0;
+        this.startFlash = 0;
 
         this._configure();
         this._generateNodes();
@@ -114,6 +123,11 @@ class LockpickSystem {
     update(dt) {
         if (!this.active) return;
 
+        // Animation clock runs even while waiting / showing the result.
+        this.animTime += dt;
+        if (this.pulseTimer > 0) this.pulseTimer -= dt;
+        if (this.startFlash > 0) this.startFlash -= dt;
+
         // Showing result — count timer, then invoke callback
         if (this.result !== null) {
             this.resultTimer += dt;
@@ -150,6 +164,7 @@ class LockpickSystem {
         // First keypress only starts cursor, no node check
         if (!this.started) {
             this.started = true;
+            this.startFlash = 0.4;
             return true; // Cursor starts rotating, this key doesn't count
         }
 
@@ -169,6 +184,8 @@ class LockpickSystem {
         if (validKeys.includes(code)) {
             // CORRECT!
             currentNode.solved = true;
+            this.pulseTimer = 0.4;
+            this.pulseAngle = currentNode.angle;
             this.currentNodeIndex++;
 
             // All solved?
@@ -233,8 +250,8 @@ class LockpickSystem {
 
         // 0. Dış dekoratif halka — CG: Rotation transformation
         ctx.save();
-        // Halkanın dönme efekti için radyan cinsinden rotasyon uyguluyoruz
-        ctx.rotate(this.cursorAngle * Math.PI / 180 * 0.3); // Yavaş dönüş
+        // Sürekli animasyon saati: cursorAngle 360→0 sıçradığında titremez
+        ctx.rotate(this.animTime * 0.4);
         ctx.beginPath();
         ctx.arc(0, 0, radius + 18, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(59,130,246,0.06)';
@@ -246,8 +263,7 @@ class LockpickSystem {
 
         // 0b. İç dekoratif halka — CG: Counter-rotation
         ctx.save();
-        // Ters yöne dönmesi için rotasyon açısını eksi (-) yapıyoruz
-        ctx.rotate(-this.cursorAngle * Math.PI / 180 * 0.5);
+        ctx.rotate(-this.animTime * 0.6);
         ctx.beginPath();
         ctx.arc(0, 0, radius - 30, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(59,130,246,0.05)';
@@ -279,6 +295,9 @@ class LockpickSystem {
         if (this.result === null) {
             this._drawCursor(ctx, radius);
         }
+
+        // 5b. Hit pulse on the node we just solved
+        this._drawPulse(ctx, radius);
 
         // 6. Progress bar
         this._drawProgressBar(ctx, radius);
@@ -317,7 +336,7 @@ class LockpickSystem {
     }
 
     _drawLockIcon(ctx) {
-        const s = 18;
+        const s = 18 * (1 + Math.max(0, this.startFlash) * 0.35);
         ctx.save();
         const isOpen = this.result === 'success';
         ctx.fillStyle = isOpen ? '#22c55e' : '#1e293b';
@@ -406,6 +425,23 @@ class LockpickSystem {
         ctx.strokeStyle = 'rgba(226,232,240,0.4)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
+    }
+
+    _drawPulse(ctx, radius) {
+        if (this.pulseTimer <= 0) return;
+        const t = 1 - this.pulseTimer / 0.4; // 0 → 1
+        const rad = Utils.degToRad(this.pulseAngle);
+        const x = Math.cos(rad) * radius;
+        const y = Math.sin(rad) * radius;
+
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.7;
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 18 + t * 18, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
     }
 
     _drawProgressBar(ctx, radius) {
