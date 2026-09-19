@@ -1447,7 +1447,8 @@ class GameManager {
         const S = this.state.STATES;
         const state = this.state.currentState;
         if (state === S.LEVEL || state === S.ENDLESS || state === S.MENU ||
-            state === S.GAME_OVER || state === S.ENDLESS_OVER || state === S.CONGRATS) {
+            state === S.GAME_OVER || state === S.ENDLESS_OVER ||
+            state === S.CONGRATS || state === S.MINIGAME) {
             this._dispatchKey({ code: 'Space', timestamp });
         }
     }
