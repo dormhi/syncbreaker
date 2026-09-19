@@ -46,7 +46,7 @@ class LevelManager {
         this._loadProgress();
         this.congratsSeen = this._loadCongratsSeen();
         this.group2Unlocked = this._loadGroup2();
-        if (this.group2Unlocked) this._applyGroup2Unlock();
+        this._enforceSequentialUnlocks();
     }
 
     _createLevels() {
@@ -490,15 +490,31 @@ class LevelManager {
     }
 
     _applyGroup2Unlock() {
-        // Breaching the gate only opens the FIRST ACT II node (level 4).
-        // Levels 5 and 6 still unlock sequentially by completion.
-        if (this.levels[3]) this.levels[3].unlocked = true;
+        this._enforceSequentialUnlocks();
+    }
+
+    /**
+     * Access is strictly sequential: a node is playable only when the
+     * previous one is completed. Level 4 additionally requires the gate.
+     * This also self-heals saves created by the earlier "open all at once"
+     * behaviour, so no manual reset is needed.
+     */
+    _enforceSequentialUnlocks() {
+        if (!this.levels.length) return;
+        this.levels[0].unlocked = true;
+        for (let i = 1; i < this.levels.length; i++) {
+            if (i === 3) {
+                this.levels[i].unlocked = this.group2Unlocked && !!this.levels[2].completed;
+            } else {
+                this.levels[i].unlocked = !!this.levels[i - 1].completed;
+            }
+        }
     }
 
     unlockGroup2() {
         const wasUnlocked = this.group2Unlocked;
         this.group2Unlocked = true;
-        this._applyGroup2Unlock();
+        this._enforceSequentialUnlocks();
         this._saveGroup2();
         this._saveProgress();
         return !wasUnlocked;

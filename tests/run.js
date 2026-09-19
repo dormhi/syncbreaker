@@ -635,6 +635,31 @@ suite('Packet Purge gate is blocked before ACT I is cleared', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('LevelManager — sequential self-heal', () => {
+    const game = loadLevelManager();
+    const lm = new game.LevelManager();
+
+    // Stale save from the earlier "unlock all at once" build.
+    lm.levels.forEach(l => { l.completed = false; l.unlocked = true; });
+    lm.group2Unlocked = false;
+    lm._enforceSequentialUnlocks();
+    ok('stale save: only level 1 stays open',
+        lm.levels[0].unlocked && !lm.levels[1].unlocked && !lm.levels[3].unlocked && !lm.levels[5].unlocked);
+
+    lm.levels[0].completed = true;
+    lm._enforceSequentialUnlocks();
+    ok('level 2 opens after 1 is completed',
+        lm.levels[1].unlocked && !lm.levels[2].unlocked);
+
+    lm.levels[1].completed = true;
+    lm.levels[2].completed = true;
+    lm.group2Unlocked = true;
+    lm._enforceSequentialUnlocks();
+    ok('gate + ACT I completion opens level 4 only',
+        lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
+});
+
+// ─────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50));
 console.log(`PASS ${passed}   FAIL ${failed}`);
 if (failures.length) {
