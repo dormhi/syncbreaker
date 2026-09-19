@@ -7,10 +7,30 @@
 class SoundManager {
     constructor() {
         this.ctx = null;
-        this.enabled = true;
+        this.enabled = !this._loadMuted();
         this._ambientNodes = null;
         this._initOnInteraction();
     }
+
+    _loadMuted() {
+        try { return localStorage.getItem('sb_muted') === '1'; } catch (e) { return false; }
+    }
+
+    _saveMuted() {
+        try { localStorage.setItem('sb_muted', this.enabled ? '0' : '1'); } catch (e) { }
+    }
+
+    isMuted() { return !this.enabled; }
+
+    /** Mute/unmute all audio. Muting also silences the ambient bed. */
+    setMuted(muted) {
+        this.enabled = !muted;
+        if (!this.enabled) this.stopAmbient();
+        this._saveMuted();
+        return this.isMuted();
+    }
+
+    toggleMute() { return this.setMuted(!this.isMuted()); }
 
     _initOnInteraction() {
         const init = () => {

@@ -153,7 +153,7 @@ const FULL_FILES = [
     'js/GameManager.js'
 ];
 
-const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic'];
+const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'Sound'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {

@@ -812,6 +812,35 @@ suite('GAME OVER restart cooldown', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Sound mute toggle + HUB button', () => {
+    const mod = loadGameManager();
+    const s = mod.Sound;
+
+    s.setMuted(false);
+    ok('sound starts unmuted', !s.isMuted());
+    ok('toggle mutes', s.toggleMute() === true && s.isMuted());
+    ok('toggle unmutes', s.toggleMute() === false && !s.isMuted());
+
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    gm._buildHubButtons();
+
+    const btn = gm.ui.buttons.find(b => b.id === 'sound');
+    ok('HUB has a sound button', !!btn);
+
+    s.setMuted(false);
+    gm._updateSoundButton();
+    ok('label shows SOUND ON', /SOUND ON/.test(btn.label));
+
+    s.setMuted(true);
+    gm._updateSoundButton();
+    ok('label shows MUTED', /MUTED/.test(btn.label));
+
+    s.setMuted(false);
+});
+
+// ─────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50));
 console.log(`PASS ${passed}   FAIL ${failed}`);
 if (failures.length) {

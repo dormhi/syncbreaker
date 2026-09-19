@@ -1200,6 +1200,17 @@ class GameManager {
             { color: '#475569' }
         );
 
+        // Sound toggle
+        this.ui.addButton('sound', '', W / 2, H - 35, 170, 32,
+            () => {
+                Sound.toggleMute();
+                this._updateSoundButton();
+                if (!Sound.isMuted()) Sound.startAmbient();
+            },
+            { color: '#475569' }
+        );
+        this._updateSoundButton();
+
         // Reset Data
         this.ui.addButton('reset', '🗑 RESET', W - 75, H - 35, 110, 32,
             () => {
@@ -1443,6 +1454,13 @@ class GameManager {
             btn.disabled = false;
             btn.label = '↻ RETRY';
         }
+    }
+
+    /** Reflect the mute state on the HUB sound button. */
+    _updateSoundButton() {
+        const btn = this.ui.buttons.find(b => b.id === 'sound');
+        if (!btn) return;
+        btn.label = Sound.isMuted() ? '🔇  MUTED' : '🔊  SOUND ON';
     }
 
     // ── Input ──
