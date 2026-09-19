@@ -39,7 +39,9 @@ class DualRingMechanic extends _MechanicBaseDR {
         this.difficulty = t;
 
         const speedMin = 100, speedMax = 205;
-        this.speed = speedMin + t * (speedMax - speedMin);
+        this.baseSpeed = speedMin + t * (speedMax - speedMin);
+        this.speed = this.baseSpeed;
+        this.rng = options.rng || Math.random;
 
         const tolMax = 22, tolMin = 13;
         this.tolerance = tolMax - t * (tolMax - tolMin);
@@ -63,9 +65,15 @@ class DualRingMechanic extends _MechanicBaseDR {
     /** A new target on a 45-degree grid, never the current one. */
     _pickTarget() {
         const opts = [0, 45, 90, 135, 180, 225, 270, 315];
-        let a = opts[Math.floor(Math.random() * opts.length)];
+        let a = opts[Math.floor(this.rng() * opts.length)];
         if (a === this.targetAngle) a = (a + 45) % 360;
         return a;
+    }
+
+    /** A fresh speed for each round, varied around the energy-based base. */
+    _pickRoundSpeed() {
+        const factor = 0.9 + this.rng() * 0.25; // 0.90 .. 1.15
+        return Math.max(100, Math.min(215, this.baseSpeed * factor));
     }
 
     init() {
@@ -77,8 +85,9 @@ class DualRingMechanic extends _MechanicBaseDR {
         this.roundStart = 0;
         this.qualities = [];
         this.roundFlash = 0;
-        // Start each session at a fresh target position.
+        // Start each session at a fresh target position and speed.
         this._applyTarget(this._pickTarget());
+        this.speed = this._pickRoundSpeed();
     }
 
     update(dt) {
@@ -123,9 +132,9 @@ class DualRingMechanic extends _MechanicBaseDR {
             this.result = 'success';
             this.reward = this._computeReward();
         } else {
-            // Next round: move the target to a new position and re-arm the
-            // markers symmetrically around it.
+            // Next round: new target, new speed, re-arm the markers.
             this._applyTarget(this._pickTarget());
+            this.speed = this._pickRoundSpeed();
             this.roundStart = this.time;
         }
         return true;

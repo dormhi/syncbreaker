@@ -1352,7 +1352,7 @@ class GameManager {
         this.state.change(this.state.STATES.MINIGAME, {
             mechanic,
             title: 'ENERGY RECOVERY',
-            subtitle: 'Nail 3 alignments in a row',
+            subtitle: 'Nail 3 alignments in a row — the speed shifts every round',
             hint: 'Press SPACE / tap when both markers line up',
             onComplete: (success, m) => {
                 if (success) {

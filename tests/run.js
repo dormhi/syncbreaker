@@ -460,26 +460,27 @@ suite('DualRingMechanic — energy-scaled difficulty & multi-round', () => {
     ring.init();
     ok('t=0 is not an instant win', !ring.evaluate(0).success);
 
-    const period = 360 / ring.speed;
     // Markers start +/-135deg around the target, so alignment is always
-    // reached after 135 / speed regardless of where the target sits.
-    const tAlign = 135 / ring.speed;
+    // reached after 135 / speed regardless of where the target sits. Speed
+    // is re-rolled every round, so recompute per round.
     const target0 = ring.targetAngle;
+    const alignAt = () => ring.roundStart + 135 / ring.speed;
 
     // Round 1
-    ring.time = tAlign;
+    ring.time = alignAt();
     ring.handleConfirm();
     ok('round 1 accepted, run continues', ring.round === 1 && ring.result === null);
     ok('target moves to a new position each round', ring.targetAngle !== target0);
     ok('markers reset away from the new target', !ring.evaluate(ring.roundStart).success);
+    ok('round speed stays playable', ring.speed >= 100 && ring.speed <= 215);
 
     // Round 2
-    ring.time = ring.roundStart + tAlign;
+    ring.time = alignAt();
     ring.handleConfirm();
     ok('round 2 accepted, run continues', ring.round === 2 && ring.result === null);
 
     // Round 3 completes the run with a bounded reward.
-    ring.time = ring.roundStart + tAlign;
+    ring.time = alignAt();
     ring.handleConfirm();
     ok('all rounds → success', ring.result === 'success');
     ok('reward within 1..3', ring.reward >= 1 && ring.reward <= 3);
@@ -487,7 +488,7 @@ suite('DualRingMechanic — energy-scaled difficulty & multi-round', () => {
     // A misaligned press ends the run.
     const ring2 = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
     ring2.init();
-    ring2.time = tAlign + period / 2;
+    ring2.time = (135 / ring2.speed) + (360 / ring2.speed) / 2;
     ring2.handleConfirm();
     ok('misaligned press fails the run', ring2.result === 'fail');
 
@@ -495,6 +496,14 @@ suite('DualRingMechanic — energy-scaled difficulty & multi-round', () => {
     const ring3 = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
     ring3.init();
     ok('tolerance boundary is success', ring3.evaluate((135 - ring3.tolerance) / ring3.speed).success);
+
+    // Per-round speed varies around the energy-based base.
+    const dr = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3, rng: makeRng(9) });
+    dr.init();
+    const picks = [];
+    for (let i = 0; i < 20; i++) picks.push(dr._pickRoundSpeed());
+    ok('round speeds are variable', Math.min.apply(null, picks) !== Math.max.apply(null, picks));
+    ok('round speeds stay playable', Math.min.apply(null, picks) >= 100 && Math.max.apply(null, picks) <= 215);
 });
 
 // ─────────────────────────────────────────────
