@@ -234,12 +234,12 @@ class UIManager {
         const top = btn.y - btn.h / 2;
         const hovered = !btn.disabled && this.isHovered(btn);
         const muted = !!btn.muted;
-        const color = muted ? '#64748b' : '#3b82f6';
+        const color = muted ? '#64748b' : '#94a3b8';
 
         ctx.save();
-        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = hovered ? 1.8 : 1.2;
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.85)' : 'rgba(15,23,42,0.55)';
+        ctx.strokeStyle = 'rgba(100,116,139,0.35)';
+        ctx.lineWidth = 1;
         Utils.roundRect(ctx, left, top, btn.w, btn.h, 8);
         ctx.fill();
         ctx.stroke();

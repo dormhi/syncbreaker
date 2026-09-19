@@ -1200,8 +1200,8 @@ class GameManager {
             { color: '#475569' }
         );
 
-        // Sound toggle
-        this.ui.addButton('sound', '', W / 2, H - 35, 44, 30,
+        // Sound toggle (top-left, away from the footer text)
+        this.ui.addButton('sound', '', 36, 30, 44, 30,
             () => {
                 Sound.toggleMute();
                 this._updateSoundButton();
