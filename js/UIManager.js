@@ -126,13 +126,15 @@ class UIManager {
         ctx.save();
         ctx.globalAlpha = locked ? 0.65 : 1;
 
-        // Frame
+        // Frame (with a soft glow on hover)
         ctx.fillStyle = hovered ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
         ctx.strokeStyle = btn.color;
         ctx.lineWidth = hovered ? 2 : 1.2;
+        if (hovered) { ctx.shadowColor = btn.color; ctx.shadowBlur = 14; }
         Utils.roundRect(ctx, left, top, w, h, 10);
         ctx.fill();
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
         // Status accent stripe
         ctx.fillStyle = btn.color;

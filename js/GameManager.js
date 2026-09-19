@@ -217,11 +217,15 @@ class GameManager {
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '700 22px Orbitron';
                 ctx.textAlign = 'center';
-                ctx.fillText('INFECTED NODES', W / 2, 38);
+                ctx.textBaseline = 'alphabetic';
+                ctx.fillText('INFECTED NODES', W / 2, 34);
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '400 13px Rajdhani';
-                ctx.fillText('Select system nodes to clean', W / 2, 58);
+                ctx.fillText('Select system nodes to clean', W / 2, 53);
+
+                // Header: global node progress + divider
+                this._renderHubHeader(ctx, W);
 
                 // Energy
                 this.ui.renderEnergyBar({
@@ -244,15 +248,12 @@ class GameManager {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '600 15px Rajdhani';
                     ctx.textAlign = 'center';
-                    ctx.fillText(this._hubMessage, W / 2, H - 62);
+                    ctx.fillText(this._hubMessage, W / 2, H - 52);
                     ctx.restore();
                 }
 
-                // Footer info
-                ctx.fillStyle = '#475569';
-                ctx.font = '400 13px Rajdhani';
-                ctx.textAlign = 'center';
-                ctx.fillText('ACT I nodes can be skipped with the Code Breaker (2⚡) · ACT II needs the gate', W / 2, H - 16);
+                // Footer legend chips
+                this._renderHubFooter(ctx, W, H);
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
@@ -1225,6 +1226,79 @@ class GameManager {
         );
     }
 
+    /** Header: a 6-segment node-cleansing progress bar + divider. */
+    _renderHubHeader(ctx, W) {
+        const levels = this.levels.levels;
+        const n = levels.length;
+        const done = levels.filter(l => l.completed).length;
+
+        const segW = 26, gap = 4, barH = 6, y = 66;
+        const totalW = n * segW + (n - 1) * gap;
+        let x = W / 2 - totalW / 2;
+
+        for (let i = 0; i < n; i++) {
+            ctx.fillStyle = i < done ? '#22c55e' : 'rgba(71,85,105,0.35)';
+            Utils.roundRect(ctx, x, y, segW, barH, 2);
+            ctx.fill();
+            x += segW + gap;
+        }
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 12px Rajdhani';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${done}/${n}`, W / 2 + totalW / 2 + 10, y + barH / 2);
+
+        // Divider under the header
+        ctx.strokeStyle = 'rgba(71,85,105,0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(40, 78);
+        ctx.lineTo(W - 40, 78);
+        ctx.stroke();
+
+        ctx.textBaseline = 'alphabetic';
+    }
+
+    /** Footer: compact legend chips instead of a long sentence. */
+    _renderHubFooter(ctx, W, H) {
+        const chips = [
+            { text: 'ACT I SKIP · 2⚡', color: '#3b82f6' },
+            { text: 'GATE · PACKET PURGE', color: '#f59e0b' }
+        ];
+        const padX = 12, h = 20, gap = 12, y = H - 20;
+
+        ctx.save();
+        ctx.font = '600 11px Rajdhani';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        const widths = chips.map(c => {
+            const m = ctx.measureText(c.text);
+            const tw = (m && typeof m.width === 'number' && isFinite(m.width)) ? m.width : 90;
+            return tw + padX * 2;
+        });
+        const totalW = widths.reduce((a, b) => a + b, 0) + gap * (chips.length - 1);
+        let x = W / 2 - totalW / 2;
+
+        chips.forEach((c, i) => {
+            const w = widths[i];
+            ctx.fillStyle = 'rgba(15,23,42,0.6)';
+            ctx.strokeStyle = c.color;
+            ctx.globalAlpha = 0.85;
+            ctx.lineWidth = 1;
+            Utils.roundRect(ctx, x, y - h / 2, w, h, 10);
+            ctx.fill();
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = c.color;
+            ctx.fillText(c.text, x + w / 2, y + 1);
+            x += w + gap;
+        });
+
+        ctx.restore();
+    }
+
     _renderHubConnections(ctx) {
         const W = this.canvas.width;
         const cols = 3;
@@ -1256,14 +1330,36 @@ class GameManager {
         drawPanel(panel1Top, panel1H, 'rgba(59,130,246,0.25)');
         drawPanel(panel2Top, panel2H, 'rgba(245,158,11,0.25)');
 
-        // Act labels
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = '#3b82f6';
-        ctx.font = '700 12px Orbitron';
-        ctx.fillText('ACT I  ·  SYSTEM BREACH', left + 16, panel1Top + 20);
-        ctx.fillStyle = '#f59e0b';
-        ctx.fillText('ACT II  ·  DEEP INCURSION', left + 16, panel2Top + 20);
+        // Act headers with per-act progress
+        const actDone = [
+            this.levels.levels.slice(0, 3).filter(l => l.completed).length,
+            this.levels.levels.slice(3, 6).filter(l => l.completed).length
+        ];
+        const drawHeader = (top, label, color, done) => {
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = color;
+            ctx.font = '700 12px Orbitron';
+            ctx.fillText(label, left + 16, top + 16);
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#64748b';
+            ctx.font = '600 11px Rajdhani';
+            ctx.fillText(`${done}/3`, left + panelW - 16, top + 16);
+
+            const bx = left + 16, bw = panelW - 32, by = top + 22;
+            ctx.fillStyle = 'rgba(71,85,105,0.3)';
+            Utils.roundRect(ctx, bx, by, bw, 3, 2);
+            ctx.fill();
+            if (done > 0) {
+                ctx.fillStyle = color;
+                Utils.roundRect(ctx, bx, by, bw * (done / 3), 3, 2);
+                ctx.fill();
+            }
+            ctx.textAlign = 'left';
+        };
+        drawHeader(panel1Top, 'ACT I  ·  SYSTEM BREACH', '#3b82f6', actDone[0]);
+        drawHeader(panel2Top, 'ACT II  ·  DEEP INCURSION', '#f59e0b', actDone[1]);
 
         // Connector to the gate
         ctx.strokeStyle = 'rgba(71,85,105,0.5)';
@@ -1315,6 +1411,18 @@ class GameManager {
             ctx.beginPath();
             ctx.arc(x, y - 2, 5, Math.PI, 0, false);
             ctx.stroke();
+        }
+
+        // Pulse when the gate is playable (ACT I cleared)
+        if (!unlocked && this.levels.isActOneComplete()) {
+            const pulse = 0.5 + 0.5 * Math.sin((this.bgTime || 0) * 3);
+            ctx.globalAlpha = 0.12 + 0.28 * (1 - pulse);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, 24 + pulse * 10, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
         }
         ctx.restore();
     }
