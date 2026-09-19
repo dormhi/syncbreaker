@@ -74,13 +74,15 @@ scoring, lives, lockpick tuning, energy costs) is unchanged.
   mission logos (`js/LevelIcons.js`), per-node status, best score, and a gate
   node between the acts.
 - **Packet Purge** (`js/mechanics/PacketPurgeMechanic.js`) — the randomized,
-  deliberately easy reaction gate that unlocks ACT II (levels 4-6). It has no
-  name in the menu; it appears only as the lock between the two acts.
+  two-wave reaction gate that unlocks ACT II (levels 4-6). Infected (red)
+  packets travel faster than clean (blue) ones, and wave 2 escalates. It has
+  no name in the menu; it appears only as the lock between the two acts.
 - **Dual Ring Decrypt** (`js/mechanics/DualRingMechanic.js`) — a hidden energy
   easter egg. When energy is not full, a random energy-bar cell silently opens
-  a ring-alignment challenge; success grants up to +3 energy (capped at 6).
-  Ring speed scales with missing energy (lower energy = harder), always clamped
-  to a playable range. Time-based regeneration is untouched.
+  a multi-round ring-alignment challenge (3 alignments in a row); success
+  grants up to +3 energy (capped at 6). Ring speed scales with missing energy
+  (lower energy = harder), always clamped to a playable range. Time-based
+  regeneration is untouched.
 - **Attempt windows** (`js/core/ChallengeGate.js`): Dual Ring 2 / 5 min,
   Packet Purge 2 / 3 min.
 - **Energy cap is now 6** (`js/EnergySystem.js`) with a clamp-safe `addEnergy`.

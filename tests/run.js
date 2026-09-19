@@ -448,35 +448,53 @@ suite('ChallengeGate — attempt windows', () => {
 });
 
 // ─────────────────────────────────────────────
-suite('DualRingMechanic — energy-scaled difficulty & reward', () => {
+suite('DualRingMechanic — energy-scaled difficulty & multi-round', () => {
     // Lower energy → faster (harder), and always playable.
     const full = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 6 });
     const empty = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 0 });
     ok('low energy is faster', empty.speed > full.speed);
     ok('speed stays playable', empty.speed <= 205 && full.speed >= 100);
+    ok('requires multiple rounds', full.rounds === 3);
 
     const ring = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
     ring.init();
     ok('t=0 is not an instant win', !ring.evaluate(0).success);
 
-    // At the alignment moment both markers are at the target → success.
     const period = 360 / ring.speed;
-    const tAlign = (270 / ring.speed); // first time outer reaches 270
-    const r = ring.evaluate(tAlign);
-    ok('aligned press succeeds', r.success);
-    ok('reward within 1..3', r.reward >= 1 && r.reward <= 3);
+    const tAlign = 270 / ring.speed; // first alignment after the round starts
 
-    // A clearly misaligned press fails.
-    ok('misaligned press fails', !ring.evaluate(tAlign + period / 2).success);
+    // Round 1
+    ring.time = tAlign;
+    ring.handleConfirm();
+    ok('round 1 accepted, run continues', ring.round === 1 && ring.result === null);
+    ok('markers reset away from target', !ring.evaluate(ring.roundStart).success);
 
-    // Boundary of tolerance counts as success.
-    const tol = ring.tolerance;
-    const tEdge = (270 - tol) / ring.speed;
-    ok('tolerance boundary is success', ring.evaluate(tEdge).success);
+    // Round 2
+    ring.time = ring.roundStart + tAlign;
+    ring.handleConfirm();
+    ok('round 2 accepted, run continues', ring.round === 2 && ring.result === null);
+
+    // Round 3 completes the run with a bounded reward.
+    ring.time = ring.roundStart + tAlign;
+    ring.handleConfirm();
+    ok('all rounds → success', ring.result === 'success');
+    ok('reward within 1..3', ring.reward >= 1 && ring.reward <= 3);
+
+    // A misaligned press ends the run.
+    const ring2 = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
+    ring2.init();
+    ring2.time = tAlign + period / 2;
+    ring2.handleConfirm();
+    ok('misaligned press fails the run', ring2.result === 'fail');
+
+    // Tolerance boundary counts as success.
+    const ring3 = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
+    ring3.init();
+    ok('tolerance boundary is success', ring3.evaluate((270 - ring3.tolerance) / ring3.speed).success);
 });
 
 // ─────────────────────────────────────────────
-suite('PacketPurgeMechanic — easy reaction gate', () => {
+suite('PacketPurgeMechanic — two waves, infected are faster', () => {
     function make(seed) {
         const rng = makeRng(seed);
         const m = new PacketPurgeMechanic({ rng });
@@ -484,32 +502,47 @@ suite('PacketPurgeMechanic — easy reaction gate', () => {
         return m;
     }
     const m = make(7);
-    ok('duration random within easy band', m.duration >= 12 && m.duration <= 18);
-    ok('speed within easy band', m.speed >= 85 && m.speed <= 135);
+    ok('two waves configured', m.waves === 2);
+    ok('infected packets are faster than clean ones', m.badSpeed > m.goodSpeed);
+    ok('speeds within a fair band', m.badSpeed >= 120 && m.badSpeed <= 165 && m.goodSpeed >= 70 && m.goodSpeed <= 95);
     ok('field computed at init', m.field.w > 0 && m.field.h > 0);
 
     // Clicking a bad packet clears it.
-    m.packets = [{ id: 1, x: 300, y: 300, w: 46, h: 30, bad: true, dead: false }];
+    m.packets = [{ id: 1, x: 300, y: 300, w: 46, h: 30, bad: true, speed: 150, dead: false }];
     m.handlePointer(300, 300, 'down');
     ok('bad packet cleared', m.hits === 1 && m.packets.length === 0);
 
     // Clicking a clean packet costs health.
-    m.packets = [{ id: 2, x: 300, y: 300, w: 46, h: 30, bad: false, dead: false }];
+    m.packets = [{ id: 2, x: 300, y: 300, w: 46, h: 30, bad: false, speed: 80, dead: false }];
     const hp = m.health;
     m.handlePointer(300, 300, 'down');
     ok('clean packet is a mistake', m.health === hp - 1);
 
     // Missing a bad packet (reaching the core) costs health too.
     const m2 = make(11);
-    m2.packets = [{ id: 3, x: m2.field.x + m2.field.w - 5, y: 300, w: 46, h: 30, bad: true, dead: false }];
+    m2.packets = [{ id: 3, x: m2.field.x + m2.field.w - 5, y: 300, w: 46, h: 30, bad: true, speed: 300, dead: false }];
     m2.update(1);
     ok('leaked bad packet costs health', m2.health === 2);
 
-    // Survive the timer → success.
+    // Surviving both waves succeeds.
     const m3 = make(3);
     m3.packets = [];
-    m3.update(m3.duration + 0.1);
-    ok('surviving the purge succeeds', m3.result === 'success');
+    m3.phaseTimer = m3.waveDuration;
+    m3.update(0.001);
+    ok('wave 1 ends into the breach break', m3.phase === 'break');
+    m3.phaseTimer = m3.breakDuration;
+    m3.update(0.001);
+    ok('wave 2 begins', m3.wave === 2 && m3.phase === 'spawn');
+    m3.phaseTimer = m3.waveDuration;
+    m3.update(0.001);
+    ok('surviving both waves succeeds', m3.result === 'success');
+
+    // Losing all health fails.
+    const m4 = make(5);
+    m4.health = 1;
+    m4.packets = [{ id: 4, x: m4.field.x + m4.field.w - 5, y: 300, w: 46, h: 30, bad: true, speed: 300, dead: false }];
+    m4.update(1);
+    ok('zero health fails the purge', m4.result === 'fail');
 });
 
 // ─────────────────────────────────────────────

@@ -1342,7 +1342,7 @@ class GameManager {
         this.state.change(this.state.STATES.MINIGAME, {
             mechanic,
             title: 'ENERGY RECOVERY',
-            subtitle: 'Align both markers inside the target arcs',
+            subtitle: 'Nail 3 alignments in a row',
             hint: 'Press SPACE / tap when both markers line up',
             onComplete: (success, m) => {
                 if (success) {
@@ -1378,8 +1378,8 @@ class GameManager {
         this.state.change(this.state.STATES.MINIGAME, {
             mechanic,
             title: 'PACKET PURGE',
-            subtitle: 'Purge infected packets before they reach the core',
-            hint: 'Click / tap the RED packets — leave the blue ones',
+            subtitle: 'Two waves — purge infected packets before they reach the core',
+            hint: 'Tap the faster RED packets — leave the blue ones',
             onComplete: (success) => {
                 if (success) {
                     this.levels.unlockGroup2();
