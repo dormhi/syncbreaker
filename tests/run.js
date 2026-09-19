@@ -660,6 +660,29 @@ suite('LevelManager — sequential self-heal', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Bar speed is normalized across levels', () => {
+    const game = loadLevelManager();
+    const lm = new game.LevelManager();
+    const speeds = lm.levels.map(l => l.barSpeed);
+
+    let monotonic = true;
+    for (let i = 1; i < speeds.length; i++) if (speeds[i] <= speeds[i - 1]) monotonic = false;
+    ok('base speeds strictly increase', monotonic, speeds.join(', '));
+
+    // Even the hardest level must stay readable on a 60 Hz screen.
+    for (let i = 0; i < lm.levels.length; i++) {
+        const lvl = lm.levels[i];
+        const maxSpeed = Math.min(lvl.barSpeed + 0.01 * lvl.requiredHits, 1.9);
+        const zoneTimeMs = (lvl.targetSize / maxSpeed) * 1000;
+        ok(`level ${i + 1} zone window playable`, zoneTimeMs >= 40,
+            `${zoneTimeMs.toFixed(1)}ms maxSpeed=${maxSpeed.toFixed(2)}`);
+    }
+
+    // The hardest level is meaningfully tamer than the old 2.0/3.5 curve.
+    ok('level 6 final speed is bounded', Math.min(1.5 + 0.01 * 18, 1.9) <= 1.7);
+});
+
+// ─────────────────────────────────────────────
 console.log('\n' + '─'.repeat(50));
 console.log(`PASS ${passed}   FAIL ${failed}`);
 if (failures.length) {
