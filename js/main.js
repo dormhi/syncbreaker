@@ -37,21 +37,16 @@
 
     const game = new GameManager(canvas, ctx);
 
-    let lastTime = 0;
-    const MAX_DT = 1 / 30;
-
-    function gameLoop(timestamp) {
-        const dt = Math.min((timestamp - lastTime) / 1000, MAX_DT);
-        lastTime = timestamp;
-
-        game.update(dt);
-        game.render(ctx);
-
-        requestAnimationFrame(gameLoop);
-    }
-
-    requestAnimationFrame((ts) => {
-        lastTime = ts;
-        requestAnimationFrame(gameLoop);
+    // Fixed-timestep loop: simulation is frame-rate independent, render is
+    // interpolated. Replaces the old variable-dt loop that clamped positive
+    // deltas to 1/30 and put slow devices into slow motion.
+    const loop = new GameLoop({
+        fixedDt: 1 / 60,
+        maxSubSteps: 5,
+        update: (dt) => game.update(dt),
+        render: (alpha) => game.render(ctx, alpha)
     });
+
+    if (typeof window !== 'undefined') window.syncbreakerLoop = loop;
+    loop.start();
 })();

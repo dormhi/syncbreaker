@@ -17,7 +17,8 @@ class LevelManager {
         this.timer = 0;
         this.usedRevive = false; // 1 revive per level
 
-        // Timing bar
+        // Timing bar — deterministic analytic motion (see TimingBarMechanic)
+        this.timingBar = new TimingBarMechanic();
         this.barPosition = 0;
         this.barSpeed = 1;
         this.barDirection = 1;
@@ -31,6 +32,7 @@ class LevelManager {
         // State
         this.levelComplete = false;
         this.levelFailed = false;
+        this.justUnlockedEndless = false;
 
         // Particles (simple)
         this.particles = [];
@@ -40,6 +42,7 @@ class LevelManager {
         this.gameTime = 0;
 
         this._loadProgress();
+        this.congratsSeen = this._loadCongratsSeen();
     }
 
     _createLevels() {
@@ -86,7 +89,8 @@ class LevelManager {
         this.timer = level.maxTime;
         this.usedRevive = false;
 
-        this._generateTargetZone();
+        this.timingBar.reset(level.barSpeed, level.targetSize);
+        this._syncZone();
         this._initBgObjects();
         return true;
     }
@@ -106,10 +110,12 @@ class LevelManager {
             return;
         }
 
-        // Bar movement (ping-pong)
-        this.barPosition += this.barSpeed * this.barDirection * dt;
-        if (this.barPosition >= 1) { this.barPosition = 1; this.barDirection = -1; }
-        else if (this.barPosition <= 0) { this.barPosition = 0; this.barDirection = 1; }
+        // Bar movement — analytic, frame-rate independent
+        this.timingBar.update(dt);
+        this.barPosition = this.timingBar.position;
+
+        // Background animation — must live in update(), never in render()
+        this._updateLevelBg(dt);
 
         // Hit anim
         if (this.lastHitResult) {
@@ -128,17 +134,16 @@ class LevelManager {
         }
     }
 
-    hit() {
+    hit(inputOffset = 0) {
         if (!this.currentLevel || this.levelComplete || this.levelFailed) return;
 
-        const pos = this.barPosition;
-        const inZone = pos >= this.targetZoneStart && pos <= this.targetZoneEnd;
+        // Sub-frame resolution: sample the bar at the exact moment the
+        // player pressed, not at the last rendered frame.
+        const pos = this.timingBar.sample(inputOffset);
+        const { inZone, dist } = this.timingBar.hitTest(pos);
         const theme = getLevelTheme(this.currentLevel.id);
 
         if (inZone) {
-            const center = (this.targetZoneStart + this.targetZoneEnd) / 2;
-            const dist = Math.abs(pos - center) / ((this.targetZoneEnd - this.targetZoneStart) / 2);
-
             if (dist < 0.35) {
                 this.combo++;
                 this.score += 100 * this.combo;
@@ -171,8 +176,8 @@ class LevelManager {
         }
 
         this.hitAnimTimer = 0.5;
-        this._generateTargetZone();
         this.barSpeed = Math.min(this.barSpeed + 0.015, 3.5);
+        this._generateTargetZone();
         this._checkEnd();
     }
 
@@ -186,20 +191,101 @@ class LevelManager {
     }
 
     _onComplete() {
+        const wasAllCompleted = this.levels.every(x => x.completed);
         const l = this.currentLevel;
         if (this.score > l.bestScore) l.bestScore = this.score;
         l.completed = true;
         const next = this.currentLevelIndex + 1;
         if (next < this.levels.length) this.levels[next].unlocked = true;
+        // Flag the single moment Endless Mode is first earned, so the
+        // congratulations screen is shown exactly once.
+        this.justUnlockedEndless = this.levels.every(x => x.completed) && !wasAllCompleted && !this.congratsSeen;
         this._saveProgress();
         Sound.playLevelComplete();
     }
 
     _generateTargetZone() {
-        const size = this.currentLevel.targetSize;
-        const start = Utils.randFloat(0.05, 0.95 - size);
-        this.targetZoneStart = start;
-        this.targetZoneEnd = start + size;
+        this.timingBar.setSpeed(this.barSpeed);
+        this.timingBar.setTargetSize(this.currentLevel.targetSize);
+        this.timingBar.regenerateZone();
+        this._syncZone();
+    }
+
+    _syncZone() {
+        this.targetZoneStart = this.timingBar.zoneStart;
+        this.targetZoneEnd = this.timingBar.zoneEnd;
+    }
+
+    /**
+     * Interpolated bar position for rendering. Interpolation is only valid
+     * while the simulation is advancing; once the level is complete/failed
+     * the bar is frozen, so we must NOT extrapolate (otherwise the indicator
+     * jitters back and forth every frame as alpha changes).
+     */
+    _renderPos(alpha) {
+        const running = !!this.currentLevel && !this.levelComplete && !this.levelFailed;
+        return this.timingBar.sample(running ? alpha * this.timingBar.stepDt : 0);
+    }
+
+    /**
+     * The moving slider: a short playhead line ON the bar, plus the mission
+     * logo floating above it with a clear gap (no connecting line). The logo
+     * is aligned with the line so the position is still readable.
+     */
+    _renderIndicator(ctx, ix, barY, barH, theme) {
+        const color = theme.indicatorColor;
+        const barTop = barY - barH / 2;
+        const barBottom = barY + barH / 2;
+        const r = 16;
+        const cy = barTop - r - 26;       // logo floats above the bar
+        const lineTop = barTop - 9;
+        const lineBottom = barBottom + 12;
+
+        // 1) Sliding line on the bar (glow + white core)
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(ix, lineTop);
+        ctx.lineTo(ix, lineBottom);
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(ix, lineTop);
+        ctx.lineTo(ix, lineBottom);
+        ctx.stroke();
+
+        // 2) Pointer at the bottom of the line
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(ix - 5, lineBottom);
+        ctx.lineTo(ix + 5, lineBottom);
+        ctx.lineTo(ix, lineBottom + 7);
+        ctx.closePath();
+        ctx.fill();
+
+        // 3) Mission logo floating above, separated by a gap
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = 'rgba(8,12,20,0.92)';
+        ctx.beginPath();
+        ctx.arc(ix, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ix, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(ix, cy);
+        LevelIcons.draw(ctx, this.currentLevel.id, 26, color);
+        ctx.restore();
+        ctx.globalAlpha = 1;
     }
 
     _spawnParticles(barPos, color, count) {
@@ -221,7 +307,7 @@ class LevelManager {
 
     // ── Render ──
 
-    render(ctx, W, H) {
+    render(ctx, W, H, alpha = 0) {
         if (!this.currentLevel) return;
 
         const theme = getLevelTheme(this.currentLevel.id);
@@ -269,46 +355,10 @@ class LevelManager {
         ctx.stroke();
         ctx.globalAlpha = 1;
 
-        // Indicator — the icon IS the slider
-        const ix = barX + this.barPosition * barW;
-        const bob = Math.sin(t * 6) * 3;
-        const iSize = (theme.iconSize || 26) + 6;
-
-        // Center marker — thin line through the bar so player sees exact position
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = theme.indicatorColor;
-        ctx.globalAlpha = 0.6;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 3);
-        ctx.lineTo(ix, barY + barH + 3);
-        ctx.stroke();
-
-        // Small triangle pointer above
-        ctx.fillStyle = theme.indicatorColor;
-        ctx.globalAlpha = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 3);
-        ctx.lineTo(ix - 4, barY - barH - 9);
-        ctx.lineTo(ix + 4, barY - barH - 9);
-        ctx.closePath();
-        ctx.fill();
-
-        // Glowing circle behind the icon
-        ctx.globalAlpha = 0.2;
-        ctx.beginPath();
-        ctx.arc(ix, barY + bob, iSize * 0.65, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
-        // Icon with strong glow — double draw for brightness
-        ctx.shadowColor = theme.indicatorColor;
-        ctx.shadowBlur = 12;
-        ctx.font = `${iSize}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(theme.icon, ix, barY + bob);
-        ctx.fillText(theme.icon, ix, barY + bob);
+        // Indicator — interpolated to the exact render instant (pure: no state mutation)
+        const renderPos = this._renderPos(alpha);
+        const ix = barX + renderPos * barW;
+        this._renderIndicator(ctx, ix, barY, barH, theme);
 
         ctx.restore();
 
@@ -410,6 +460,15 @@ class LevelManager {
         } catch (e) { }
     }
 
+    _loadCongratsSeen() {
+        try { return localStorage.getItem('sb_congrats_seen') === '1'; } catch (e) { return false; }
+    }
+
+    _markCongratsSeen() {
+        this.congratsSeen = true;
+        try { localStorage.setItem('sb_congrats_seen', '1'); } catch (e) { }
+    }
+
     // ════════════════════════════════════════
     //  ENDLESS MODE
     // ════════════════════════════════════════
@@ -461,24 +520,22 @@ class LevelManager {
         // Best score
         this.endlessBest = this._loadEndlessBest();
 
-        this._generateTargetZone();
+        this.timingBar.reset(this.currentLevel.barSpeed, this.currentLevel.targetSize);
+        this._syncZone();
         this._initBgObjects();
     }
 
     /**
      * Endless mode hit — difficulty increases with wave system
      */
-    hitEndless() {
+    hitEndless(inputOffset = 0) {
         if (!this.currentLevel || this.levelFailed) return;
 
-        const pos = this.barPosition;
-        const inZone = pos >= this.targetZoneStart && pos <= this.targetZoneEnd;
+        const pos = this.timingBar.sample(inputOffset);
+        const { inZone, dist } = this.timingBar.hitTest(pos);
         const theme = getLevelTheme(this.currentLevel.id);
 
         if (inZone) {
-            const center = (this.targetZoneStart + this.targetZoneEnd) / 2;
-            const dist = Math.abs(pos - center) / ((this.targetZoneEnd - this.targetZoneStart) / 2);
-
             if (dist < 0.35) {
                 this.combo++;
                 this.score += 100 * this.combo * this.endlessWave;
@@ -522,8 +579,8 @@ class LevelManager {
         }
 
         this.hitAnimTimer = 0.5;
-        this._generateTargetZone();
         this.barSpeed = Math.min(this.barSpeed + 0.008, 4.0);
+        this._generateTargetZone();
     }
 
     /**
@@ -553,10 +610,12 @@ class LevelManager {
         this.gameTime += dt;
         if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt * 3;
 
-        // Bar hareketi
-        this.barPosition += this.barSpeed * this.barDirection * dt;
-        if (this.barPosition >= 1) { this.barPosition = 1; this.barDirection = -1; }
-        else if (this.barPosition <= 0) { this.barPosition = 0; this.barDirection = 1; }
+        // Bar movement — analytic, frame-rate independent
+        this.timingBar.update(dt);
+        this.barPosition = this.timingBar.position;
+
+        // Background animation — update here, render is pure
+        this._updateLevelBg(dt);
 
         // Hit anim
         if (this.lastHitResult) {
@@ -583,7 +642,7 @@ class LevelManager {
     /**
      * Endless mode render — show wave info
      */
-    renderEndless(ctx, W, H) {
+    renderEndless(ctx, W, H, alpha = 0) {
         if (!this.currentLevel) return;
 
         const theme = getLevelTheme(this.currentLevel.id);
@@ -631,46 +690,10 @@ class LevelManager {
         ctx.stroke();
         ctx.globalAlpha = 1;
 
-        // Indicator — icon slider
-        const ix = barX + this.barPosition * barW;
-        const bob = Math.sin(t * 6) * 3;
-        const iSize = (theme.iconSize || 26) + 6;
-
-        // Center marker line
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = theme.indicatorColor;
-        ctx.globalAlpha = 0.6;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 3);
-        ctx.lineTo(ix, barY + barH + 3);
-        ctx.stroke();
-
-        // Small triangle pointer
-        ctx.fillStyle = theme.indicatorColor;
-        ctx.globalAlpha = 0.8;
-        ctx.beginPath();
-        ctx.moveTo(ix, barY - barH - 3);
-        ctx.lineTo(ix - 4, barY - barH - 9);
-        ctx.lineTo(ix + 4, barY - barH - 9);
-        ctx.closePath();
-        ctx.fill();
-
-        // Glowing circle behind icon
-        ctx.globalAlpha = 0.2;
-        ctx.beginPath();
-        ctx.arc(ix, barY + bob, iSize * 0.65, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
-        // Icon with glow
-        ctx.shadowColor = theme.indicatorColor;
-        ctx.shadowBlur = 12;
-        ctx.font = `${iSize}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(theme.icon, ix, barY + bob);
-        ctx.fillText(theme.icon, ix, barY + bob);
+        // Indicator — interpolated (pure render)
+        const renderPosE = this._renderPos(alpha);
+        const ix = barX + renderPosE * barW;
+        this._renderIndicator(ctx, ix, barY, barH, theme);
 
         ctx.restore();
 
@@ -854,7 +877,70 @@ class LevelManager {
         }
     }
 
-    _renderLevelBg(ctx, W, H, theme, t) {
+    /**
+     * Background animation state — advanced ONLY here, from fixed dt.
+     * The `* 60 * dt` factor reproduces the original per-frame-at-60fps
+     * speeds exactly while removing the refresh-rate dependency that
+     * used to make backgrounds speed up on 120/144Hz displays.
+     */
+    _updateLevelBg(dt) {
+        if (!this.bgObjects || this.bgObjects.length === 0) return;
+        const theme = getLevelTheme(this.currentLevel.id);
+        const type = theme.bgType;
+        const k = dt * 60;
+
+        if (type === 'binary' || type === 'password') {
+            const chars = theme.bgChars || '01';
+            for (const o of this.bgObjects) {
+                o.y += o.speed * 0.016 * k;
+                if (o.y > 1.1) {
+                    o.y = -0.05;
+                    o.x = Math.random();
+                    o.char = chars[Math.floor(Math.random() * chars.length)];
+                }
+            }
+        } else if (type === 'scanlines') {
+            for (const o of this.bgObjects) {
+                o.y += o.speed * 0.016 * k;
+                if (o.y > 1.2) o.y = -0.1;
+            }
+        } else if (type === 'virus') {
+            for (const o of this.bgObjects) {
+                o.x += o.vx * 0.016 * k;
+                o.y += o.vy * 0.016 * k;
+                o.rot += o.rotSpeed * 0.016 * k;
+                if (o.x < -0.05) o.x = 1.05;
+                if (o.x > 1.05) o.x = -0.05;
+                if (o.y < -0.05) o.y = 1.05;
+                if (o.y > 1.05) o.y = -0.05;
+            }
+        } else if (type === 'embers') {
+            for (const o of this.bgObjects) {
+                o.y -= o.speed * 0.016 * k;
+                o.x += o.drift * k;
+                if (o.y < -0.05) {
+                    o.y = 1.0 + Math.random() * 0.2;
+                    o.x = Math.random();
+                }
+            }
+        } else if (type === 'electric') {
+            for (const o of this.bgObjects) {
+                o.timer += 0.016 * k;
+                if (o.timer > o.interval) {
+                    o.timer = 0;
+                    o.alpha = 0.12;
+                    o.x1 = Math.random();
+                    o.y1 = 0.1 + Math.random() * 0.3;
+                    o.x2 = Math.random();
+                    o.y2 = 0.5 + Math.random() * 0.3;
+                }
+                if (o.alpha > 0) o.alpha *= Math.pow(0.92, k);
+            }
+        }
+    }
+
+    /** Pure render — reads state only, never mutates it. */
+    _renderLevelBg(ctx, W, H, theme /*, t */) {
         if (!this.bgObjects || this.bgObjects.length === 0) return;
         const type = theme.bgType;
 
@@ -862,15 +948,8 @@ class LevelManager {
 
         if (type === 'binary' || type === 'password') {
             // Falling text columns — Matrix-style rain
-            ctx.font = '500 14px monospace';
             ctx.textAlign = 'center';
             for (const o of this.bgObjects) {
-                o.y += o.speed * 0.016;
-                if (o.y > 1.1) {
-                    o.y = -0.05;
-                    o.x = Math.random();
-                    o.char = (theme.bgChars || '01')[Math.floor(Math.random() * (theme.bgChars || '01').length)];
-                }
                 ctx.globalAlpha = o.alpha;
                 ctx.fillStyle = theme.bgColor;
                 ctx.font = `${o.size}px monospace`;
@@ -879,8 +958,6 @@ class LevelManager {
         } else if (type === 'scanlines') {
             // Horizontal scanning lines
             for (const o of this.bgObjects) {
-                o.y += o.speed * 0.016;
-                if (o.y > 1.2) o.y = -0.1;
                 ctx.globalAlpha = o.alpha;
                 ctx.strokeStyle = theme.bgColor;
                 ctx.lineWidth = 1;
@@ -895,15 +972,6 @@ class LevelManager {
         } else if (type === 'virus') {
             // Drifting skulls/virus icons
             for (const o of this.bgObjects) {
-                o.x += o.vx * 0.016;
-                o.y += o.vy * 0.016;
-                o.rot += o.rotSpeed * 0.016;
-                // Wrap around
-                if (o.x < -0.05) o.x = 1.05;
-                if (o.x > 1.05) o.x = -0.05;
-                if (o.y < -0.05) o.y = 1.05;
-                if (o.y > 1.05) o.y = -0.05;
-
                 ctx.globalAlpha = o.alpha;
                 ctx.save();
                 ctx.translate(o.x * W, o.y * H);
@@ -917,12 +985,6 @@ class LevelManager {
         } else if (type === 'embers') {
             // Rising ember sparks
             for (const o of this.bgObjects) {
-                o.y -= o.speed * 0.016;
-                o.x += o.drift;
-                if (o.y < -0.05) {
-                    o.y = 1.0 + Math.random() * 0.2;
-                    o.x = Math.random();
-                }
                 ctx.globalAlpha = o.alpha * (1 - Math.abs(o.y - 0.5) * 1.5);
                 ctx.fillStyle = theme.bgColor;
                 ctx.beginPath();
@@ -932,23 +994,13 @@ class LevelManager {
         } else if (type === 'electric') {
             // Electric arc flashes
             for (const o of this.bgObjects) {
-                o.timer += 0.016;
-                if (o.timer > o.interval) {
-                    o.timer = 0;
-                    o.alpha = 0.12;
-                    o.x1 = Math.random();
-                    o.y1 = 0.1 + Math.random() * 0.3;
-                    o.x2 = Math.random();
-                    o.y2 = 0.5 + Math.random() * 0.3;
-                }
                 if (o.alpha > 0) {
-                    o.alpha *= 0.92;
                     ctx.globalAlpha = o.alpha;
                     ctx.strokeStyle = theme.bgColor;
                     ctx.lineWidth = 1.5;
                     ctx.beginPath();
                     ctx.moveTo(o.x1 * W, o.y1 * H);
-                    // Jagged line with 3-4 segments
+                    // Jagged line with 3-4 segments (cosmetic randomness only)
                     const segments = 3;
                     for (let s = 1; s <= segments; s++) {
                         const frac = s / (segments + 1);

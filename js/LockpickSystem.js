@@ -130,10 +130,11 @@ class LockpickSystem {
         if (!this.started) return;
 
         // Rotate cursor
+        const prevAngle = this.cursorAngle;
         this.cursorAngle = (this.cursorAngle + this.cursorSpeed * dt) % 360;
 
-        // Did cursor pass active node?
-        this._checkMiss();
+        // Did the cursor sweep past the active node's miss line?
+        this._checkMiss(prevAngle);
     }
 
     /**
@@ -183,27 +184,28 @@ class LockpickSystem {
         return true;
     }
 
-    _checkMiss() {
+    _checkMiss(prevAngle) {
         if (this.currentNodeIndex >= this.nodes.length) return;
         const currentNode = this.nodes[this.currentNodeIndex];
         if (!currentNode || currentNode.solved) return;
 
-        const dist = this._angleDist(this.cursorAngle, currentNode.angle);
-        const past = this._isAnglePast(this.cursorAngle, currentNode.angle, this.hitTolerance + 5);
+        const margin = this.hitTolerance + 5;
+        const failAngle = (currentNode.angle + margin) % 360;
+        const sweep = ((this.cursorAngle - prevAngle) % 360 + 360) % 360;
+        const relToFail = ((failAngle - prevAngle) % 360 + 360) % 360;
 
-        if (past && dist > this.hitTolerance + 5) {
+        // Sweep-based test: robust even if one step jumps a large arc.
+        if (sweep > 0 && relToFail <= sweep) {
             this._fail();
         }
     }
 
-    _isAnglePast(cursorAngle, nodeAngle, margin) {
-        const diff = ((cursorAngle - nodeAngle) % 360 + 360) % 360;
-        return diff > margin && diff < 180;
+    _angleDist(a, b) {
+        return Collision.angleDistanceDeg(a, b);
     }
 
-    _angleDist(a, b) {
-        let diff = Math.abs(((a - b) % 360 + 360) % 360);
-        return diff > 180 ? 360 - diff : diff;
+    _isAnglePast(cursorAngle, nodeAngle, margin) {
+        return Collision.isAnglePast(cursorAngle, nodeAngle, margin);
     }
 
     _fail() {

@@ -13,6 +13,7 @@ class StateManager {
             GAME_OVER: 'GAME_OVER',
             ENDLESS: 'ENDLESS',
             ENDLESS_OVER: 'ENDLESS_OVER',
+            CONGRATS: 'CONGRATS',
             PROFILE_SETUP: 'PROFILE_SETUP',
             LEADERBOARD: 'LEADERBOARD'
         };
@@ -73,9 +74,9 @@ class StateManager {
         if (h) h.update(dt);
     }
 
-    render(ctx) {
+    render(ctx, alpha) {
         const h = this._handlers[this.currentState];
-        if (h) h.render(ctx);
+        if (h) h.render(ctx, alpha);
 
         if (this.transitioning) {
             let alpha = this.transitionProgress < 0.5

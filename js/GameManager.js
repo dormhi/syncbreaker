@@ -31,6 +31,11 @@ class GameManager {
     // ── Game Loop ──
 
     update(dt) {
+        if (typeof performance !== 'undefined') {
+            // Wall-clock anchor for the current simulation frontier. Input
+            // arriving since this instant is extrapolated from here.
+            this._lastSimWall = performance.now();
+        }
         this.energy.update(dt);
         this.bgTime += dt;
         this._updateBgParticles(dt);
@@ -38,7 +43,7 @@ class GameManager {
         this.state.update(dt);
     }
 
-    render(ctx) {
+    render(ctx, alpha = 0) {
         const W = this.canvas.width;
         const H = this.canvas.height;
 
@@ -49,7 +54,7 @@ class GameManager {
         this._renderBackground(ctx, W, H);
 
         // State render
-        this.state.render(ctx);
+        this.state.render(ctx, alpha);
     }
 
     // ════════════════════════════════════════
@@ -73,11 +78,19 @@ class GameManager {
                 const H = this.canvas.height;
                 const cx = W / 2;
 
-                // Title
+                // Title + version badge
+                ctx.save();
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '900 40px Orbitron';
                 ctx.textAlign = 'center';
                 ctx.fillText('SYNCBREAKER', cx, 70);
+                const titleW = ctx.measureText('SYNCBREAKER').width;
+                ctx.font = '700 18px Orbitron';
+                ctx.fillStyle = '#22c55e';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('(v2)', cx + titleW / 2 + 22, 56);
+                ctx.restore();
 
                 // Subtitle
                 ctx.fillStyle = '#ef4444';
@@ -168,6 +181,14 @@ class GameManager {
                 Sound.startAmbient();
                 this._buildHubButtons();
             },
+            update: () => {
+                // Migration / catch-up: if all nodes were already cleaned in a
+                // previous session, show the celebration exactly once.
+                if (this.levels.isAllCompleted() && !this.levels.congratsSeen) {
+                    this.levels._markCongratsSeen();
+                    this.state.change(S.CONGRATS);
+                }
+            },
             render: (ctx) => {
                 const W = this.canvas.width;
                 const H = this.canvas.height;
@@ -215,6 +236,14 @@ class GameManager {
 
                 if (this.levels.levelComplete === true) {
                     this.levels.levelComplete = 'handled';
+
+                    // First time all 6 nodes are cleaned → celebration screen.
+                    if (this.levels.justUnlockedEndless) {
+                        this.levels.justUnlockedEndless = false;
+                        setTimeout(() => this.state.change(S.CONGRATS), 1200);
+                        return;
+                    }
+
                     const unlockedEndless = this.levels.isAllCompleted();
                     setTimeout(() => {
                         if (unlockedEndless && !this.leaderboard.hasProfile()) {
@@ -234,7 +263,7 @@ class GameManager {
                     });
                 }
             },
-            render: (ctx) => {
+            render: (ctx, alpha) => {
                 const W = this.canvas.width;
                 const H = this.canvas.height;
 
@@ -244,7 +273,7 @@ class GameManager {
                     max: this.energy.maxEnergy,
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
-                this.levels.render(ctx, W, H);
+                this.levels.render(ctx, W, H, alpha);
 
                 // Level complete overlay
                 if (this.levels.levelComplete) {
@@ -259,7 +288,7 @@ class GameManager {
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
-                if (e.code === 'Space') this.levels.hit();
+                if (e.code === 'Space') this.levels.hit(this._pendingInputOffset || 0);
                 if (e.code === 'Escape') this.state.change(S.HUB);
             }
         });
@@ -470,7 +499,7 @@ class GameManager {
                     });
                 }
             },
-            render: (ctx) => {
+            render: (ctx, alpha) => {
                 const W = this.canvas.width;
                 const H = this.canvas.height;
 
@@ -480,11 +509,11 @@ class GameManager {
                     max: this.energy.maxEnergy,
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
-                this.levels.renderEndless(ctx, W, H);
+                this.levels.renderEndless(ctx, W, H, alpha);
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
-                if (e.code === 'Space') this.levels.hitEndless();
+                if (e.code === 'Space') this.levels.hitEndless(this._pendingInputOffset || 0);
                 if (e.code === 'Escape') {
                     this.levels.endlessMode = false;
                     this.state.change(S.HUB);
@@ -607,6 +636,27 @@ class GameManager {
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.HUB);
+            }
+        });
+
+        // ── CONGRATS (Endless Mode unlocked) ──
+        this.state.register(S.CONGRATS, {
+            enter: () => {
+                this.ui.clearButtons();
+                Sound.stopAmbient();
+                if (this.levels && this.levels._markCongratsSeen) this.levels._markCongratsSeen();
+                const cx = this.canvas.width / 2;
+                const cy = this.canvas.height / 2;
+                this.ui.addButton('congrats-continue', '▶  CONTINUE', cx, cy + 240, 260, 46,
+                    () => this._finishCongrats(),
+                    { color: '#22c55e' });
+            },
+            render: (ctx) => this._renderCongrats(ctx),
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => {
+                if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+                    this._finishCongrats();
+                }
             }
         });
 
@@ -838,6 +888,101 @@ class GameManager {
         this.ui.renderButtons();
     }
 
+    // ── Congratulations / Endless unlock ──
+
+    _finishCongrats() {
+        const S = this.state.STATES;
+        if (this.leaderboard.isConfigured() && !this.leaderboard.hasProfile()) {
+            this.state.change(S.PROFILE_SETUP, { returnState: S.HUB });
+        } else {
+            this.state.change(S.HUB);
+        }
+    }
+
+    _renderCongrats(ctx) {
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const cx = W / 2;
+        const cy = H / 2;
+
+        // Dim the game behind the panel
+        ctx.save();
+        ctx.fillStyle = 'rgba(6,10,18,0.74)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+
+        const pw = 720;
+        const ph = 430;
+        const px = cx - pw / 2;
+        const py = cy - ph / 2 - 16;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(12,18,30,0.97)';
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#22c55e';
+        ctx.shadowBlur = 26;
+        Utils.roundRect(ctx, px, py, pw, ph, 12);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Header
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#22c55e';
+        ctx.font = '900 34px Orbitron';
+        ctx.fillText('SYSTEM SECURED', cx, py + 60);
+
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '600 14px Rajdhani';
+        ctx.fillText('ALL 6 NODES CLEANED — THE CYBER ATTACK IS REPELLED', cx, py + 86);
+
+        // Story body
+        const lines = [
+            'Congratulations, Operator. You held the line.',
+            'Every infected node is clean, the backdoors are sealed,',
+            'credentials are reset and the firewall stands strong.',
+            '',
+            'You defended the system — and earned ENDLESS MODE.',
+        ];
+        ctx.font = '400 16px Rajdhani';
+        ctx.fillStyle = '#cbd5e1';
+        let ly = py + 122;
+        for (const line of lines) {
+            if (line === '') { ly += 8; continue; }
+            ctx.fillText(line, cx, ly);
+            ly += 24;
+        }
+
+        // Endless banner
+        const by = py + 250;
+        ctx.fillStyle = 'rgba(245,158,11,0.12)';
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 1.5;
+        Utils.roundRect(ctx, px + 44, by, pw - 88, 84, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '700 19px Orbitron';
+        ctx.fillText('∞  ENDLESS MODE UNLOCKED', cx, by + 28);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '400 13px Rajdhani';
+        ctx.fillText('Survive unlimited waves and compete against other operators', cx, by + 52);
+        ctx.fillText('on the online leaderboard — play as long as you like.', cx, by + 70);
+
+        // Total best score
+        const totalBest = this.levels.levels.reduce((sum, l) => sum + (l.bestScore || 0), 0);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '500 13px Rajdhani';
+        ctx.fillText(`TOTAL BEST SCORE  ${totalBest}`, cx, py + ph - 24);
+
+        ctx.restore();
+
+        this.ui.renderButtons();
+    }
+
     // ── HUB Buttons ──
 
     _buildHubButtons() {
@@ -972,88 +1117,56 @@ class GameManager {
     // ── Input ──
 
     _setupInput() {
-        const canvas = this.canvas;
+        this.canvas.style.cursor = 'pointer';
+        this._pendingInputOffset = 0;
+        this._lastSimWall = (typeof performance !== 'undefined') ? performance.now() : 0;
 
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-            this.ui.updateMouse(x, y);
+        this.input = new InputManager(this.canvas, {
+            hitTestUI: (x, y) => this.ui.handleClick(x, y),
+            onMove: (x, y) => this.ui.updateMouse(x, y),
+            onPress: (pointerType, ts) => this._handleConfirm(ts),
+            onSwipe: (dir, ts) => this._handleSwipe(dir, ts),
+            onKey: (action) => this._handleKeyAction(action)
         });
+    }
 
-        canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-            this.ui.handleClick(x, y);
-        });
+    /**
+     * Sub-frame input offset: how far past the last simulated frame the
+     * key/pointer press happened, capped to one worst-case frame.
+     */
+    _computeInputOffset(timestamp) {
+        if (typeof timestamp !== 'number' || timestamp <= 0) return 0;
+        const dt = (timestamp - this._lastSimWall) / 1000;
+        if (!isFinite(dt) || dt <= 0) return 0;
+        return Math.min(dt, 1 / 30);
+    }
 
-        document.addEventListener('keydown', (e) => {
-            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-                e.preventDefault();
-            }
-            this.state.handleKey(e);
-        });
+    _dispatchKey(action) {
+        this._pendingInputOffset = this._computeInputOffset(action.timestamp);
+        try {
+            this.state.handleKey(Object.assign({ preventDefault: () => {} }, action));
+        } finally {
+            this._pendingInputOffset = 0;
+        }
+    }
 
-        // ── MOBILE TOUCH SUPPORT ──
-        let touchStartX = 0;
-        let touchStartY = 0;
+    _handleKeyAction(action) {
+        this._dispatchKey(action);
+    }
 
-        canvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 0) {
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-                
-                const rect = canvas.getBoundingClientRect();
-                const x = (touchStartX - rect.left) * (canvas.width / rect.width);
-                const y = (touchStartY - rect.top) * (canvas.height / rect.height);
-                
-                // 1. Oku tıklamaları UI butonları için
-                if (this.ui.handleClick(x, y)) {
-                    e.preventDefault();
-                    return;
-                }
+    _handleConfirm(timestamp) {
+        const S = this.state.STATES;
+        const state = this.state.currentState;
+        if (state === S.LEVEL || state === S.ENDLESS || state === S.MENU ||
+            state === S.GAME_OVER || state === S.ENDLESS_OVER || state === S.CONGRATS) {
+            this._dispatchKey({ code: 'Space', timestamp });
+        }
+    }
 
-                // 2. Buton değilse SPACE say
-                const state = this.state.currentState;
-                const S = this.state.STATES;
-                
-                if (state === S.LEVEL || state === S.ENDLESS || state === S.MENU || state === S.GAME_OVER || state === S.ENDLESS_OVER) {
-                    e.preventDefault();
-                    this.state.handleKey({ code: 'Space', preventDefault: () => {} });
-                }
-            }
-        }, { passive: false });
-
-        canvas.addEventListener('touchend', (e) => {
-            if (e.changedTouches.length > 0) {
-                const touchEndX = e.changedTouches[0].clientX;
-                const touchEndY = e.changedTouches[0].clientY;
-                
-                const dx = touchEndX - touchStartX;
-                const dy = touchEndY - touchStartY;
-                
-                // 3. Lockpick mini oyunu için swipe (kaydırma) algıla
-                if (this.state.currentState === this.state.STATES.LOCKPICK) {
-                    const threshold = 30; // Minimum kaydırma
-                    
-                    if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
-                        e.preventDefault();
-                        if (Math.abs(dx) > Math.abs(dy)) {
-                            // Yatay
-                            if (dx > 0) this.state.handleKey({ code: 'ArrowRight', preventDefault: () => {} });
-                            else this.state.handleKey({ code: 'ArrowLeft', preventDefault: () => {} });
-                        } else {
-                            // Dikey
-                            if (dy > 0) this.state.handleKey({ code: 'ArrowDown', preventDefault: () => {} });
-                            else this.state.handleKey({ code: 'ArrowUp', preventDefault: () => {} });
-                        }
-                    }
-                }
-            }
-        }, { passive: false });
-
-        canvas.style.cursor = 'pointer';
+    _handleSwipe(dir, timestamp) {
+        if (this.state.currentState !== this.state.STATES.LOCKPICK) return;
+        const map = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+        this._dispatchKey({ code: map[dir], timestamp });
     }
 
     // ════════════════════════════════════════
