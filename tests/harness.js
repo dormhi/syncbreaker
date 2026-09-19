@@ -20,7 +20,11 @@ const FILES = [
     'js/core/Collision.js',
     'js/mechanics/Mechanic.js',
     'js/mechanics/TimingBarMechanic.js',
-    'js/core/GameLoop.js'
+    'js/core/GameLoop.js',
+    'js/core/ChallengeGate.js',
+    'js/mechanics/DualRingMechanic.js',
+    'js/mechanics/PacketPurgeMechanic.js',
+    'js/EnergySystem.js'
 ];
 
 const EXPORTS = [
@@ -28,7 +32,11 @@ const EXPORTS = [
     'Collision',
     'Mechanic',
     'TimingBarMechanic',
-    'GameLoop'
+    'GameLoop',
+    'ChallengeGate',
+    'DualRingMechanic',
+    'PacketPurgeMechanic',
+    'EnergySystem'
 ];
 
 const GAME_FILES = [
@@ -82,7 +90,13 @@ function runFiles(files, exportsList, extra) {
 }
 
 function loadModules() {
-    return runFiles(FILES, EXPORTS);
+    const store = new Map();
+    const localStorage = {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => { store.set(k, String(v)); },
+        removeItem: (k) => { store.delete(k); }
+    };
+    return runFiles(FILES, EXPORTS, { localStorage });
 }
 
 /** Loads LevelManager + dependencies with browser stubs (Sound, localStorage). */
@@ -118,10 +132,13 @@ const FULL_FILES = [
     'js/utils.js',
     'js/core/Collision.js',
     'js/core/GameLoop.js',
+    'js/core/ChallengeGate.js',
     'js/core/InputManager.js',
     'js/core/PhysicsWorld.js',
     'js/mechanics/Mechanic.js',
     'js/mechanics/TimingBarMechanic.js',
+    'js/mechanics/DualRingMechanic.js',
+    'js/mechanics/PacketPurgeMechanic.js',
     'js/mechanics/PhysicsMechanic.js',
     'vendor/matter.min.js',
     'js/EnergySystem.js',

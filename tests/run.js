@@ -8,7 +8,7 @@
 const { loadModules, loadLevelManager, loadGameManager, makeRng, makeFakeCanvas, makeFakeCtx } = require('./harness');
 
 const api = loadModules();
-const { Utils, Collision, TimingBarMechanic, GameLoop } = api;
+const { Utils, Collision, TimingBarMechanic, GameLoop, ChallengeGate, DualRingMechanic, PacketPurgeMechanic, EnergySystem } = api;
 
 let passed = 0;
 let failed = 0;
@@ -400,6 +400,201 @@ suite('Endless unlock + congratulations flow', () => {
     gm.leaderboard.profile = { id: 'x', displayName: 'OP' };
     gm._finishCongrats();
     ok('with profile routes to HUB', gm.state.pendingState === gm.state.STATES.HUB);
+});
+
+// ─────────────────────────────────────────────
+suite('EnergySystem — max 6 & addEnergy (regen untouched)', () => {
+    const e = new EnergySystem();
+    ok('max energy is 6', e.maxEnergy === 6);
+    ok('starts full', e.currentEnergy === 6);
+
+    e.currentEnergy = 5;
+    const gained = e.addEnergy(3);
+    ok('addEnergy clamps to cap', e.currentEnergy === 6 && gained === 1);
+
+    e.currentEnergy = 2;
+    ok('addEnergy grants full when room', e.addEnergy(3) === 3 && e.currentEnergy === 5);
+    ok('addEnergy ignores non-positive', e.addEnergy(0) === 0 && e.addEnergy(-4) === 0);
+
+    // Time-based regen must be independent of addEnergy.
+    e.currentEnergy = 1;
+    e.regenTimer = 10;
+    e.addEnergy(2);
+    ok('addEnergy does not touch regenTimer', e.regenTimer === 10);
+    e.update(5);
+    ok('regen still advances', e.regenTimer === 15);
+    e.regenTimer = e.regenInterval - 1;
+    e.update(2);
+    ok('regen grants +1 and wraps', e.currentEnergy === 4 && e.regenTimer < e.regenInterval);
+});
+
+// ─────────────────────────────────────────────
+suite('ChallengeGate — attempt windows', () => {
+    const WINDOW = 5 * 60 * 1000;
+    const t0 = 2_000_000;
+    const g = new ChallengeGate('test_gate');
+    g._stamps = [];
+
+    ok('starts with 2 attempts', g.remaining(WINDOW, 2, t0) === 2);
+    g.record(WINDOW, t0);
+    ok('one used', g.attemptsUsed(WINDOW, t0 + 1) === 1);
+    g.record(WINDOW, t0 + 1000);
+    ok('two used, cannot attempt', !g.canAttempt(WINDOW, 2, t0 + 1000));
+    ok('reset waits for the oldest to age out',
+        Math.round(g.timeUntilReset(WINDOW, 2, t0 + 1000)) === (WINDOW - 1000) / 1000);
+
+    // Once the first attempt ages out, an attempt is available again.
+    ok('window rolls over', g.canAttempt(WINDOW, 2, t0 + WINDOW + 1));
+});
+
+// ─────────────────────────────────────────────
+suite('DualRingMechanic — energy-scaled difficulty & reward', () => {
+    // Lower energy → faster (harder), and always playable.
+    const full = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 6 });
+    const empty = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 0 });
+    ok('low energy is faster', empty.speed > full.speed);
+    ok('speed stays playable', empty.speed <= 205 && full.speed >= 100);
+
+    const ring = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
+    ring.init();
+    ok('t=0 is not an instant win', !ring.evaluate(0).success);
+
+    // At the alignment moment both markers are at the target → success.
+    const period = 360 / ring.speed;
+    const tAlign = (270 / ring.speed); // first time outer reaches 270
+    const r = ring.evaluate(tAlign);
+    ok('aligned press succeeds', r.success);
+    ok('reward within 1..3', r.reward >= 1 && r.reward <= 3);
+
+    // A clearly misaligned press fails.
+    ok('misaligned press fails', !ring.evaluate(tAlign + period / 2).success);
+
+    // Boundary of tolerance counts as success.
+    const tol = ring.tolerance;
+    const tEdge = (270 - tol) / ring.speed;
+    ok('tolerance boundary is success', ring.evaluate(tEdge).success);
+});
+
+// ─────────────────────────────────────────────
+suite('PacketPurgeMechanic — easy reaction gate', () => {
+    function make(seed) {
+        const rng = makeRng(seed);
+        const m = new PacketPurgeMechanic({ rng });
+        m.init({ width: 960, height: 640 });
+        return m;
+    }
+    const m = make(7);
+    ok('duration random within easy band', m.duration >= 12 && m.duration <= 18);
+    ok('speed within easy band', m.speed >= 85 && m.speed <= 135);
+    ok('field computed at init', m.field.w > 0 && m.field.h > 0);
+
+    // Clicking a bad packet clears it.
+    m.packets = [{ id: 1, x: 300, y: 300, w: 46, h: 30, bad: true, dead: false }];
+    m.handlePointer(300, 300, 'down');
+    ok('bad packet cleared', m.hits === 1 && m.packets.length === 0);
+
+    // Clicking a clean packet costs health.
+    m.packets = [{ id: 2, x: 300, y: 300, w: 46, h: 30, bad: false, dead: false }];
+    const hp = m.health;
+    m.handlePointer(300, 300, 'down');
+    ok('clean packet is a mistake', m.health === hp - 1);
+
+    // Missing a bad packet (reaching the core) costs health too.
+    const m2 = make(11);
+    m2.packets = [{ id: 3, x: m2.field.x + m2.field.w - 5, y: 300, w: 46, h: 30, bad: true, dead: false }];
+    m2.update(1);
+    ok('leaked bad packet costs health', m2.health === 2);
+
+    // Survive the timer → success.
+    const m3 = make(3);
+    m3.packets = [];
+    m3.update(m3.duration + 0.1);
+    ok('surviving the purge succeeds', m3.result === 'success');
+});
+
+// ─────────────────────────────────────────────
+suite('LevelManager — ACT II gate & revives', () => {
+    const game = loadLevelManager();
+    const lm = new game.LevelManager();
+    lm.levels.forEach(l => { l.unlocked = false; l.completed = false; });
+    lm.levels[0].unlocked = true;
+    lm.group2Unlocked = false;
+
+    ok('ACT II starts locked', !lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
+
+    lm.currentLevelIndex = 2;
+    lm.currentLevel = lm.levels[2];
+    lm.score = 100;
+    lm._onComplete();
+    ok('completing ACT I does not unlock level 4', !lm.levels[3].unlocked);
+
+    lm.unlockGroup2();
+    ok('Packet Purge unlock opens levels 4-6',
+        lm.levels[3].unlocked && lm.levels[4].unlocked && lm.levels[5].unlocked);
+
+    lm.startLevel(0);
+    ok('revives reset per level', lm.revivesUsed === 0 && lm.maxRevives === 2);
+});
+
+// ─────────────────────────────────────────────
+suite('HUB redesign + generic MINIGAME host', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+
+    // ACT I cleared, ACT II still gated.
+    gm.levels.levels.forEach(l => { l.unlocked = false; l.completed = false; });
+    gm.levels.levels[0].unlocked = true;
+    gm.levels.group2Unlocked = false;
+    gm.levels.levels.forEach((l, i) => { if (i < 3) { l.unlocked = true; l.completed = true; } });
+
+    gm.state.currentState = gm.state.STATES.HUB;
+    gm.state.transitioning = false;
+    gm._buildHubButtons();
+    gm._pickEnergyEggCell();
+
+    ok('ACT II cards start locked', gm.levels.levels[3].unlocked === false);
+    ok('6 level cards registered', gm.ui.buttons.filter(b => b.card).length === 6);
+    const gate = gm.ui.buttons.find(b => b.id === 'packet-purge');
+    ok('gate node exists while locked', !!gate);
+
+    // HUB renders (panels, gate node, cards, energy bar) without error.
+    gm.render(ctx, 0);
+    ok('HUB render runs', true);
+
+    // Hidden energy easter egg starts Dual Ring.
+    gm.energy.currentEnergy = 4;
+    gm._pickEnergyEggCell();
+    const cell = gm.ui.getEnergyCellRect(gm._energyEggCell, gm.energy.maxEnergy);
+    ok('egg cell rect valid', !!cell);
+    gm.state.transitioning = false;
+    const handled = gm._hitTestUI(cell.x + 2, cell.y + 2);
+    ok('clicking hidden energy cell starts Dual Ring', handled === true);
+    ok('Dual Ring state queued', gm.state.pendingState === gm.state.STATES.MINIGAME);
+
+    // Clicking the gate node starts Packet Purge.
+    gm.state.currentState = gm.state.STATES.HUB;
+    gm.state.transitioning = false;
+    gm.state.pendingState = null;
+    const gy = gm._hubLockY;
+    const handledGate = gm._hitTestUI(canvas.width / 2, gy);
+    ok('clicking the gate starts Packet Purge', handledGate === true);
+    ok('Packet Purge state queued', gm.state.pendingState === gm.state.STATES.MINIGAME);
+    const pending = gm.state.pendingContext;
+    ok('Packet Purge mechanic provided', pending && pending.mechanic);
+
+    // Run the MINIGAME host to completion and confirm the group unlocks.
+    gm.state.pendingState = null;
+    gm.state.transitioning = false;
+    gm.state.change(gm.state.STATES.MINIGAME, pending);
+    // Let the transition enter the minigame.
+    for (let i = 0; i < 20; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
+    ok('minigame became active', !!gm._activeMinigame);
+    // Force success and let the result delay elapse.
+    if (gm._activeMinigame) gm._activeMinigame.result = 'success';
+    for (let i = 0; i < 120; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
+    ok('Packet Purge success unlocks ACT II', gm.levels.isGroup2Unlocked() === true);
 });
 
 // ─────────────────────────────────────────────
