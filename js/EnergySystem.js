@@ -4,8 +4,8 @@
 
 class EnergySystem {
     constructor() {
-        this.maxEnergy = 7;
-        this.currentEnergy = 7;
+        this.maxEnergy = 6;
+        this.currentEnergy = 6;
         this.regenInterval = 5 * 60; // 5 minutes
         this.regenTimer = 0;
 
@@ -29,6 +29,20 @@ class EnergySystem {
             this.currentEnergy = Math.min(this.currentEnergy + 1, this.maxEnergy);
             this._save();
         }
+    }
+
+    /**
+     * Grant energy (e.g. from the Dual Ring easter egg). Clamped to the cap.
+     * Deliberately does NOT touch the time-based regeneration timer.
+     * @returns {number} amount actually gained
+     */
+    addEnergy(amount) {
+        if (!(amount > 0)) return 0;
+        const before = this.currentEnergy;
+        this.currentEnergy = Math.min(this.currentEnergy + amount, this.maxEnergy);
+        const gained = this.currentEnergy - before;
+        if (gained > 0) this._save();
+        return gained;
     }
 
     canAfford(action) {
