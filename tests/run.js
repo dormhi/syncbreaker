@@ -461,13 +461,17 @@ suite('DualRingMechanic — energy-scaled difficulty & multi-round', () => {
     ok('t=0 is not an instant win', !ring.evaluate(0).success);
 
     const period = 360 / ring.speed;
-    const tAlign = 270 / ring.speed; // first alignment after the round starts
+    // Markers start +/-135deg around the target, so alignment is always
+    // reached after 135 / speed regardless of where the target sits.
+    const tAlign = 135 / ring.speed;
+    const target0 = ring.targetAngle;
 
     // Round 1
     ring.time = tAlign;
     ring.handleConfirm();
     ok('round 1 accepted, run continues', ring.round === 1 && ring.result === null);
-    ok('markers reset away from target', !ring.evaluate(ring.roundStart).success);
+    ok('target moves to a new position each round', ring.targetAngle !== target0);
+    ok('markers reset away from the new target', !ring.evaluate(ring.roundStart).success);
 
     // Round 2
     ring.time = ring.roundStart + tAlign;
@@ -487,10 +491,10 @@ suite('DualRingMechanic — energy-scaled difficulty & multi-round', () => {
     ring2.handleConfirm();
     ok('misaligned press fails the run', ring2.result === 'fail');
 
-    // Tolerance boundary counts as success.
+    // Tolerance boundary counts as success (inclusive).
     const ring3 = new DualRingMechanic({ maxEnergy: 6, currentEnergy: 3 });
     ring3.init();
-    ok('tolerance boundary is success', ring3.evaluate((270 - ring3.tolerance) / ring3.speed).success);
+    ok('tolerance boundary is success', ring3.evaluate((135 - ring3.tolerance) / ring3.speed).success);
 });
 
 // ─────────────────────────────────────────────

@@ -44,10 +44,28 @@ class DualRingMechanic extends _MechanicBaseDR {
         const tolMax = 22, tolMin = 13;
         this.tolerance = tolMax - t * (tolMax - tolMin);
 
-        this.targetAngle = 270; // top of the ring
-        // Start markers away from the target: outer right, inner left.
+        this.targetAngle = 270; // top of the ring (first round overrides this)
+        // Markers start +/-135 degrees from the target and converge on it.
+        // Because the offset is symmetric, the alignment time is always
+        // 135 / speed, independent of where the target sits.
         this.outerBase = 0;
-        this.innerBase = 180;
+        this.innerBase = 0;
+        this._applyTarget(this.targetAngle);
+    }
+
+    /** Move the target and place the markers symmetrically around it. */
+    _applyTarget(angle) {
+        this.targetAngle = (angle + 7200) % 360;
+        this.outerBase = (this.targetAngle - 135 + 7200) % 360;
+        this.innerBase = (this.targetAngle + 135 + 7200) % 360;
+    }
+
+    /** A new target on a 45-degree grid, never the current one. */
+    _pickTarget() {
+        const opts = [0, 45, 90, 135, 180, 225, 270, 315];
+        let a = opts[Math.floor(Math.random() * opts.length)];
+        if (a === this.targetAngle) a = (a + 45) % 360;
+        return a;
     }
 
     init() {
@@ -59,6 +77,8 @@ class DualRingMechanic extends _MechanicBaseDR {
         this.roundStart = 0;
         this.qualities = [];
         this.roundFlash = 0;
+        // Start each session at a fresh target position.
+        this._applyTarget(this._pickTarget());
     }
 
     update(dt) {
@@ -103,7 +123,9 @@ class DualRingMechanic extends _MechanicBaseDR {
             this.result = 'success';
             this.reward = this._computeReward();
         } else {
-            // Reset the markers to opposite sides for the next alignment.
+            // Next round: move the target to a new position and re-arm the
+            // markers symmetrically around it.
+            this._applyTarget(this._pickTarget());
             this.roundStart = this.time;
         }
         return true;
