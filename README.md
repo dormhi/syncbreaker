@@ -34,5 +34,41 @@ No build tools or installations are required.
 
 To enable the shared leaderboard, complete the one-time [Supabase setup](SUPABASE_SETUP.md) before deploying.
 
+## 🧪 Tests
+The deterministic core is covered by a zero-dependency test runner:
+
+```bash
+node tests/run.js
+```
+
+It verifies collision semantics, the timing-bar motion model, hit detection,
+frame-rate independence, calibration against the legacy clamp (difficulty is
+unchanged), sub-frame input resolution, the fixed-timestep game loop, and a
+`LevelManager` integration smoke test.
+
+## ⚙️ v2 Architecture (physics hardening)
+This branch reworks the timing/physics layer for frame-rate independence and
+flawless hit detection without changing difficulty:
+
+- `js/core/GameLoop.js` — fixed 60 Hz simulation + accumulator catch-up +
+  render interpolation (removes the old `MAX_DT` slow-motion).
+- `js/core/Collision.js` — single, tested home for zone/collision semantics
+  (bounds are inclusive).
+- `js/mechanics/TimingBarMechanic.js` — analytic triangle-wave motion; in-zone
+  speed equals the configured `barSpeed` exactly, so per-hit difficulty is
+  unchanged, while edge timing is deterministic.
+- `js/core/InputManager.js` — unified pointer + keyboard input, ignores
+  OS key auto-repeat, sub-frame press timestamps, no synthetic-click double-fire.
+- Background animations are advanced in `update()` only; render is pure — this
+  fixes backgrounds speeding up on 120/144 Hz displays.
+- `vendor/matter.min.js` + `js/core/PhysicsWorld.js` — Matter.js is vendored for
+  **future physics-based bonus minigames only**; the core mechanics deliberately
+  stay on their own deterministic solver so hit timing never depends on a
+  rigid-body engine.
+
+The frozen difficulty contract (bar speeds, target sizes, hit requirements,
+scoring, lives, lockpick tuning, energy costs) is unchanged.
+
+
 ## 🎓 About
 Developed as a Computer Graphics University Final Project.
