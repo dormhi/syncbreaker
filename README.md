@@ -43,8 +43,9 @@ node tests/run.js
 
 It verifies collision semantics, the timing-bar motion model, hit detection,
 frame-rate independence, calibration against the legacy clamp (difficulty is
-unchanged), sub-frame input resolution, the fixed-timestep game loop, and a
-`LevelManager` integration smoke test.
+unchanged), sub-frame input resolution, the fixed-timestep game loop, a
+`LevelManager` integration smoke test, and the Matter.js layer (fixed step,
+units, interpolation, collision events) plus Stack Overflow gameplay.
 
 ## ⚙️ v2 Architecture (physics hardening)
 This branch reworks the timing/physics layer for frame-rate independence and
@@ -61,13 +62,17 @@ flawless hit detection without changing difficulty:
   OS key auto-repeat, sub-frame press timestamps, no synthetic-click double-fire.
 - Background animations are advanced in `update()` only; render is pure — this
   fixes backgrounds speeding up on 120/144 Hz displays.
-- `vendor/matter.min.js` + `js/core/PhysicsWorld.js` — Matter.js is vendored for
-  **future physics-based bonus minigames only**; the core mechanics deliberately
-  stay on their own deterministic solver so hit timing never depends on a
-  rigid-body engine.
+- `vendor/matter.min.js` + `js/core/PhysicsWorld.js` — Matter.js powers the
+  **physics bonus minigames only**; the core mechanics deliberately stay on
+  their own deterministic solver so hit timing never depends on a rigid-body
+  engine. `PhysicsWorld` runs Matter on a fixed 60 Hz step (internal
+  accumulator, identical results at 30/60/144 Hz), keeps the previous pose of
+  every body for render interpolation, exposes px/s and px/s² units, and
+  reports collisions by parent body.
 
 The frozen difficulty contract (bar speeds, target sizes, hit requirements,
-scoring, lives, lockpick tuning, energy costs) is unchanged.
+scoring, lives, lockpick tuning, energy costs) is unchanged, except for the
+deliberate mission 5/6 rework below.
 
 ## 🧩 Phase 1 — Minigames & progression
 - **Level selector (HUB) redesign:** modern ACT I / ACT II panels with vector
@@ -91,6 +96,30 @@ scoring, lives, lockpick tuning, energy costs) is unchanged.
   Decorations use a continuous animation clock (no jump on the 360°→0° wrap),
   with solve pulses and a start pop.
 
+## 🧱 Mission 5 — FIREWALL · Stack Overflow (Matter.js)
+Node 5 is no longer a timing-bar level: it is played with
+`js/mechanics/StackOverflowMechanic.js` (on `js/mechanics/PhysicsMechanic.js`).
+
+- A crane sweeps above the core; tap anywhere (or SPACE) to drop a block. It
+  falls under real rigid-body physics and keeps 30% of the crane's sideways
+  momentum (no air drag, so the drift is readable).
+- Build a tower that stands still above the limit line for 1 s. Blocks that
+  fall off cost a life (3 lives, 12 blocks); the crane speeds up per block.
+- Clearing it completes node 5 and unlocks node 6 through the normal
+  progression (`LevelManager.completeExternal`). Failing goes to
+  OPERATION FAILED without a lockpick revive; RETRY restarts the mission.
+- Score: 100 per block in the tower + 250 per life left + 50 per unused block.
+- The release point is sampled on the same clock the crane is drawn with, and
+  the sub-frame input offset is honoured, so a block drops exactly where the
+  player saw it.
+- Settled blocks buried 3+ deep are frozen. Iterative solvers let tall box
+  stacks creep and collapse on their own; freezing keeps the physics where the
+  player acts and removes phantom collapses.
+- Mobile-first: the whole screen is the drop button and the HUD is sized to
+  stay legible when the canvas is scaled down to a phone.
+
+**Mission 6 (CUT_ACCESS)** now uses the old mission 5 bar: speed 1.35 (was
+1.5), target 0.10 (was 0.08), 20 hits (was 18), 5 lives, 60 s.
 
 ## 🎓 About
 Developed as a Computer Graphics University Final Project.

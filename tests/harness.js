@@ -140,6 +140,7 @@ const FULL_FILES = [
     'js/mechanics/DualRingMechanic.js',
     'js/mechanics/PacketPurgeMechanic.js',
     'js/mechanics/PhysicsMechanic.js',
+    'js/mechanics/StackOverflowMechanic.js',
     'vendor/matter.min.js',
     'js/EnergySystem.js',
     'js/StateManager.js',
@@ -153,7 +154,7 @@ const FULL_FILES = [
     'js/GameManager.js'
 ];
 
-const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'Sound'];
+const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {

@@ -269,22 +269,7 @@ class GameManager {
 
                 if (this.levels.levelComplete === true) {
                     this.levels.levelComplete = 'handled';
-
-                    // First time all 6 nodes are cleaned → celebration screen.
-                    if (this.levels.justUnlockedEndless) {
-                        this.levels.justUnlockedEndless = false;
-                        setTimeout(() => this.state.change(S.CONGRATS), 1200);
-                        return;
-                    }
-
-                    const unlockedEndless = this.levels.isAllCompleted();
-                    setTimeout(() => {
-                        if (unlockedEndless && !this.leaderboard.hasProfile()) {
-                            this.state.change(S.PROFILE_SETUP, { returnState: S.HUB });
-                        } else {
-                            this.state.change(S.HUB);
-                        }
-                    }, 1500);
+                    this._afterNodeComplete(1200, 1500);
                 }
 
                 if (this.levels.levelFailed === true) {
@@ -462,7 +447,7 @@ class GameManager {
                     }
                 }
             },
-            render: (ctx) => {
+            render: (ctx, alpha) => {
                 const W = this.canvas.width;
                 const H = this.canvas.height;
                 const cfg = this._mgConfig || {};
@@ -485,7 +470,7 @@ class GameManager {
                 }
 
                 if (this._activeMinigame && this._activeMinigame.render) {
-                    this._activeMinigame.render(ctx, W, H, this.levels.gameTime);
+                    this._activeMinigame.render(ctx, W, H, this.levels.gameTime, alpha);
                 }
 
                 this.ui.renderEnergyBar({
@@ -496,11 +481,13 @@ class GameManager {
             },
             exit: () => { this.ui.clearButtons(); this._activeMinigame = null; },
             onKey: (e) => {
+                if (e.code === 'Escape') { this.state.change(S.HUB); return; }
                 const m = this._activeMinigame;
                 if (!m) return;
-                if (m.handleKey && m.handleKey(e.code)) return;
+                const offset = this._pendingInputOffset || 0;
+                if (m.handleKey && m.handleKey(e.code, offset)) return;
                 if ((e.code === 'Space' || e.code === 'Enter') && m.handleConfirm) {
-                    m.handleConfirm();
+                    m.handleConfirm(offset);
                 }
             }
         });
@@ -517,6 +504,7 @@ class GameManager {
                 this._goLevelIndex = lCtx.levelIndex;
                 this._noRevive = lCtx.noRevive || false;
                 this._revivesUsed = lCtx.revivesUsed || 0;
+                this._goMessage = lCtx.message || null;
                 // Short cooldown so players can't mash restart right after a
                 // failure — gives the hands a moment to cool off.
                 this._goCooldown = 1.0;
@@ -575,7 +563,11 @@ class GameManager {
                 ctx.font = '500 18px Rajdhani';
                 ctx.fillText(`Score: ${this._goScore}`, cx, cy - 25);
 
-                if (this._noRevive) {
+                if (this._goMessage) {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '400 14px Rajdhani';
+                    ctx.fillText(this._goMessage, cx, cy);
+                } else if (this._noRevive) {
                     ctx.fillStyle = '#ef4444';
                     ctx.font = '400 14px Rajdhani';
                     ctx.fillText('Recovery protocol failed', cx, cy);
@@ -1177,10 +1169,7 @@ class GameManager {
             } else {
                 const color = level.completed ? '#22c55e' : '#3b82f6';
                 this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
-                    () => {
-                        this.levels.startLevel(i);
-                        this.state.change(this.state.STATES.LEVEL);
-                    },
+                    () => this._startNode(i),
                     { color, subtitle: level.desc, card: true, icon: level.id, status, score: level.bestScore });
             }
         }
@@ -1530,13 +1519,74 @@ class GameManager {
         });
     }
 
+    /** Start a HUB node: timing-bar level or the physics mission. */
+    _startNode(index) {
+        if (this.levels.isBarLevel(index)) {
+            if (this.levels.startLevel(index)) this.state.change(this.state.STATES.LEVEL);
+            return;
+        }
+        this._startStackMission(index);
+    }
+
+    /** Mission 5 — Stack Overflow on Matter.js. */
+    _startStackMission(index) {
+        const level = this.levels.levels[index];
+        if (!level || !level.unlocked) return;
+        const mechanic = new StackOverflowMechanic();
+        this.state.change(this.state.STATES.MINIGAME, {
+            mechanic,
+            title: level.name + ' · STACK OVERFLOW',
+            subtitle: 'Stack the blocks up to the limit line — keep the tower standing',
+            hint: 'Tap anywhere (or SPACE) to drop · blocks keep the crane\'s momentum',
+            onComplete: (success, m) => {
+                if (success) {
+                    this.levels.completeExternal(index, m.score);
+                    this._afterNodeComplete(0, 0);
+                } else {
+                    this.state.change(this.state.STATES.GAME_OVER, {
+                        levelIndex: index,
+                        score: m.computeScore(),
+                        noRevive: true,
+                        message: 'The firewall collapsed — rebuild it from scratch'
+                    });
+                }
+            }
+        });
+    }
+
+    /**
+     * Where to go after a node is cleaned: the one-time congratulations
+     * screen, the leaderboard profile setup, or back to the HUB.
+     */
+    _afterNodeComplete(congratsDelayMs, hubDelayMs) {
+        const S = this.state.STATES;
+        const later = (ms, fn) => (ms > 0 ? setTimeout(fn, ms) : fn());
+
+        // First time all 6 nodes are cleaned → celebration screen.
+        if (this.levels.justUnlockedEndless) {
+            this.levels.justUnlockedEndless = false;
+            later(congratsDelayMs, () => this.state.change(S.CONGRATS));
+            return;
+        }
+
+        const unlockedEndless = this.levels.isAllCompleted();
+        later(hubDelayMs, () => {
+            if (unlockedEndless && !this.leaderboard.hasProfile()) {
+                this.state.change(S.PROFILE_SETUP, { returnState: S.HUB });
+            } else {
+                this.state.change(S.HUB);
+            }
+        });
+    }
+
     /** Routes canvas presses: UI buttons → minigame → hidden energy easter egg. */
     _hitTestUI(x, y) {
         if (this.ui.handleClick(x, y)) return true;
 
         if (this.state.currentState === this.state.STATES.MINIGAME &&
             this._activeMinigame && this._activeMinigame.handlePointer) {
-            this._activeMinigame.handlePointer(x, y, 'down');
+            const offset = this._computeInputOffset(performance.now());
+            this._activeMinigame.handlePointer(x, y, 'down', offset);
             return true;
         }
 
@@ -1555,8 +1605,7 @@ class GameManager {
     /** Retry from the failure screen, gated by the restart cooldown. */
     _restartFromGameOver() {
         if ((this._goCooldown || 0) > 0) return;
-        this.levels.startLevel(this._goLevelIndex);
-        this.state.change(this.state.STATES.LEVEL);
+        this._startNode(this._goLevelIndex);
     }
 
     /** Reflect the restart cooldown on the RETRY button. */

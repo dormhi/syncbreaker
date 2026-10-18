@@ -300,7 +300,7 @@ suite('GameManager full boot (headless)', () => {
     ok('ENDLESS loop runs without error', true);
 
     // PhysicsWorld + Matter skeleton.
-    const world = new mod.PhysicsWorld({ gravity: 1 });
+    const world = new mod.PhysicsWorld({ gravity: 1000 });
     const body = mod.Matter.Bodies.rectangle(0, 0, 10, 10);
     world.addBody(body);
     world.step(1 / 60);
@@ -314,6 +314,7 @@ suite('All 6 levels are completable (auto-play)', () => {
     const game = loadLevelManager();
     for (let idx = 0; idx < 6; idx++) {
         const lm = new game.LevelManager();
+        if (!lm.isBarLevel(idx)) continue; // node 5 is the physics mission
         lm.levels.forEach(l => { l.unlocked = true; });
         lm.startLevel(idx);
 
@@ -709,23 +710,26 @@ suite('LevelManager — sequential self-heal', () => {
 suite('Bar speed is normalized across levels', () => {
     const game = loadLevelManager();
     const lm = new game.LevelManager();
-    const speeds = lm.levels.map(l => l.barSpeed);
+    const barLevels = lm.levels.filter((l, i) => lm.isBarLevel(i));
+    const speeds = barLevels.map(l => l.barSpeed);
 
     let monotonic = true;
     for (let i = 1; i < speeds.length; i++) if (speeds[i] <= speeds[i - 1]) monotonic = false;
     ok('base speeds strictly increase', monotonic, speeds.join(', '));
 
     // Even the hardest level must stay readable on a 60 Hz screen.
-    for (let i = 0; i < lm.levels.length; i++) {
-        const lvl = lm.levels[i];
+    for (let i = 0; i < barLevels.length; i++) {
+        const lvl = barLevels[i];
         const maxSpeed = Math.min(lvl.barSpeed + 0.01 * lvl.requiredHits, 1.9);
         const zoneTimeMs = (lvl.targetSize / maxSpeed) * 1000;
-        ok(`level ${i + 1} zone window playable`, zoneTimeMs >= 40,
+        ok(`level ${lvl.id} zone window playable`, zoneTimeMs >= 40,
             `${zoneTimeMs.toFixed(1)}ms maxSpeed=${maxSpeed.toFixed(2)}`);
     }
 
     // The hardest level is meaningfully tamer than the old 2.0/3.5 curve.
-    ok('level 6 final speed is bounded', Math.min(1.5 + 0.01 * 18, 1.9) <= 1.7);
+    const last = lm.levels[5];
+    ok('level 6 final speed is bounded',
+        Math.min(last.barSpeed + 0.01 * last.requiredHits, 1.9) <= 1.7);
 });
 
 // ─────────────────────────────────────────────
@@ -840,6 +844,294 @@ suite('Sound mute toggle + HUB button', () => {
 
     s.setMuted(false);
     gm._updateSoundButton();
+});
+
+// ─────────────────────────────────────────────
+suite('PhysicsWorld — fixed step, units, interpolation, events', () => {
+    const mod = loadGameManager();
+    const { PhysicsWorld, Matter: M } = mod;
+
+    // Free fall in px/s^2: after 1 s, v ≈ g and y ≈ g/2 (semi-implicit Verlet).
+    const w = new PhysicsWorld({ gravity: 1000 });
+    const ball = w.addBody(M.Bodies.circle(0, 0, 5, { frictionAir: 0 }));
+    for (let i = 0; i < 60; i++) w.step(1 / 60);
+    ok('60 fixed steps for 1 s at 1/60', w.steps === 60);
+    ok('gravity is px/s^2 (velocity)', Math.abs(w.getVelocity(ball).y - 1000) < 20,
+        'vy=' + w.getVelocity(ball).y.toFixed(1));
+    ok('gravity is px/s^2 (distance)', Math.abs(ball.position.y - 500) < 20,
+        'y=' + ball.position.y.toFixed(1));
+
+    // Velocity round-trip in px/s.
+    w.setVelocity(ball, 240, -120);
+    const v = w.getVelocity(ball);
+    ok('setVelocity/getVelocity round-trip', Math.abs(v.x - 240) < 1e-6 && Math.abs(v.y + 120) < 1e-6);
+    ok('speedOf in px/s', Math.abs(w.speedOf(ball) - Math.hypot(240, 120)) < 1e-6);
+    w.destroy();
+
+    // Frame-rate independence: 144 Hz and 30 Hz callers produce the exact
+    // same fixed steps and therefore the exact same state.
+    const simulate = (dt, seconds) => {
+        const ww = new PhysicsWorld({ gravity: 1000 });
+        const ground = ww.addBody(M.Bodies.rectangle(0, 300, 800, 20, { isStatic: true }));
+        const box = ww.addBody(M.Bodies.rectangle(-30, 0, 40, 40));
+        ww.setVelocity(box, 90, 0);
+        const frames = Math.round(seconds / dt);
+        for (let i = 0; i < frames; i++) ww.step(dt);
+        const out = { steps: ww.steps, x: box.position.x, y: box.position.y, a: box.angle };
+        ww.removeBody(ground);
+        ww.destroy();
+        return out;
+    };
+    const a60 = simulate(1 / 60, 2), a144 = simulate(1 / 144, 2), a30 = simulate(1 / 30, 2);
+    ok('accumulator: 144 Hz -> 120 steps in 2 s', a144.steps === 120, 'steps=' + a144.steps);
+    ok('accumulator: 30 Hz -> 120 steps in 2 s', a30.steps === 120, 'steps=' + a30.steps);
+    ok('same state at 60 Hz and 144 Hz', a60.x === a144.x && a60.y === a144.y && a60.a === a144.a);
+    ok('same state at 60 Hz and 30 Hz', a60.x === a30.x && a60.y === a30.y && a60.a === a30.a);
+    ok('step() rejects NaN / negative dt', (() => {
+        const ww = new PhysicsWorld();
+        const r = ww.step(NaN) + ww.step(-1) + ww.step(Infinity);
+        ww.destroy();
+        return r === 0;
+    })());
+
+    // Interpolation blends previous -> current pose.
+    const wi = new PhysicsWorld({ gravity: 1000 });
+    const b = wi.addBody(M.Bodies.rectangle(0, 0, 10, 10, { frictionAir: 0 }));
+    wi.step(1 / 60);
+    const y0 = wi._prev.get(b.id).y, y1 = b.position.y;
+    ok('interpolate alpha 0 = previous pose', wi.interpolate(b, 0).y === y0);
+    ok('interpolate alpha 1 = current pose', wi.interpolate(b, 1).y === y1);
+    ok('interpolate alpha 0.5 = midpoint', approx(wi.interpolate(b, 0.5).y, (y0 + y1) / 2, 1e-9));
+    ok('interpolate clamps alpha', wi.interpolate(b, 7).y === y1);
+    wi.destroy();
+
+    // Collision events resolve to parent bodies and can be unsubscribed.
+    const wc = new PhysicsWorld({ gravity: 1000 });
+    const floor = wc.addBody(M.Bodies.rectangle(0, 100, 400, 20, { isStatic: true }));
+    const part1 = M.Bodies.rectangle(-10, 0, 20, 20);
+    const part2 = M.Bodies.rectangle(10, 0, 20, 20);
+    const compound = wc.addBody(M.Body.create({ parts: [part1, part2] }));
+    const hits = [];
+    const off = wc.onCollision((x, y) => hits.push([x, y]));
+    for (let i = 0; i < 60 && !hits.length; i++) wc.step(1 / 60);
+    ok('collisionStart fires', hits.length > 0);
+    ok('collision reports the parent body', hits.length > 0 &&
+        hits.every(([x, y]) => (x === compound || y === compound) && (x === floor || y === floor)));
+    off();
+    const n = hits.length;
+    compound.position.y = 0; M.Body.setPosition(compound, { x: 0, y: 0 });
+    for (let i = 0; i < 60; i++) wc.step(1 / 60);
+    ok('unsubscribed handler is not called', hits.length === n);
+    wc.destroy();
+    ok('destroy empties the world', wc.bodies.length === 0);
+});
+
+// ─────────────────────────────────────────────
+suite('Stack Overflow — physics minigame', () => {
+    const mod = loadGameManager();
+    const { StackOverflowMechanic } = mod;
+    const make = (seed, opts) => {
+        const m = new StackOverflowMechanic(Object.assign({ rng: makeRng(seed) }, opts));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+
+    // Analytic crane: changing speed never makes it jump.
+    const c = make(1);
+    for (let i = 0; i < 37; i++) c.update(1 / 60);
+    const xBefore = c.craneX(c.time);
+    c._setOmega(c.omega * 1.5);
+    ok('crane stays continuous across a speed change', approx(c.craneX(c.time), xBefore, 1e-9));
+
+    // The frame drops from exactly where the crane was drawn.
+    const d = make(2);
+    for (let i = 0; i < 20; i++) d.update(1 / 60);
+    const alpha = 0.4;
+    const shown = d.craneX(d.renderTime(alpha));
+    d.drop(alpha * d.stepDt);
+    ok('release point equals the rendered crane position', approx(d.falling.body.position.x, shown, 1e-9));
+    ok('release keeps a share of crane momentum',
+        approx(d.world.getVelocity(d.falling.body).x, d.craneVX(d.time - d.stepDt + alpha * d.stepDt) * d.momentumKeep, 1e-6));
+    ok('cannot drop while a frame is falling', d.drop(0) === false);
+
+    // A bot that aims at the predicted landing point (ballistic: no air drag).
+    const play = (seed, aimErr, maxT = 60) => {
+        const m = make(seed);
+        const r = makeRng(seed + 99);
+        let target = m.cx + (r() * 2 - 1) * aimErr;
+        let t = 0;
+        while (m.result === null && t < maxT) {
+            m.update(1 / 60); t += 1 / 60;
+            if (m.canDrop) {
+                const dist = Math.max(1, m.towerTop() - (m.hookY + m.blockH));
+                const T = Math.sqrt(2 * dist / 1100);
+                const land = m.craneX(m.time) + m.craneVX(m.time) * m.momentumKeep * T;
+                if (Math.abs(land - target) < 3) { m.drop(0); target = m.cx + (r() * 2 - 1) * aimErr; }
+            }
+        }
+        return m;
+    };
+
+    let wins = 0, perfect = true;
+    for (let s = 1; s <= 8; s++) {
+        const m = play(s, 8);
+        if (m.result === 'success') wins++;
+        if (m.result !== 'success' || m.lost !== 0) perfect = false;
+    }
+    ok('accurate play (±8 px) always builds a stable tower', wins === 8, wins + '/8');
+    ok('accurate play loses no frames', perfect);
+
+    const won = play(1, 0);
+    ok('winning tower reaches the limit line', won.hasReachedTarget());
+    ok('buried frames are frozen once settled',
+        won.placed.slice(0, won.placed.length - won.freezeDepth).every(p => p.body.isStatic));
+    ok('top frames stay dynamic',
+        won.placed.slice(-won.freezeDepth).every(p => !p.body.isStatic));
+    ok('frame budget respected', won.drops <= won.maxDrops);
+
+    // Determinism: the same seed and inputs give the same run.
+    const r1 = play(3, 8), r2 = play(3, 8);
+    ok('runs are deterministic for a seed',
+        r1.result === r2.result && r1.drops === r2.drops && r1.time === r2.time &&
+        r1.towerTop() === r2.towerTop());
+
+    // Dropping far off the platform loses frames until the run fails.
+    const bad = make(4);
+    let t = 0;
+    while (bad.result === null && t < 60) {
+        bad.update(1 / 60); t += 1 / 60;
+        if (bad.canDrop && bad.craneX(bad.time) < bad.cx - bad.craneAmp + 5) bad.drop(0);
+    }
+    ok('frames dropped off the platform cost lives', bad.lost === bad.maxLives);
+    ok('losing every life fails the run', bad.result === 'fail' && bad.score === 0);
+    ok('lost frames are removed from the world',
+        bad.world.bodies.length === 1 + bad.placed.length + (bad.falling ? 1 : 0));
+
+    // Render runs headless with interpolation.
+    const canvas = makeFakeCanvas();
+    const rc = make(5);
+    rc.update(1 / 60);
+    rc.render(makeFakeCtx(canvas), 960, 640, 0, 0.5);
+    rc.drop(0);
+    for (let i = 0; i < 30; i++) { rc.update(1 / 60); rc.render(makeFakeCtx(canvas), 960, 640, 0, i / 30); }
+    ok('render runs with interpolation', true);
+});
+
+// ─────────────────────────────────────────────
+suite('Mission 5 + 6 tuning', () => {
+    const game = loadLevelManager();
+    const lm = new game.LevelManager();
+    const l5 = lm.levels[4], l6 = lm.levels[5];
+
+    ok('mission 5 is the physics stack mission', l5.mechanic === 'stack' && !lm.isBarLevel(4));
+    ok('startLevel refuses the physics mission', (() => { l5.unlocked = true; return lm.startLevel(4) === false; })());
+    ok('mission 6 needs 20 hits', l6.requiredHits === 20);
+    ok('mission 6 bar is slightly slower', l6.barSpeed === 1.35);
+    ok('mission 6 zone matches the old mission 5', l6.targetSize === 0.10);
+    l6.unlocked = true;
+    lm.startLevel(5);
+    ok('mission 6 lives unchanged (5)', lm.maxLives === 5 && lm.lives === 5);
+    ok('mission 6 still harder than mission 4',
+        l6.barSpeed > lm.levels[3].barSpeed && l6.targetSize < lm.levels[3].targetSize &&
+        l6.requiredHits > lm.levels[3].requiredHits);
+
+    // completeExternal follows the normal progression.
+    const lm2 = new game.LevelManager();
+    lm2.levels.slice(0, 4).forEach(l => { l.completed = true; });
+    lm2.group2Unlocked = true;
+    lm2._enforceSequentialUnlocks();
+    ok('mission 5 unlocks after mission 4', lm2.levels[4].unlocked && !lm2.levels[5].unlocked);
+    ok('completeExternal clears mission 5', lm2.completeExternal(4, 1700) && lm2.levels[4].completed);
+    ok('completeExternal unlocks mission 6', lm2.levels[5].unlocked);
+    ok('completeExternal stores the best score', lm2.levels[4].bestScore === 1700);
+    lm2.completeExternal(4, 900);
+    ok('a lower score keeps the best', lm2.levels[4].bestScore === 1700);
+    const lm3 = new (loadLevelManager().LevelManager)(); // fresh storage
+    ok('completeExternal refuses a locked node', lm3.completeExternal(4, 100) === false && !lm3.levels[4].completed);
+});
+
+// ─────────────────────────────────────────────
+suite('Mission 5 — HUB node + MINIGAME host', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const ready = (state) => {
+        gm.state.currentState = state;
+        gm.state.transitioning = false;
+        gm.state.pendingState = null;
+        gm.state.pendingContext = null;
+    };
+
+    gm.levels.levels.slice(0, 4).forEach(l => { l.completed = true; });
+    gm.levels.group2Unlocked = true;
+    gm.levels._enforceSequentialUnlocks();
+    gm.ui.clearButtons();
+    gm._buildHubButtons();
+    ok('no separate bonus button on the HUB', !gm.ui.buttons.find(b => /stack/i.test(b.id)));
+
+    // Clicking node 5 launches the physics mission.
+    ready(S.HUB);
+    gm.ui.buttons.find(b => b.id === 'lvl4').onClick();
+    ok('node 5 opens the MINIGAME state', gm.state.pendingState === S.MINIGAME);
+    const cfg = gm.state.pendingContext;
+    ok('node 5 runs StackOverflowMechanic', cfg && cfg.mechanic instanceof mod.StackOverflowMechanic);
+    ok('mission hint mentions tapping (mobile)', cfg && /tap/i.test(cfg.hint));
+
+    // Drive the MINIGAME handler with that context.
+    const handler = gm.state._handlers[S.MINIGAME];
+    ready(S.MINIGAME);
+    handler.enter(cfg);
+    const mech = cfg.mechanic;
+    ok('mechanic initialised by the host', mech.world !== null && mech.hanging !== null);
+    for (let i = 0; i < 10; i++) { handler.update(1 / 60); handler.render(ctx, 0.5); }
+
+    gm._pendingInputOffset = 0.25 * mech.stepDt;
+    const expected = mech.craneX(mech.time - mech.stepDt + gm._pendingInputOffset);
+    handler.onKey({ code: 'Space' });
+    gm._pendingInputOffset = 0;
+    ok('Space drops a frame via the host', mech.falling !== null);
+    ok('host forwards the sub-frame input offset',
+        mech.falling && approx(mech.falling.body.position.x, expected, 1e-9));
+
+    // A tap anywhere on the canvas drops (mobile path: hitTestUI -> handlePointer).
+    for (let i = 0; i < 120 && !mech.canDrop; i++) handler.update(1 / 60);
+    const dropsBefore = mech.drops;
+    ok('tap is consumed by the mission', gm._hitTestUI(100, 500) === true);
+    ok('tap anywhere drops a frame', mech.drops === dropsBefore + 1);
+
+    // Failure -> GAME_OVER without revive, with its own message.
+    ready(S.MINIGAME);
+    cfg.onComplete(false, mech);
+    ok('failure goes to GAME_OVER', gm.state.pendingState === S.GAME_OVER);
+    const go = gm.state.pendingContext;
+    ok('no lockpick revive for the physics mission', go.noRevive === true && go.levelIndex === 4);
+    const goHandler = gm.state._handlers[S.GAME_OVER];
+    ready(S.GAME_OVER);
+    goHandler.enter(go);
+    ok('no revive button', !gm.ui.buttons.find(b => b.id === 'revive'));
+    for (let i = 0; i < 70; i++) goHandler.update(1 / 60);
+    goHandler.onKey({ code: 'Space' });
+    ok('RETRY restarts the stack mission', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic instanceof mod.StackOverflowMechanic);
+
+    // Success -> node cleared, mission 6 unlocked, back to HUB.
+    ready(S.MINIGAME);
+    cfg.onComplete(true, { score: 1650 });
+    ok('success clears node 5', gm.levels.levels[4].completed && gm.levels.levels[4].bestScore === 1650);
+    ok('success unlocks node 6', gm.levels.levels[5].unlocked);
+    ok('success returns to the HUB', gm.state.pendingState === S.HUB);
+
+    // Escape leaves a minigame.
+    ready(S.MINIGAME);
+    handler.onKey({ code: 'Escape' });
+    ok('Escape leaves the mission', gm.state.pendingState === S.HUB);
+
+    // Node 6 still starts the timing bar.
+    ready(S.HUB);
+    gm._startNode(5);
+    ok('node 6 starts a LEVEL', gm.state.pendingState === S.LEVEL && gm.levels.currentLevelIndex === 5);
 });
 
 // ─────────────────────────────────────────────

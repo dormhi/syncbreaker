@@ -1,12 +1,15 @@
 /* =========================================
-   PhysicsMechanic.js — Physics Minigame Skeleton
+   PhysicsMechanic.js — Base for Physics Minigames
 
-   Example/reference implementation of a physics-based bonus minigame
-   built on PhysicsWorld (Matter.js). Not wired into the story yet.
+   Shared plumbing for minigames built on PhysicsWorld (Matter.js), so a
+   concrete game (see StackOverflowMechanic) only has to:
+     1) build bodies in _setupBodies(context)
+     2) decide success/failure in _evaluate(dt)
+     3) draw in _renderScene(ctx, W, H, alpha)
 
-   This exists so that adding a real physics minigame later is just:
-     1) subclass / configure this
-     2) register it as a Mechanic in GameManager
+   It plugs into the generic S.MINIGAME host in GameManager:
+     render(ctx, W, H, gameTime, alpha)
+     handleKey(code, inputOffset) / handlePointer(x, y, phase, inputOffset)
    ========================================= */
 
 const _MechanicBaseP = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
@@ -17,15 +20,22 @@ class PhysicsMechanic extends _MechanicBaseP {
         this.options = options;
         this.world = null;
         this.bodies = [];
+        this.time = 0;
+        this.stepDt = options.fixedDt || 1 / 60;
+        this.resultDuration = 1.2;
     }
 
     init(context = {}) {
         this.active = true;
         this.result = null;
+        this.time = 0;
+        if (this.world) this.world.destroy();
         this.world = new PhysicsWorld({
-            gravity: this.options.gravity !== undefined ? this.options.gravity : 1,
-            fixedDt: this.options.fixedDt || 1 / 60
+            gravity: this.options.gravity !== undefined ? this.options.gravity : 1000,
+            fixedDt: this.stepDt,
+            enableSleeping: this.options.enableSleeping
         });
+        this.bodies = [];
         this._setupBodies(context);
     }
 
@@ -33,24 +43,48 @@ class PhysicsMechanic extends _MechanicBaseP {
         // Subclasses create and add bodies here.
     }
 
-    update(fixedDt) {
+    update(dt) {
         if (!this.active || !this.world) return;
-        // Deterministic: always advance exactly one fixed step.
-        this.world.step(fixedDt);
-        this._evaluate();
+        this.stepDt = dt || this.stepDt;
+        this.time += this.stepDt;
+        // The world owns the fixed step; it consumes exactly `dt`.
+        this.world.step(this.stepDt);
+        if (this.result === null) this._evaluate(this.stepDt);
     }
 
-    _evaluate(/* */) {
+    _evaluate(/* dt */) {
         // Subclasses decide success/failure and set this.result.
     }
 
-    render(/* ctx, alpha */) {
-        // Subclasses draw bodies from Matter body positions.
+    /**
+     * Time that is on screen right now. Bodies are drawn interpolated
+     * between the previous and current step, so analytic motion (cranes,
+     * sliders) must use the same clock to stay in sync with them.
+     */
+    renderTime(alpha = 1) {
+        return this.time - this.stepDt * (1 - Math.max(0, Math.min(1, alpha)));
+    }
+
+    render(ctx, W, H, gameTime, alpha = 1) {
+        this._renderScene(ctx, W, H, alpha);
+    }
+
+    _renderScene(/* ctx, W, H, alpha */) {}
+
+    /** Draw a rectangle body at its interpolated pose. */
+    drawBox(ctx, body, w, h, alpha, draw) {
+        const p = this.world.interpolate(body, alpha);
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        draw(ctx, w, h);
+        ctx.restore();
     }
 
     reset() {
         super.reset();
-        if (this.world) this.world.clear();
+        if (this.world) this.world.destroy();
+        this.world = null;
         this.bodies = [];
     }
 }
