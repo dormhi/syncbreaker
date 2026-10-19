@@ -878,7 +878,7 @@ suite('Act screen + stage flow', () => {
     const mech = cfg.mechanic;
     ok('act 2 stage 1 is Stack Overflow EASY',
         mech instanceof mod.StackOverflowMechanic && mech.targetBlocks === 5 && mech.baseOmega === 1.30);
-    ok('stack hint mentions tap (mobile)', /tap/i.test(cfg.hint));
+    ok('first stack stage shows the faint controls hint', cfg.footHint && /tap/i.test(cfg.footHint.touch) && /SPACE/.test(cfg.footHint.desktop));
 
     // Host forwards the sub-frame offset; a tap anywhere drops.
     const host = gm.state._handlers[S.MINIGAME];
@@ -908,11 +908,13 @@ suite('Act screen + stage flow', () => {
     ok('RETRY restarts the same stack stage',
         gm.state.pendingState === S.MINIGAME && gm.state.pendingContext.mechanic.targetBlocks === 5);
 
-    // Escape from a stage returns to its act.
+    // Escape asks first; LEAVE returns to the act.
     settle(gm, S.MINIGAME);
-    gm._mgConfig = { stage: true };
+    host.enter(cfg);
     host.onKey({ code: 'Escape' });
-    ok('Escape returns to the act screen', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 2);
+    ok('Escape opens the leave prompt, not an instant exit', !!gm._quit && gm.state.pendingState === null);
+    gm.ui.buttons.find(b => b.id === 'quit-leave').onClick();
+    ok('LEAVE returns to the act screen', !gm._quit && gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 2);
 
     // Stack success records the stage.
     settle(gm, S.MINIGAME);
@@ -1415,6 +1417,106 @@ suite('Typing in a form field is not gameplay', () => {
     mod.fireDocument('keydown', ev('BODY', 'Space'));
     ok('keys on the page still reach the game', seen.length === 1 && prevented === 1);
     ok('keyboard switches hints to desktop', gm.input.mode === 'desktop');
+});
+
+// ─────────────────────────────────────────────
+suite('Leave prompt in every game + first-stage hint', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    const enter = (state, c) => { settle(gm, state); gm.state._handlers[state].enter(c); };
+
+    // MENU badge
+    const texts = [];
+    const spyCtx = makeFakeCtx(canvas);
+    spyCtx.fillText = (t) => { texts.push(String(t)); return spyCtx; };
+    gm.state._handlers[S.MENU].render(spyCtx, 0);
+    ok('menu badge says v3', texts.indexOf('(v3)') >= 0 && texts.indexOf('(v2)') < 0);
+
+    // Timing Bar stage: button, Esc, pause, Space blocked, default STAY.
+    gm._startStage(1, 0);
+    enter(S.LEVEL);
+    ok('LEAVE button in the Timing Bar', !!btn('leave'));
+    const t0 = gm.levels.timer;
+    gm._dispatchKey({ code: 'Escape' });
+    ok('Esc opens the prompt', !!gm._quit && !!btn('quit-stay') && !!btn('quit-leave'));
+    ok('safe default: STAY is focused', gm.ui.focusId === 'quit-stay');
+    for (let i = 0; i < 30; i++) gm.update(1 / 60);
+    ok('game is paused under the prompt', gm.levels.timer === t0);
+    const hits = gm.levels.hitCount, lives = gm.levels.lives;
+    gm._dispatchKey({ code: 'Space' });
+    ok('Space does nothing while asking', gm.levels.hitCount === hits && gm.levels.lives === lives);
+    ok('taps outside the prompt are swallowed', gm._hitTestUI(5, 5) === true);
+    gm.render(ctx, 0.5);
+    ok('prompt renders', true);
+    gm._dispatchKey({ code: 'Enter' });
+    ok('Enter on the default choice stays', !gm._quit && !!btn('leave') && gm.state.pendingState === null);
+    for (let i = 0; i < 6; i++) gm.update(1 / 60);
+    ok('game resumes after STAY', gm.levels.timer < t0);
+    gm._dispatchKey({ code: 'Escape' });
+    gm._dispatchKey({ code: 'Escape' });
+    ok('second Esc also stays', !gm._quit);
+    btn('leave').onClick();
+    gm._dispatchKey({ code: 'ArrowRight' });
+    gm._dispatchKey({ code: 'Enter' });
+    ok('→ + Enter leaves to the act', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
+
+    // First-stage hint only on stage 1 of an act.
+    const seen = [];
+    const hintCtx = makeFakeCtx(canvas);
+    hintCtx.fillText = (t) => { seen.push(String(t)); return hintCtx; };
+    gm._stage = { actId: 1, index: 0 };
+    gm._renderStageHint(hintCtx, 960, 600);
+    ok('hint on the first stage', seen.some(t => /SPACE when the marker/.test(t)));
+    seen.length = 0;
+    gm._stage = { actId: 1, index: 1 };
+    gm._renderStageHint(hintCtx, 960, 600);
+    ok('no hint on later stages', seen.length === 0);
+    gm.input.mode = 'touch';
+    gm._stage = { actId: 1, index: 0 };
+    gm._renderStageHint(hintCtx, 960, 600);
+    ok('touch players get the tap wording', seen.some(t => /^Tap anywhere/.test(t)));
+    gm.input.mode = 'desktop';
+
+    // Stack stage 2 has no hint; gates go back to the map.
+    gm.progress.data.stages[1].forEach(x => { x.completed = true; });
+    gm.progress.openGate(1);
+    gm.progress.completeStage(2, 0, 10);
+    settle(gm, S.ACT);
+    gm._startStage(2, 1);
+    ok('later stack stage has no hint', gm.state.pendingContext.footHint === null);
+
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(1, i, 10);
+    gm.progress.data.gates = [];
+    settle(gm, S.HUB);
+    gm._tryStartGate(1);
+    enter(S.MINIGAME, gm.state.pendingContext);
+    ok('LEAVE button on the gate', !!btn('leave'));
+    btn('leave').onClick();
+    ok('gate prompt warns the attempt counts', /attempt will still count/.test(gm._quit.cfg.detail));
+    btn('quit-leave').onClick();
+    ok('leaving a gate returns to the map', gm.state.pendingState === S.HUB);
+
+    // Lockpick revive: leaving goes back to the act.
+    gm._stage = { actId: 1, index: 0 };
+    enter(S.LOCKPICK, { reason: 'revive', difficulty: 1, score: 10 });
+    ok('LEAVE button in the code breaker', !!btn('leave'));
+    gm._dispatchKey({ code: 'ArrowUp' });
+    ok('arrows still drive the code breaker', gm.lockpick.started === true && !gm._quit);
+    gm._dispatchKey({ code: 'Escape' });
+    btn('quit-leave').onClick();
+    ok('aborting recovery returns to the act', gm.state.pendingState === S.ACT);
+
+    // Endless: leaving ends the run but keeps the score.
+    enter(S.ENDLESS);
+    gm.levels.score = 1234;
+    gm._dispatchKey({ code: 'Escape' });
+    btn('quit-leave').onClick();
+    ok('leaving Endless goes to the results with the score',
+        gm.state.pendingState === S.ENDLESS_OVER && gm.state.pendingContext.score === 1234 && gm.state.pendingContext.noRevive === true);
 });
 
 // ─────────────────────────────────────────────

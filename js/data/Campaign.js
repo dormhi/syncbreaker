@@ -9,6 +9,8 @@
      per-level tables (LevelThemes / LevelIcons).
    - `available: false` acts are shown as IN DEVELOPMENT.
    - Stage `params` are handed to the game as-is.
+   - `hint` is the faint in-game controls line shown on an act's FIRST
+     stage only, with a desktop and a touch variant.
    ========================================= */
 
 const CAMPAIGN = {
@@ -21,6 +23,10 @@ const CAMPAIGN = {
             themeId: 3,
             available: true,
             controls: 'SPACE / tap when the marker is inside the zone',
+            hint: {
+                desktop: 'Press SPACE when the marker is inside the zone',
+                touch: 'Tap anywhere when the marker is inside the zone'
+            },
             stages: [
                 { tier: 'EASY',      params: { barSpeed: 0.7,  targetSize: 0.22, requiredHits: 8,  maxTime: 25, lives: 3 } },
                 { tier: 'NORMAL',    params: { barSpeed: 0.9,  targetSize: 0.18, requiredHits: 10, maxTime: 28, lives: 3 } },
@@ -36,6 +42,10 @@ const CAMPAIGN = {
             themeId: 5,
             available: true,
             controls: 'SPACE / tap to drop · blocks keep the crane\'s momentum',
+            hint: {
+                desktop: 'Press SPACE or click to drop · blocks keep the crane\'s momentum',
+                touch: 'Tap anywhere to drop · blocks keep the crane\'s momentum'
+            },
             stages: [
                 { tier: 'EASY',   params: { targetBlocks: 5, maxDrops: 10, baseOmega: 1.30 } },
                 { tier: 'NORMAL', params: { targetBlocks: 7, maxDrops: 12, baseOmega: 1.36 } },

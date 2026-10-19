@@ -65,7 +65,8 @@ class GameManager {
         this.bgTime += dt;
         this._updateBgParticles(dt);
         this._updateDataRain(dt);
-        this.state.update(dt);
+        // The "leave this game?" prompt pauses the game underneath.
+        if (!this._quit) this.state.update(dt);
 
         if (typeof performance !== 'undefined') {
             // Wall-clock anchor for the simulation frontier. MUST be captured
@@ -86,8 +87,9 @@ class GameManager {
         // Background — CG: Gradient rendering
         this._renderBackground(ctx, W, H);
 
-        // State render
-        this.state.render(ctx, alpha);
+        // State render (frozen pose while the leave prompt is open)
+        this.state.render(ctx, this._quit ? 0 : alpha);
+        if (this._quit) this._renderQuitConfirm(ctx, W, H);
     }
 
     // ════════════════════════════════════════
@@ -122,7 +124,7 @@ class GameManager {
                 ctx.fillStyle = '#22c55e';
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
-                ctx.fillText('(v2)', cx + titleW / 2 + 22, 56);
+                ctx.fillText('(v3)', cx + titleW / 2 + 22, 56);
                 ctx.restore();
 
                 // Subtitle
@@ -316,7 +318,15 @@ class GameManager {
 
         // ── LEVEL (Gameplay) ──
         this.state.register(S.LEVEL, {
-            enter: () => { this.ui.clearButtons(); Sound.stopAmbient(); },
+            enter: () => {
+                this.ui.clearButtons();
+                Sound.stopAmbient();
+                this._addLeaveButton({
+                    title: 'LEAVE THIS STAGE?',
+                    detail: 'Your progress in this stage will be lost.',
+                    onLeave: () => this._backToAct()
+                });
+            },
             update: (dt) => {
                 this.levels.update(dt);
 
@@ -344,6 +354,8 @@ class GameManager {
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
                 this.levels.render(ctx, W, H, alpha);
+                this._renderStageHint(ctx, W, H - 22);
+                this.ui.renderButtons();
 
                 // Level complete overlay
                 if (this.levels.levelComplete) {
@@ -359,7 +371,7 @@ class GameManager {
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Space') this.levels.hit(this._pendingInputOffset || 0);
-                if (e.code === 'Escape') this._backToAct();
+                if (e.code === 'Escape') this._openLeavePrompt();
             }
         });
 
@@ -369,6 +381,20 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
                 const lCtx = context || {};
+                const endlessRevive = lCtx.reason === 'endless_revive';
+                this._addLeaveButton({
+                    title: 'ABORT RECOVERY?',
+                    detail: endlessRevive
+                        ? 'The run ends here — your score still counts.'
+                        : 'The energy spent on this recovery is not refunded.',
+                    onLeave: () => {
+                        if (endlessRevive) {
+                            this.state.change(S.ENDLESS_OVER, Object.assign({}, this._lockpickEndlessCtx, { noRevive: true }));
+                        } else {
+                            this._backToAct();
+                        }
+                    }
+                });
                 this._lockpickReason = lCtx.reason || 'revive';
                 this._lockpickScore = lCtx.score || 0;
                 // Endless revive context
@@ -446,9 +472,11 @@ class GameManager {
                     max: this.energy.maxEnergy,
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
+                this.ui.renderButtons();
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
+                if (e.code === 'Escape') { this._openLeavePrompt(); return; }
                 this.lockpick.handleKey(e.code);
             }
         });
@@ -461,6 +489,14 @@ class GameManager {
                 const c = context || {};
                 this._mgConfig = c;
                 this._activeMinigame = c.mechanic || null;
+                this._addLeaveButton({
+                    title: c.stage ? 'LEAVE THIS STAGE?' : 'LEAVE THIS CHALLENGE?',
+                    detail: c.stage ? 'Your progress in this stage will be lost.' : 'This attempt will still count.',
+                    onLeave: () => {
+                        if (c.stage) this._backToAct();
+                        else this.state.change(S.HUB);
+                    }
+                });
                 this._mgHandled = false;
                 this._mgEndTimer = 0;
                 if (this._activeMinigame && this._activeMinigame.init) {
@@ -520,14 +556,12 @@ class GameManager {
                     max: this.energy.maxEnergy,
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
+                if (cfg.footHint) this._drawFaintHint(ctx, cfg.footHint, W / 2, H - 14);
+                this.ui.renderButtons();
             },
             exit: () => { this.ui.clearButtons(); this._activeMinigame = null; },
             onKey: (e) => {
-                if (e.code === 'Escape') {
-                    if ((this._mgConfig || {}).stage) this._backToAct();
-                    else this.state.change(S.HUB);
-                    return;
-                }
+                if (e.code === 'Escape') { this._openLeavePrompt(); return; }
                 const m = this._activeMinigame;
                 if (!m) return;
                 const offset = this._pendingInputOffset || 0;
@@ -644,6 +678,17 @@ class GameManager {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
+                this._addLeaveButton({
+                    title: 'END THIS RUN?',
+                    detail: 'Your score so far still counts.',
+                    onLeave: () => this.state.change(S.ENDLESS_OVER, {
+                        score: this.levels.score,
+                        wave: this.levels.endlessWave,
+                        maxCombo: this.levels.maxCombo,
+                        hitCount: this.levels.hitCount,
+                        noRevive: true
+                    })
+                });
                 // If returning from revive, continue without reset
                 if (!this.levels.endlessMode) {
                     this.levels.startEndless();
@@ -673,14 +718,12 @@ class GameManager {
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
                 this.levels.renderEndless(ctx, W, H, alpha);
+                this.ui.renderButtons();
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Space') this.levels.hitEndless(this._pendingInputOffset || 0);
-                if (e.code === 'Escape') {
-                    this.levels.endlessMode = false;
-                    this.state.change(S.HUB);
-                }
+                if (e.code === 'Escape') this._openLeavePrompt();
             }
         });
 
@@ -1436,6 +1479,90 @@ class GameManager {
         ctx.restore();
     }
 
+    // ── Leave a game (with confirmation) ──
+
+    /** Small "← LEAVE" button for in-game screens; Esc opens the same prompt. */
+    _addLeaveButton(cfg) {
+        this._leaveCfg = cfg;
+        this.ui.addButton('leave', '← LEAVE', 66, this.canvas.height - 30, 104, 36,
+            () => this._openLeavePrompt(),
+            { color: '#475569', focusable: false });
+    }
+
+    /** Pause the game and ask before leaving. */
+    _openLeavePrompt() {
+        if (this._quit || !this._leaveCfg || this.state.transitioning) return;
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        this._quit = { cfg: this._leaveCfg, buttons: this.ui.buttons };
+        this.ui.buttons = [];
+        this.ui.focusId = null;
+        this.ui.addButton('quit-stay', 'STAY', W / 2 - 100, H / 2 + 46, 170, 44,
+            () => this._closeLeavePrompt(), { color: '#3b82f6' });
+        this.ui.addButton('quit-leave', 'LEAVE', W / 2 + 100, H / 2 + 46, 170, 44,
+            () => {
+                const onLeave = this._quit.cfg.onLeave;
+                this._closeLeavePrompt();
+                onLeave();
+            },
+            { color: '#ef4444' });
+        // Default to the safe choice so a stray Enter never quits.
+        this.ui.focus('quit-stay');
+    }
+
+    _closeLeavePrompt() {
+        if (!this._quit) return;
+        this.ui.buttons = this._quit.buttons;
+        this.ui.focusId = null;
+        this._quit = null;
+    }
+
+    _renderQuitConfirm(ctx, W, H) {
+        const q = this._quit.cfg;
+        const pw = 440, ph = 190;
+        const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
+        ctx.save();
+        ctx.fillStyle = 'rgba(6,10,18,0.72)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(12,18,30,0.97)';
+        ctx.strokeStyle = 'rgba(239,68,68,0.5)';
+        ctx.lineWidth = 1.5;
+        Utils.roundRect(ctx, px, py, pw, ph, 12);
+        ctx.fill();
+        ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '700 20px Orbitron';
+        ctx.fillText(q.title, W / 2, py + 50);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '400 16px Rajdhani';
+        ctx.fillText(q.detail, W / 2, py + 80);
+        ctx.restore();
+        this.ui.renderButtons();
+    }
+
+    /** Faint controls line on the first stage of an act (Timing Bar). */
+    _renderStageHint(ctx, W, y) {
+        const st = this._stage;
+        if (!st || st.index !== 0 || this.levels.endlessMode) return;
+        const act = this.progress.act(st.actId);
+        if (act && act.hint) this._drawFaintHint(ctx, act.hint, W / 2, y);
+    }
+
+    _drawFaintHint(ctx, hint, x, y) {
+        const text = this._inputMode() === 'touch' ? hint.touch : hint.desktop;
+        if (!text) return;
+        ctx.save();
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = '#64748b';
+        ctx.font = '500 14px Rajdhani';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
     // ── Field guide ──
 
     _inputMode() {
@@ -1873,7 +2000,7 @@ class GameManager {
             stage: true,
             title: `${act.key} · ${stage.tier}`,
             subtitle: act.story,
-            hint: act.controls,
+            footHint: index === 0 ? act.hint : null,
             onComplete: (success, m) => {
                 if (success) {
                     this._onStageCleared(m.score, 0);
@@ -1923,6 +2050,8 @@ class GameManager {
     /** Routes canvas presses: UI buttons → minigame → hidden energy easter egg. */
     _hitTestUI(x, y) {
         if (this.ui.handleClick(x, y)) return true;
+        // Taps outside the leave prompt must not reach the paused game.
+        if (this._quit) return true;
 
         if (this.state.currentState === this.state.STATES.MINIGAME &&
             this._activeMinigame && this._activeMinigame.handlePointer) {
@@ -2012,6 +2141,15 @@ class GameManager {
     }
 
     _dispatchKey(action) {
+        if (this._quit) {
+            // Only the prompt reacts: Esc = stay, arrows/Enter = buttons.
+            const code = action.code;
+            if (code === 'Escape') this._closeLeavePrompt();
+            else if (code === 'Enter' || code === 'NumpadEnter') this.ui.activateFocus();
+            else if (code === 'ArrowLeft' || code === 'KeyA') this.ui.moveFocus('left');
+            else if (code === 'ArrowRight' || code === 'KeyD') this.ui.moveFocus('right');
+            return;
+        }
         if (this._handleUiNavKey(action.code)) return;
         this._pendingInputOffset = this._computeInputOffset(action.timestamp);
         try {

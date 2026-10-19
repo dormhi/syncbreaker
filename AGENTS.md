@@ -7,7 +7,7 @@ A cyberpunk-themed browser game built as a Computer Graphics final project. Plai
   Avoid port 8765: the browser cache there holds another site's `js/main.js`.
 - Tests: `node tests/run.js`. This is a zero-dependency runner. All tests must pass before every commit.
 - Adding a new JS file: add a `<script>` tag to `index.html` in dependency order, and add the file to the relevant list in `tests/harness.js`.
-- **Cache busting:** local scripts and the stylesheet in `index.html` carry a `?v=YYYYMMDD` query string. Bump it on every release. Otherwise a player's browser can mix old and new files and crash.
+- **Cache busting:** local scripts and the stylesheet in `index.html` carry a `?v=YYYYMMDD` query string (add `-2`, `-3`… for a second release the same day). Bump it on every release. Otherwise a player's browser can mix old and new files and crash.
 
 ## Git & deploy
 - **The live site (syncbreaker.dormhi.com) is published from the `v2` branch.** A push to `v2` is a release. Only push when the user asks.
