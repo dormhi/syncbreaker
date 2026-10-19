@@ -570,7 +570,11 @@ class GameManager {
                 if (cfg.footHint) this._drawFaintHint(ctx, cfg.footHint, W / 2, H - 14);
                 this.ui.renderButtons();
             },
-            exit: () => { this.ui.clearButtons(); this._activeMinigame = null; },
+            exit: () => {
+                this._releaseHold('all');
+                this.ui.clearButtons();
+                this._activeMinigame = null;
+            },
             onKey: (e) => {
                 if (e.code === 'Escape') { this._openLeavePrompt(); return; }
                 const m = this._activeMinigame;
@@ -608,7 +612,8 @@ class GameManager {
                 const goAct = this._goStage ? this.progress.act(this._goStage.actId) : null;
                 const game = goAct ? GameRegistry.get(goAct.game) : null;
                 if (!this._noRevive && game && game.revive && revivesLeft > 0 && this.energy.canAfford('REVIVE')) {
-                    this.ui.addButton('revive', `🔄 TRY RECOVERY PROTOCOL (1⚡) · ${revivesLeft} left`, cx, cy + 30, 320, 42,
+                    const extra = game.reviveLabel ? ` ${game.reviveLabel}` : '';
+                    this.ui.addButton('revive', `🔄 TRY RECOVERY PROTOCOL (1⚡)${extra} · ${revivesLeft} left`, cx, cy + 30, 340, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
                                 this.state.change(S.LOCKPICK, {
@@ -1546,6 +1551,7 @@ class GameManager {
     /** Pause the game and ask before leaving. */
     _openLeavePrompt() {
         if (this._quit || !this._leaveCfg || this.state.transitioning) return;
+        this._releaseHold('all');
         const W = this.canvas.width;
         const H = this.canvas.height;
         this._quit = { cfg: this._leaveCfg, buttons: this.ui.buttons };
@@ -1615,6 +1621,35 @@ class GameManager {
         ctx.textBaseline = 'middle';
         ctx.fillText(text, x, y);
         ctx.restore();
+    }
+
+    // ── Hold-to-play routing (Signal Lock) ──
+
+    _holdGame() {
+        const m = this._activeMinigame;
+        return (this.state.currentState === this.state.STATES.MINIGAME && m && m.wantsHold) ? m : null;
+    }
+
+    /** Mouse press on the canvas: starts a hold unless it lands on a button. */
+    _handleMouseDown(x, y) {
+        const m = this._holdGame();
+        if (!m || this._quit || this.state.transitioning) return;
+        if (this.ui.buttons.some(b => !b.hidden && !b.disabled &&
+            Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2)) return;
+        m.handlePointer(x, y, 'down');
+    }
+
+    _handleKeyUp(action) {
+        const m = this._holdGame();
+        if (m && m.handleKeyUp) m.handleKeyUp(action.code);
+    }
+
+    /** 'pointer' ends a mouse/touch hold; 'all' also drops a held key. */
+    _releaseHold(which) {
+        const m = this._holdGame();
+        if (!m) return;
+        if (which === 'all' && m.releaseAll) m.releaseAll();
+        else m.handlePointer(0, 0, 'up');
     }
 
     // ── Field guide ──
@@ -1799,6 +1834,7 @@ class GameManager {
         if (act.game === 'timingbar') return `${p.requiredHits} HITS · ${p.maxTime}s`;
         if (act.game === 'stack') return `${p.targetBlocks} BLOCKS HIGH`;
         if (act.game === 'orbital') return `${p.blocksNeeded} PACKETS · ${p.ports} PORTS`;
+        if (act.game === 'signal') return `${p.keys} KEYS · ${p.timeLimit}s`;
         return '';
     }
 
@@ -2108,13 +2144,16 @@ class GameManager {
     }
 
     /** Routes canvas presses: UI buttons → minigame → hidden energy easter egg. */
-    _hitTestUI(x, y) {
+    _hitTestUI(x, y, source) {
         if (this.ui.handleClick(x, y)) return true;
         // Taps outside the leave prompt must not reach the paused game.
         if (this._quit) return true;
 
         if (this.state.currentState === this.state.STATES.MINIGAME &&
             this._activeMinigame && this._activeMinigame.handlePointer) {
+            // Hold-to-play games get mouse holds from _handleMouseDown; the
+            // click that follows the release must not start a new hold.
+            if (this._activeMinigame.wantsHold && source === 'click') return true;
             const offset = this._computeInputOffset(performance.now());
             this._activeMinigame.handlePointer(x, y, 'down', offset);
             return true;
@@ -2167,11 +2206,15 @@ class GameManager {
         this._lastSimWall = (typeof performance !== 'undefined') ? performance.now() : 0;
 
         this.input = new InputManager(this.canvas, {
-            hitTestUI: (x, y) => this._hitTestUI(x, y),
+            hitTestUI: (x, y, source) => this._hitTestUI(x, y, source),
             onMove: (x, y) => this.ui.updateMouse(x, y),
             onPress: (pointerType, ts) => this._handleConfirm(ts),
             onSwipe: (dir, ts) => this._handleSwipe(dir, ts),
-            onKey: (action) => this._handleKeyAction(action)
+            onKey: (action) => this._handleKeyAction(action),
+            onKeyUp: (action) => this._handleKeyUp(action),
+            onMouseDown: (x, y) => this._handleMouseDown(x, y),
+            onPointerUp: () => this._releaseHold('pointer'),
+            onBlur: () => this._releaseHold('all')
         });
     }
 
@@ -2379,6 +2422,7 @@ GameManager.GUIDE_PAGES = [
             ['Timing Bar', 'SPACE', 'Tap anywhere'],
             ['Stack Overflow', 'SPACE or click', 'Tap anywhere'],
             ['Orbital Shield', '← / →  or  A / D', 'Tap a port'],
+            ['Signal Lock', 'Hold SPACE or mouse', 'Hold anywhere'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -2390,6 +2434,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'TIMING BAR', text: 'Hit while the marker is inside the zone. Centre hits score PERFECT and combos multiply your score.' },
             { head: 'STACK OVERFLOW', text: 'Drop blocks to build a tower past the limit line. Blocks keep the crane\'s sideways momentum, so release a little early.' },
             { head: 'ORBITAL SHIELD', text: 'A port blinks, then a packet flies at it. Snap the shield to that port to block it. Pink packets hop to a neighbouring port.' },
+            { head: 'SIGNAL LOCK', text: 'Hold to raise your signal, release to lower it. Keep it on the target until SYNC fills to lock a key, before time runs out.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },
@@ -2397,7 +2442,7 @@ GameManager.GUIDE_PAGES = [
         title: 'ENERGY',
         items: [
             { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
-            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life — twice per stage.' },
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock you get 20 more seconds. Twice per stage.' },
             { head: 'ENDLESS MODE', text: 'Unlocks after ACT 6. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.' }
         ]
     }

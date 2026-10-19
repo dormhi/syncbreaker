@@ -15,6 +15,10 @@
      onPress(pointerType, ts)      -> gameplay confirm (touch/pen only)
      onSwipe(direction, ts)        -> 'up' | 'down' | 'left' | 'right'
      onKey(action)                 -> { code, timestamp }
+     onKeyUp(action)               -> { code }       (hold-to-play games)
+     onMouseDown(x, y)             -> mouse press on the canvas (hold start)
+     onPointerUp()                 -> any mouse / touch release (hold end)
+     onBlur()                      -> window lost focus: drop every hold
    ========================================= */
 
 class InputManager {
@@ -64,13 +68,19 @@ class InputManager {
         canvas.addEventListener('click', (e) => {
             if (performance.now() < this._suppressClickUntil) return;
             const { x, y } = this._coords(e.clientX, e.clientY);
-            H.hitTestUI(x, y);
+            H.hitTestUI(x, y, 'click');
         });
 
         // Touch / pen: pointer events unify tap + swipe, no synth click.
         canvas.addEventListener('pointerdown', (e) => {
             this.mode = e.pointerType === 'mouse' ? 'desktop' : 'touch';
-            if (e.pointerType === 'mouse') return;
+            if (e.pointerType === 'mouse') {
+                if (e.button === 0 && H.onMouseDown) {
+                    const p = this._coords(e.clientX, e.clientY);
+                    H.onMouseDown(p.x, p.y);
+                }
+                return;
+            }
             const { x, y } = this._coords(e.clientX, e.clientY);
             this._touch = {
                 startX: e.clientX,
@@ -79,7 +89,7 @@ class InputManager {
                 ui: false
             };
 
-            if (H.hitTestUI(x, y)) {
+            if (H.hitTestUI(x, y, 'touch')) {
                 this._touch.ui = true;
                 e.preventDefault();
                 return;
@@ -90,7 +100,17 @@ class InputManager {
             H.onPress(e.pointerType, this._now(e.timeStamp));
         }, { passive: false });
 
+        // Any release ends a hold. Mouse releases are caught on the window so
+        // letting go outside the canvas cannot leave a hold stuck on.
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            window.addEventListener('pointerup', (e) => {
+                if (e.pointerType === 'mouse' && H.onPointerUp) H.onPointerUp();
+            });
+            window.addEventListener('blur', () => { if (H.onBlur) H.onBlur(); });
+        }
+
         canvas.addEventListener('pointerup', (e) => {
+            if (e.pointerType !== 'mouse' && H.onPointerUp) H.onPointerUp();
             if (e.pointerType === 'mouse' || !this._touch || this._touch.id !== e.pointerId) return;
 
             const t = this._touch;
@@ -109,7 +129,16 @@ class InputManager {
             H.onSwipe(dir, this._now(e.timeStamp));
         }, { passive: false });
 
-        canvas.addEventListener('pointercancel', () => { this._touch = null; });
+        canvas.addEventListener('pointercancel', () => {
+            this._touch = null;
+            if (H.onPointerUp) H.onPointerUp();
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            if (H.onKeyUp) H.onKeyUp({ code: e.code });
+        });
 
         document.addEventListener('keydown', (e) => {
             // Typing in a form field (operator profile) is not gameplay.

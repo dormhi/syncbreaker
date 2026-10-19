@@ -145,6 +145,7 @@ const FULL_FILES = [
     'js/mechanics/PhysicsMechanic.js',
     'js/mechanics/StackOverflowMechanic.js',
     'js/mechanics/OrbitalShieldMechanic.js',
+    'js/mechanics/SignalLockMechanic.js',
     'js/core/GameRegistry.js',
     'js/CampaignProgress.js',
     'vendor/matter.min.js',
@@ -164,7 +165,7 @@ const FULL_FILES = [
 
 const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
-    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic'];
+    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {
@@ -218,7 +219,10 @@ function loadGameManager(initialStorage = {}) {
         apply: () => silent,
         construct: () => silent
     });
-    const window = { AudioContext: silent };
+    const window = {
+        AudioContext: silent,
+        addEventListener: (type, fn) => { (listeners['window:' + type] = listeners['window:' + type] || []).push(fn); }
+    };
     const api = runFiles(FULL_FILES, FULL_EXPORTS, { localStorage, document, window });
     api.storage = localStorage;
     // Fire a document event at the registered listeners (keyboard tests).

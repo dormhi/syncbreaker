@@ -24,7 +24,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 1 | REMOVE_MALWARE | Enfekte düğümleri temizle | **Timing Bar** | ✅ Kesin, 4 aşama |
 | 2 | REBUILD_FIREWALL | Firewall'u blok blok yeniden ör | **Stack Overflow** | ✅ Kesin, 3 aşama |
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
-| 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | Öneri: Signal Lock | 🛠 Geliştiriliyor |
+| 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | Öneri: Log Router / Patch Launcher | 🛠 Geliştiriliyor |
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | Öneri: Cable Cut | 🛠 Geliştiriliyor |
 
@@ -121,11 +121,77 @@ Zorluğu iki şey belirler: **gereken kule yüksekliği** ve **vinç hızı**. V
 
 Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçüldü. 270 px/s'de Çok zor sonuçları şöyleydi: ortalama oyuncu 29/30 (ortalama 2.9 can kaybı), yavaş oyuncu 15/30. 3 canla sonuçlar şöyleydi: ortalama oyuncu Zor'da 29/30, Çok zor'da 12/30; yavaş oyuncu Zor'da 20/30, Çok zor'da 1/30.
 
-### Act 4–6: Geliştiriliyor 🛠
+### Act 4: Signal Lock, 5 aşama ✅ (mekanik kesin, 2026-10-19)
+
+**Sahne:** bir osiloskop ekranı. Üzerinde iki dalga var: hedef dalga (amber, kesikli) ve oyuncunun dalgası (mavi).
+
+**Kontrol:** tek tuş, basılı tut / bırak.
+- Basılı tutunca dalganın **frekansı yükselir**, bırakınca **düşer**. Hafif bir eylemsizlik var, bir şeyi dengede tutmak gibi hissettiriyor.
+- Masaüstü: Space ya da fareyle canvas'a basılı tutmak.
+- Telefon: ekranın herhangi bir yerine basılı tutmak.
+- İki platformda birebir aynı his.
+
+**Akış:**
+- Senin frekansın hedefe tolerans kadar yakınsa **SYNC** göstergesi dolar. Uzaklaşınca boşalır (Kolay'da boşalmaz).
+- Gösterge dolunca bir **anahtar kilitlenir**, ardından yeni bir hedef frekansla sonraki anahtar başlar.
+- **Kazanma:** aşamanın anahtar sayısını kilitlemek.
+- **Kaybetme:** süre biterse. Can yok.
+
+**Revive: +20 saniye** (2026-10-19 kararı). Süre bitince lockpick teklif edilir. Başarılı olursa süreye 20 saniye eklenir ve oyun aynı yerden devam eder, kilitlenen anahtarlar korunur. Aşama başına 2 hak, her biri 1 enerji.
+
+**Aşamalar (ilk taslak).** Kesin sayılar aşağıda.
+
+| | 1 · Kolay | 2 · Orta | 3 · Zor | 4 · Çok zor | 5 · Uzman |
+|---|---|---|---|---|---|
+| Anahtar | 3 | 3 | 4 | 4 | 5 |
+| Süre | 45 sn | 40 sn | 45 sn | 45 sn | 50 sn |
+| Tolerans | geniş | orta | dar | dar | çok dar |
+| SYNC uzaklaşınca | boşalmaz | yavaş boşalır | boşalır | boşalır | hızlı boşalır |
+| Hedef kayması | yok | yavaş | orta | orta | hızlı |
+| Sinyal sıçraması | – | – | – | var | var |
+
+**Kesin sayılar** (`js/data/Campaign.js`, bot denge taramasıyla belirlendi):
+
+| | Kolay | Orta | Zor | Çok zor | Uzman |
+|---|---|---|---|---|---|
+| Anahtar / süre | 3 / 45 sn | 3 / 40 sn | 4 / 45 sn | 4 / 45 sn | 5 / 50 sn |
+| Tolerans | 0.32 | 0.26 | 0.23 | 0.23 | 0.22 |
+| SYNC için gereken süre | 1.2 sn | 1.2 sn | 1.4 sn | 1.4 sn | 1.4 sn |
+| Boşalma (dolma hızına göre) | 0 | 0.6× | 1.0× | 1.0× | 1.0× |
+| Hedef kayması (genlik / hız) | – | 0.35 / 0.75 | 0.5 / 1.0 | 0.5 / 1.0 | 0.55 / 1.05 |
+| Sıçrama aralığı | – | – | – | 5–8 sn | 5–8 sn |
+
+**Fizik:** frekans 1 ile 5 arasında. Basılı tutma ve bırakma 4.0 birim/s² ivme veriyor, sönümleme 3.0/s. Bütün aşamalarda aynı.
+
+**Denge sonucu** (insana benzer bot: tepki gecikmesi, kusurlu momentum tahmini; aşama başına 30 deneme):
+
+| Bot | Kolay | Orta | Zor | Çok zor | Uzman |
+|---|---|---|---|---|---|
+| İyi | 30/30 | 30/30 | 30/30 | 30/30 | 27/30 |
+| Ortalama | 30/30 | 30/30 | 30/30 | 30/30 | 20/30 |
+| Yavaş | 30/30 | 30/30 | 30/30 | 25/30 | 10/30 |
+
+- Uzman zor ama oynanabilir.
+- Tarama sırasında görülen keskin eşik: hedef kayma hızı yaklaşık 1.15'i geçince oyun bir anda oynanamaz hale geliyor (iyi bot bile ~%10). Bu yüzden Uzman 1.05'te tutuldu.
+- Fizik oyun testine göre değişebilir (2026-10-19: "çok içime sinmezse fiziği değiştiririz").
+
+- **Sinyal sıçraması:** hedef frekans aniden başka bir değere atlar. Atlamadan kısa bir süre önce hedef dalga titrer, böylece oyuncu uyarılır.
+- **Skor:** kilitlenen her anahtar için puan, artı kalan süre bonusu.
+- **Sonsuz mod uyumu:** anahtarlar art arda sonsuza kadar gelebilir. Kayma ve sıçramalar giderek artırılabilir (bölüm 8b).
+- **İlk aşamadaki silik ipucu:**
+  - Masaüstü: "Hold SPACE to raise your signal, release to lower it"
+  - Telefon: "Hold anywhere to raise your signal, let go to lower it"
+
+**Teknik gereksinim:** `InputManager` şu an sadece "basma" olayını iletiyor. Signal Lock için "bırakma" olayı da gerekiyor:
+- Space için keyup.
+- Dokunmatik ve fare için pointerup / pointercancel.
+- Pencere odağını kaybedince (blur) basılı durum sıfırlanmalı, yoksa tuş takılı kalır.
+- "← LEAVE" butonuna basmak basılı tutma sayılmamalı.
+
+### Act 5–6: Geliştiriliyor 🛠
 
 Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir:
 
-- **Signal Lock (Act 4):** basılı tutup bırakarak iki dalgayı çakıştırmak. Space ya da parmakla basılı tutma.
 - **Log Router / Patch Launcher (Act 5):** akışı yönlendirmek ya da çek-bırak fırlatma.
 - **Cable Cut (Act 6):** Matter.js ile kablo kesme bulmacası. Fare, parmakla kaydırma ya da 1–3 tuşları.
 
@@ -140,7 +206,8 @@ Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir
   - Deneme sınırı: her kapı için 3 dakikada 2 deneme (`ChallengeGate`).
   - Sonraki act geliştiriliyorsa kapı oynanamaz.
 - **Lockpick (Code Breaker): sadece revive için.** Aşama atlama kaldırıldı.
-  - Revive sadece kesintisiz oynanan oyunlarda var: Timing Bar, Orbital Shield ve Endless. Aşama başına 2 hak, her biri 1 enerji. Orbital Shield'da başarılı bir kurtarmadan sonra oyun aynı yerden 1 canla devam eder.
+  - Revive sadece kesintisiz oynanan oyunlarda var: Timing Bar, Orbital Shield, Signal Lock ve Endless. Aşama başına 2 hak, her biri 1 enerji.
+  - Orbital Shield'da başarılı bir kurtarmadan sonra oyun aynı yerden 1 canla devam eder. Signal Lock'ta +20 saniye ile devam eder.
   - Lockpick'in zorluğu act numarasına göre seçilir ve biraz kolaylaştırıldı:
 
     | Zorluk | 1 | 2 | 3 | 4 | 5 | 6 |
@@ -207,7 +274,7 @@ Her fazın kabul şartları:
 |---|---|---|
 | **1** | Kampanya altyapısı ve kayıt göçü. Act haritası ve act ekranı. Act 1 Timing Bar (4 aşama), Act 2 Stack Overflow (3 aşama), Kapı 1. Act 3–6 "IN DEVELOPMENT". Lockpick sadece revive. Klavye ile HUB. | ✅ Uygulandı |
 | 2 | Act 3 Orbital Shield (4 aşama, bölüm 3). Kapı 2 (Act 2 → 3). Kalkan portlara kilitlendiği için InputManager'a sürükleme gerekmiyor, dokunma ve tıklama yeterli. | ✅ Uygulandı |
-| 3 | Act 4 ve Kapı 3 | Bekliyor |
+| 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 4 | Act 5 ve Kapı 4 | Bekliyor |
 | 5 | Act 6, Kapı 5 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
 
@@ -231,4 +298,5 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 7. Endless Act 6 bitince açılır, zaten açmış olanlarda açık kalır.
 8. Act 3–6 "IN DEVELOPMENT" olarak gösterilir. Mekanikleri birlikte kararlaştırılacak.
 10. **Endless Mode değişecek:** bütün oyunları destekleyen bir sonsuz mod olacak. Henüz planlanmadı, sonra ayrıca planlanacak (bölüm 8b).
+11. **Act 4 (Faz 3):** Signal Lock. Basılı tut / bırak ile frekans ayarlanıyor. Kaybetme koşulu süre sınırı, can yok. 5 aşama: Kolay, Orta, Zor, Çok zor, Uzman. **Revive +20 saniye** veriyor ve oyun aynı yerden devam ediyor. Uzman zor ama oynanabilir olmalı.
 9. **Act 3 (Faz 2):** Orbital Shield, portlara kilitlenen kalkan. Kazanma koşulu N paket engellemek. 4 aşama: port sayısı 4 / 6 / 8 / 8, engellenecek paket 12 / 16 / 20 / 20. Zor ve Çok zor aynı ayarlarda oynanıyor, Çok zor'a rastgele çıkan ve yolda hedef değiştiren paketler ekleniyor.

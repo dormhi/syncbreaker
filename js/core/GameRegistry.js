@@ -30,6 +30,14 @@ const GameRegistry = {
         create: (params) => new OrbitalShieldMechanic(Object.assign({}, params))
     },
 
+    signal: {
+        kind: 'mechanic',
+        revive: true,
+        reviveLabel: '+20s',
+        title: 'SIGNAL LOCK',
+        create: (params) => new SignalLockMechanic(Object.assign({}, params))
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 

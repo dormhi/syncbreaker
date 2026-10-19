@@ -76,7 +76,28 @@ const CAMPAIGN = {
                 { tier: 'VERY HARD', params: { ports: 8, speed: 245, blocksNeeded: 20, warn: 0.3,  gapMin: 0.42, gapMax: 0.68, stepCost: 0.1, burstChance: 0.25, switchChance: 0.35, lives: 7 } }
             ]
         },
-        { id: 4, key: 'RESET_CREDS',  story: 'Re-sync the compromised credential keys',           game: null, themeId: 4, available: false, stages: [] },
+        {
+            id: 4,
+            key: 'RESET_CREDS',
+            story: 'Re-sync the compromised credential keys',
+            game: 'signal',
+            themeId: 4,
+            available: true,
+            controls: 'Hold SPACE / hold anywhere to raise your signal · release to lower it',
+            hint: {
+                desktop: 'Hold SPACE to raise your signal, release to lower it',
+                touch: 'Hold anywhere to raise your signal, let go to lower it'
+            },
+            // Tuned with a human-like bot sweep (see docs/ACT_PLAN.md). EXPERT
+            // stays playable: drift faster than ~1.1 rad/s made it impossible.
+            stages: [
+                { tier: 'EASY',      params: { keys: 3, timeLimit: 45, tol: 0.32, drain: 0 } },
+                { tier: 'NORMAL',    params: { keys: 3, timeLimit: 40, tol: 0.26, drain: 0.6, driftAmp: 0.35, driftSpeed: 0.75 } },
+                { tier: 'HARD',      params: { keys: 4, timeLimit: 45, tol: 0.23, drain: 1.0, driftAmp: 0.5, driftSpeed: 1.0, syncTime: 1.4 } },
+                { tier: 'VERY HARD', params: { keys: 4, timeLimit: 45, tol: 0.23, drain: 1.0, driftAmp: 0.5, driftSpeed: 1.0, syncTime: 1.4, glitchMin: 5, glitchMax: 8 } },
+                { tier: 'EXPERT',    params: { keys: 5, timeLimit: 50, tol: 0.22, drain: 1.0, driftAmp: 0.55, driftSpeed: 1.05, syncTime: 1.4, glitchMin: 5, glitchMax: 8 } }
+            ]
+        },
         { id: 5, key: 'TRACE_LOGS',   story: 'Follow the log stream back to the attacker',         game: null, themeId: 1, available: false, stages: [] },
         { id: 6, key: 'CUT_ACCESS',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] }
     ],

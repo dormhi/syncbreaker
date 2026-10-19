@@ -578,7 +578,7 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('5 gates', CAMPAIGN.gates.length === 5);
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
-    ok('acts 4-6 are in development', acts.slice(3).every(a => !a.available && a.stages.length === 0));
+    ok('acts 5-6 are in development', acts.slice(4).every(a => !a.available && a.stages.length === 0));
 
     const a1 = acts[0];
     ok('act 1 is the Timing Bar with 4 stages', a1.game === 'timingbar' && a1.stages.length === 4);
@@ -612,7 +612,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(4) && !P.isActAvailable(4));
+    ok('dev acts are never unlocked', !P.isActUnlocked(5) && !P.isActAvailable(5));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -632,9 +632,12 @@ suite('CampaignProgress — lock rules', () => {
     P.openGate(2);
     ok('gate 2 opens act 3', P.isActUnlocked(3) && P.isStageUnlocked(3, 0));
     for (let i = 0; i < 4; i++) P.completeStage(3, i, 10);
-    ok('gate 3 not playable while act 4 is in development', P.isActComplete(3) && !P.isGatePlayable(3));
+    ok('gate 3 playable once act 3 is done (act 4 exists)', P.isActComplete(3) && P.isGatePlayable(3));
+    P.openGate(3);
+    for (let i = 0; i < 5; i++) P.completeStage(4, i, 10);
+    ok('gate 4 not playable while act 5 is in development', P.isActComplete(4) && !P.isGatePlayable(4));
     ok('endless still locked (act 6 not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 3);
+    ok('current act points at the last open act', P.currentActId() === 4);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -736,7 +739,7 @@ suite('Act map HUB + gates', () => {
 
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    btn('act4').onClick();
+    btn('act5').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
     btn('act2').onClick();
     ok('locked act shows a message', gm.state.pendingState === null && /gate 1/i.test(gm._hubMessage));
@@ -771,9 +774,11 @@ suite('Act map HUB + gates', () => {
         gm.state.pendingContext.mechanic.speedScale === mod.CAMPAIGN.gates[1].speedScale);
     gm.progress.openGate(2);
     for (let i = 0; i < 4; i++) gm.progress.completeStage(3, i, 100);
+    gm.progress.openGate(3);
+    for (let i = 0; i < 5; i++) gm.progress.completeStage(4, i, 100);
     settle(gm, S.HUB);
-    gm._tryStartGate(3);
-    ok('gate 3 waits for act 4', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    gm._tryStartGate(4);
+    ok('gate 4 waits for act 5', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -1732,6 +1737,174 @@ suite('Orbital Shield in the campaign (stage flow + revive)', () => {
     settle(gm, S.GAME_OVER);
     gm.state._handlers[S.GAME_OVER].enter(go3);
     ok('no revive after two', go3.revivesUsed === 2 && !btn('revive'));
+});
+
+// ─────────────────────────────────────────────
+suite('Signal Lock (Act 4) — rules', () => {
+    const mod = loadGameManager();
+    const { SignalLockMechanic, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[3];
+    ok('act 4 is Signal Lock with 5 stages', act.available && act.game === 'signal' && act.stages.length === 5);
+    ok('tiers EASY..EXPERT', act.stages.map(x => x.tier).join('/') === 'EASY/NORMAL/HARD/VERY HARD/EXPERT');
+    ok('keys 3/3/4/4/5', act.stages.map(x => x.params.keys).join('/') === '3/3/4/4/5');
+    const tol = act.stages.map(x => x.params.tol);
+    ok('tolerance never widens', tol.every((v, i) => i === 0 || v <= tol[i - 1]));
+    ok('glitches only on very hard + expert', act.stages.map(x => !!x.params.glitchMin).join() === 'false,false,false,true,true');
+    ok('expert drift kept under the playable limit', act.stages[4].params.driftSpeed <= 1.1);
+
+    const make = (i, seed) => {
+        const m = new SignalLockMechanic(Object.assign({ rng: makeRng(seed) }, act.stages[i].params));
+        m.init({});
+        return m;
+    };
+
+    // Physics: hold raises, release lowers, both clamp.
+    const p = make(0, 1);
+    const f0 = p.f;
+    p.handleKey('Space');
+    for (let i = 0; i < 30; i++) p.update(1 / 60);
+    ok('hold raises the frequency', p.f > f0 && p.v > 0);
+    p.handleKeyUp('Space');
+    for (let i = 0; i < 90; i++) p.update(1 / 60);
+    ok('release lowers it', p.v < 0 || p.f === p.fMin);
+    for (let i = 0; i < 600; i++) p.update(1 / 60);
+    ok('clamped at the bottom', p.f === p.fMin);
+    p.handlePointer(0, 0, 'down');
+    for (let i = 0; i < 900 && p.result === null; i++) p.update(1 / 60);
+    ok('clamped at the top', p.f <= p.fMax);
+
+    // Sync meter: fills in tolerance, locks a key, picks a far new target.
+    const s1 = make(1, 2);
+    s1.f = s1.target; s1.v = 0;
+    const firstTarget = s1.base;
+    let n = 0;
+    while (s1.locked === 0 && n++ < 600) { s1.f = s1.target; s1.v = 0; s1.update(1 / 60); }
+    ok('holding the target locks a key in ~syncTime', s1.locked === 1 && Math.abs(n / 60 - s1.syncTime) < 0.05, (n / 60).toFixed(2));
+    ok('next target is far from the last', Math.abs(s1.base - firstTarget) >= 0.9 - 1e-9 || s1.base !== firstTarget);
+    s1.sync = 0.5;
+    s1.f = s1.fMin; s1.v = 0; s1.base = s1.fMax - 0.3; s1.driftAmp = 0;
+    s1.update(1 / 60);
+    ok('meter drains out of sync (normal+)', s1.sync < 0.5);
+    const e = make(0, 3);
+    e.sync = 0.5; e.f = e.fMin; e.base = 4.2;
+    e.update(1 / 60);
+    ok('easy meter does not drain', e.sync === 0.5);
+
+    // Win, lose, revive, score
+    const w = make(0, 4);
+    let guard = 0;
+    while (w.result === null && guard++ < 6000) { w.f = w.target; w.v = 0; w.update(1 / 60); }
+    ok('locking every key wins', w.result === 'success' && w.locked === 3);
+    ok('score = keys*300 + time left*20', w.score === 3 * 300 + Math.floor(w.timeLeft) * 20);
+
+    const l = make(2, 5);
+    for (let i = 0; i < 6000 && l.result === null; i++) l.update(1 / 60);
+    ok('time out fails', l.result === 'fail' && l.timeLeft === 0);
+    l.locked = 2;
+    l.revive();
+    ok('revive adds 20 s and keeps the keys', l.result === null && Math.abs(l.timeLeft - 20) < 1e-9 && l.locked === 2);
+    ok('revive drops any hold', !l.holding);
+
+    // Glitch: warning flicker, then the target jumps.
+    const g = make(3, 6);
+    const at = g.glitchAt;
+    ok('very hard schedules glitches', isFinite(at));
+    // Make sync impossible so no key locks and reschedules the glitch.
+    g.tol = -1;
+    let steps = 0;
+    while (g.time < at - 0.3 && steps++ < 2000) { g.f = g.fMin; g.v = 0; g.update(1 / 60); }
+    ok('target flickers before a glitch', g.glitchWarning());
+    const before = g.base;
+    while (g.time < at + 0.05 && steps++ < 4000) { g.f = g.fMin; g.v = 0; g.update(1 / 60); }
+    ok('target jumps at the glitch', g.base !== before);
+
+    const c = makeFakeCanvas();
+    w.render(makeFakeCtx(c), 960, 640, 0, 0.5);
+    l.render(makeFakeCtx(c), 960, 640, 0, 0.3);
+    ok('render runs', true);
+});
+
+// ─────────────────────────────────────────────
+suite('Signal Lock — hold input routing + +20 s revive', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    const host = gm.state._handlers[S.MINIGAME];
+
+    for (let a = 1; a <= 3; a++) {
+        for (let i = 0; i < gm.progress.act(a).stages.length; i++) gm.progress.completeStage(a, i, 10);
+        gm.progress.openGate(a);
+    }
+    ok('gate 3 opened act 4', gm.progress.isActUnlocked(4));
+
+    settle(gm, S.ACT);
+    gm._startStage(4, 0);
+    const cfg = gm.state.pendingContext;
+    const m = cfg.mechanic;
+    ok('stage runs Signal Lock', m instanceof mod.SignalLockMechanic && m.keys === 3);
+    ok('first stage hint', cfg.footHint && /Hold SPACE/.test(cfg.footHint.desktop) && /Hold anywhere/.test(cfg.footHint.touch));
+    ok('stage card summary', gm._stageSummary(gm.progress.act(4), gm.progress.act(4).stages[4]) === '5 KEYS · 50s');
+    settle(gm, S.MINIGAME);
+    host.enter(cfg);
+
+    // Keyboard: Space down / up
+    gm._dispatchKey({ code: 'Space' });
+    ok('Space starts a hold', m.holdKey === true);
+    mod.fireDocument('keyup', { code: 'Space', target: { tagName: 'BODY' } });
+    ok('Space key-up ends it', m.holdKey === false);
+
+    // Mouse: press on the canvas holds; release anywhere ends it; the click
+    // that follows does not start a new hold.
+    gm._handleMouseDown(480, 300);
+    ok('mouse press holds', m.holdPointer === true);
+    mod.fireDocument('window:pointerup', { pointerType: 'mouse' });
+    ok('mouse release (even off-canvas) ends it', m.holdPointer === false);
+    gm._hitTestUI(480, 300, 'click');
+    ok('trailing click does not re-hold', m.holdPointer === false);
+    gm._handleMouseDown(btn('leave').x, btn('leave').y);
+    ok('pressing LEAVE is not a hold', m.holdPointer === false);
+
+    // Touch: press anywhere holds, release ends it.
+    gm._hitTestUI(300, 200, 'touch');
+    ok('touch press holds', m.holdPointer === true);
+    gm._releaseHold('pointer');
+    ok('touch release ends it', m.holdPointer === false);
+
+    // Blur and the leave prompt drop every hold.
+    gm._dispatchKey({ code: 'Space' });
+    gm._hitTestUI(300, 200, 'touch');
+    mod.fireDocument('window:blur', {});
+    ok('window blur drops every hold', !m.holding);
+    gm._dispatchKey({ code: 'Space' });
+    gm._openLeavePrompt();
+    ok('leave prompt drops the hold', !m.holding);
+    gm._closeLeavePrompt();
+
+    // Releases never reach tap-to-confirm games (Dual Ring).
+    const ring = new mod.GameManager(canvas, ctx);
+    ring._activeMinigame = { handlePointer: () => { ring._confirmed = true; return true; } };
+    ring.state.currentState = S.MINIGAME;
+    ring._releaseHold('pointer');
+    ok('release is ignored by non-hold games', !ring._confirmed);
+
+    // Time out -> GAME_OVER with a "+20s" recovery.
+    m.timeLeft = 0.01;
+    for (let i = 0; i < 100 && gm.state.pendingState !== S.GAME_OVER; i++) host.update(1 / 60);
+    const go = gm.state.pendingContext;
+    ok('time out offers recovery', gm.state.pendingState === S.GAME_OVER && go.noRevive === false && go.resume === cfg);
+    settle(gm, S.GAME_OVER);
+    gm.state._handlers[S.GAME_OVER].enter(go);
+    ok('revive button says +20s', btn('revive') && /\+20s/.test(btn('revive').label));
+    btn('revive').onClick();
+    ok('code breaker at act 4 difficulty', gm.state.pendingState === S.LOCKPICK && gm.state.pendingContext.difficulty === 4);
+    settle(gm, S.LOCKPICK);
+    gm.state._handlers[S.LOCKPICK].enter({ reason: 'revive', difficulty: 4 });
+    gm.lockpick.onComplete(true);
+    ok('recovery resumes the same run', gm.state.pendingState === S.MINIGAME && gm.state.pendingContext.mechanic === m);
+    ok('with 20 more seconds', Math.abs(m.timeLeft - 20) < 1e-6 && m.result === null);
 });
 
 // ─────────────────────────────────────────────

@@ -104,6 +104,12 @@ TipBar.ACT = {
         'Pink packets hop to a neighbouring port mid-flight',
         'Failed? The recovery protocol (1⚡) lets you continue with one life'
     ],
+    signal: [
+        'Short taps hold the signal steady — long holds overshoot',
+        'Watch the gauge on the right: keep the arrow inside the band',
+        'The target flickers just before it jumps',
+        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',
