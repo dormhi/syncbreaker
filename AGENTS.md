@@ -38,14 +38,15 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
 - Acts:
   1. REMOVE_MALWARE: Timing Bar, 4 stages, 8/10/14/18 hits
   2. REBUILD_FIREWALL: Stack Overflow, 3 stages, height 5/7/9 blocks, crane speed 1.30/1.36/1.42
-  3. CLOSE_PORTS: in development
+  3. CLOSE_PORTS: Orbital Shield, 4 stages, 12/16/20/20 packets on 4/6/8/8 ports, lives 4/5/6/7 (`js/mechanics/OrbitalShieldMechanic.js`)
   4. RESET_CREDS: in development
   5. TRACE_LOGS: in development
   6. CUT_ACCESS: in development
-- The mechanics of acts 3–6 are **not decided yet**. They are designed together with the user, one phase at a time. Do not invent and ship them.
-- The lockpick is used only for revives (Timing Bar and Endless). Endless unlocks after Act 6, and players who already unlocked it keep it.
+- The mechanics of acts 4–6 are **not decided yet**. They are designed together with the user, one phase at a time. Do not invent and ship them.
+- The lockpick is used only for revives (Timing Bar, Orbital Shield and Endless). A revivable mechanic game implements `revive()`; the run resumes in the MINIGAME host with `resume: true`. Endless unlocks after Act 6, and players who already unlocked it keep it.
+- **Endless Mode will change.** Today it is Timing Bar only. The goal is an endless mode that supports **all** campaign games. It is not planned yet and will be planned with the user later (plan section 8b). Meanwhile, design new games so their difficulty can keep ramping and they produce a score.
 - Data lives in `js/data/Campaign.js`. Progress, lock rules and the migration from the old save format live in `js/CampaignProgress.js` (save key `sb_campaign_v1`).
-- Phase status: **Phase 1** (campaign infrastructure + Act 1 + Act 2 + Gate 1) is implemented. Phases 2–5 add acts 3–6 one by one.
+- Phase status: **Phase 1** (campaign + Acts 1–2 + Gate 1) and **Phase 2** (Act 3 Orbital Shield + Gate 2) are implemented. Phases 3–5 add acts 4–6 one by one.
 
 ## Leaderboard / Supabase
 - Endless leaderboard on Supabase (`js/LeaderboardService.js`). Every browser is an anonymous user. An **operator** (unique name + password) can be played from any browser.

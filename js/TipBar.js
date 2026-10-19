@@ -99,6 +99,11 @@ TipBar.ACT = {
         'Hit near the centre of the zone for PERFECT — combos multiply your score',
         'Failed? The recovery protocol (1⚡) lets you continue with one life'
     ],
+    orbital: [
+        'Watch the blinking port — the packet is on its way there',
+        'Pink packets hop to a neighbouring port mid-flight',
+        'Failed? The recovery protocol (1⚡) lets you continue with one life'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',

@@ -165,3 +165,44 @@ canvas {
     .sb-form-submit { height: 38px; }
     .sb-form-link { min-height: 28px; }
 }
+
+/* ── dormhi.com badge on the menu (GameManager._setBrandLink) ──
+   Sized in em: the script sets font-size to follow the canvas scale. */
+.sb-brand {
+    position: fixed;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4em;
+    height: 2.4em;
+    font-size: 1em;
+    color: #64748b;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(71, 85, 105, 0.45);
+    border-radius: 50%;
+    transition: color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sb-brand:hover,
+.sb-brand:focus-visible {
+    color: #93c5fd;
+    border-color: rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+    outline: none;
+}
+
+/* The white mark as a mask, painted in the current text colour. */
+.sb-brand-mark {
+    width: 1.45em;
+    height: 1.45em;
+    flex: none;
+    background-color: currentColor;
+    -webkit-mask: url('../assets/dormhi-logo.png') center / contain no-repeat;
+    mask: url('../assets/dormhi-logo.png') center / contain no-repeat;
+}
+
+.sb-brand:hover .sb-brand-mark,
+.sb-brand:focus-visible .sb-brand-mark {
+    filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.8));
+}

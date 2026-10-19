@@ -107,6 +107,7 @@ class GameManager {
                 const cx = this.canvas.width / 2;
                 this.ui.addButton('start', '▶  START MISSION', cx, 520, 240, 48,
                     () => this.state.change(S.HUB));
+                this._setBrandLink(true);
             },
             render: (ctx) => {
                 const W = this.canvas.width;
@@ -190,11 +191,11 @@ class GameManager {
                 // Buton
                 this.ui.renderButtons();
 
-                // Version
-                ctx.fillStyle = 'rgba(100,116,139,0.4)';
-                ctx.font = '300 12px Rajdhani';
+                // Version + author
+                ctx.fillStyle = 'rgba(100,116,139,0.6)';
+                ctx.font = '400 12px Rajdhani';
                 ctx.textAlign = 'center';
-                ctx.fillText('v0.1 Beta — Computer Graphics Final Project', cx, H - 16);
+                ctx.fillText('v3.0 · Written by dormhi', cx, H - 16);
 
                 // Credits
                 ctx.fillStyle = 'rgba(148,163,184,0.55)';
@@ -203,7 +204,10 @@ class GameManager {
                 ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
                 ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
             },
-            exit: () => this.ui.clearButtons(),
+            exit: () => {
+                this.ui.clearButtons();
+                this._setBrandLink(false);
+            },
             onKey: (e) => {
                 if (e.code === 'Space' || e.code === 'Enter') this.state.change(S.HUB);
             }
@@ -408,7 +412,14 @@ class GameManager {
                 const diff = lCtx.difficulty || 1;
                 this.lockpick.start(diff, (success) => {
                     if (success) {
-                        if (this._lockpickReason === 'revive') {
+                        if (this._lockpickReason === 'revive' && this._reviveResume) {
+                            // Mechanic game (e.g. Orbital Shield): same run, one life.
+                            const resume = this._reviveResume;
+                            this._reviveResume = null;
+                            resume.mechanic.revive();
+                            this._stageRevives = (this._stageRevives || 0) + 1;
+                            this.state.change(S.MINIGAME, Object.assign({}, resume, { resume: true }));
+                        } else if (this._lockpickReason === 'revive') {
                             this.levels.lives = 1;
                             this.levels.levelFailed = false;
                             this.levels.revivesUsed = (this.levels.revivesUsed || 0) + 1;
@@ -499,7 +510,7 @@ class GameManager {
                 });
                 this._mgHandled = false;
                 this._mgEndTimer = 0;
-                if (this._activeMinigame && this._activeMinigame.init) {
+                if (this._activeMinigame && this._activeMinigame.init && !c.resume) {
                     this._activeMinigame.init(Object.assign({
                         width: this.canvas.width,
                         height: this.canvas.height
@@ -582,6 +593,7 @@ class GameManager {
 
                 this._goScore = lCtx.score || 0;
                 this._goStage = lCtx.stage || this._stage;
+                this._reviveResume = lCtx.resume || null;
                 this._noRevive = lCtx.noRevive || false;
                 this._revivesUsed = lCtx.revivesUsed || 0;
                 this._goMessage = lCtx.message || null;
@@ -1479,6 +1491,48 @@ class GameManager {
         ctx.restore();
     }
 
+    // ── dormhi.com badge (menu only, bottom-left) ──
+
+    /**
+     * A real <a> over the canvas' bottom-left corner, styled like the game's
+     * chips: a round badge with the dormhi mark only (used as a CSS mask, so
+     * it takes the theme colour). Links drawn on a canvas and opened from a
+     * touch handler get blocked as pop-ups on phones; a real link does not.
+     */
+    _setBrandLink(visible) {
+        if (typeof document === 'undefined' || !document.createElement || !document.body) return;
+        if (!this._brand) {
+            const a = document.createElement('a');
+            a.className = 'sb-brand';
+            a.href = 'https://dormhi.com';
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.title = 'dormhi.com';
+            a.setAttribute('aria-label', 'dormhi.com');
+            const mark = document.createElement('span');
+            mark.className = 'sb-brand-mark';
+            mark.setAttribute('aria-hidden', 'true');
+            a.appendChild(mark);
+            this._brand = a;
+            this._placeBrand = () => {
+                const r = this.canvas.getBoundingClientRect();
+                const k = r.width / this.canvas.width;      // CSS px per canvas px
+                const fs = Math.max(10, 12 * k);
+                a.style.fontSize = fs + 'px';
+                a.style.left = (r.left + 16 * k) + 'px';
+                // Centre the badge on the footer line (canvas y = H - 24).
+                a.style.top = (r.top + (this.canvas.height - 24) * k - 1.2 * fs) + 'px';
+            };
+            window.addEventListener('resize', this._placeBrand);
+        }
+        if (visible) {
+            if (!this._brand.isConnected) document.body.appendChild(this._brand);
+            this._placeBrand();
+        } else if (this._brand.isConnected) {
+            this._brand.remove();
+        }
+    }
+
     // ── Leave a game (with confirmation) ──
 
     /** Small "← LEAVE" button for in-game screens; Esc opens the same prompt. */
@@ -1744,6 +1798,7 @@ class GameManager {
         const p = stage.params;
         if (act.game === 'timingbar') return `${p.requiredHits} HITS · ${p.maxTime}s`;
         if (act.game === 'stack') return `${p.targetBlocks} BLOCKS HIGH`;
+        if (act.game === 'orbital') return `${p.blocksNeeded} PACKETS · ${p.ports} PORTS`;
         return '';
     }
 
@@ -1995,7 +2050,8 @@ class GameManager {
         }
 
         const mechanic = game.create(stage.params);
-        this.state.change(S.MINIGAME, {
+        this._stageRevives = 0;
+        const cfg = {
             mechanic,
             stage: true,
             title: `${act.key} · ${stage.tier}`,
@@ -2007,12 +2063,16 @@ class GameManager {
                 } else {
                     this._onStageFailed({
                         score: m.computeScore ? m.computeScore() : (m.score || 0),
-                        noRevive: true,
-                        message: game.failMessage || null
+                        noRevive: !game.revive,
+                        revivesUsed: this._stageRevives,
+                        message: game.revive ? null : (game.failMessage || null),
+                        // A revivable game continues from where it stopped.
+                        resume: game.revive ? cfg : null
                     });
                 }
             }
-        });
+        };
+        this.state.change(S.MINIGAME, cfg);
         return true;
     }
 
@@ -2318,6 +2378,7 @@ GameManager.GUIDE_PAGES = [
             ['Go back', 'Esc', '← buttons'],
             ['Timing Bar', 'SPACE', 'Tap anywhere'],
             ['Stack Overflow', 'SPACE or click', 'Tap anywhere'],
+            ['Orbital Shield', '← / →  or  A / D', 'Tap a port'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -2328,6 +2389,7 @@ GameManager.GUIDE_PAGES = [
         items: [
             { head: 'TIMING BAR', text: 'Hit while the marker is inside the zone. Centre hits score PERFECT and combos multiply your score.' },
             { head: 'STACK OVERFLOW', text: 'Drop blocks to build a tower past the limit line. Blocks keep the crane\'s sideways momentum, so release a little early.' },
+            { head: 'ORBITAL SHIELD', text: 'A port blinks, then a packet flies at it. Snap the shield to that port to block it. Pink packets hop to a neighbouring port.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },
@@ -2335,7 +2397,7 @@ GameManager.GUIDE_PAGES = [
         title: 'ENERGY',
         items: [
             { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
-            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar stage? Spend 1⚡ and win the Code Breaker to continue with one life — twice per stage.' },
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life — twice per stage.' },
             { head: 'ENDLESS MODE', text: 'Unlocks after ACT 6. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.' }
         ]
     }

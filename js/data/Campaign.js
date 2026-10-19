@@ -52,7 +52,30 @@ const CAMPAIGN = {
                 { tier: 'HARD',   params: { targetBlocks: 9, maxDrops: 14, baseOmega: 1.42 } }
             ]
         },
-        { id: 3, key: 'CLOSE_PORTS',  story: 'Block the attack packets hammering the open ports', game: null, themeId: 2, available: false, stages: [] },
+        {
+            id: 3,
+            key: 'CLOSE_PORTS',
+            story: 'Block the attack packets hammering the open ports',
+            game: 'orbital',
+            themeId: 2,
+            available: true,
+            controls: '← / → or tap a port · block the packet at the blinking port',
+            hint: {
+                desktop: '← / → (or A / D) moves the shield to the blinking port',
+                touch: 'Tap the blinking port to move the shield there'
+            },
+            // Tuned with a human-like bot sweep (see docs/ACT_PLAN.md).
+            // HARD and VERY HARD share every setting except lives and packet
+            // speed; VERY HARD adds packets that hop to a neighbouring port
+            // mid-flight. Playtest tuning: lives 4/5/6/7 (3 was too few) and
+            // VERY HARD packets slowed 270 -> 245 (hops made it too hard).
+            stages: [
+                { tier: 'EASY',      params: { ports: 4, speed: 150, blocksNeeded: 12, warn: 0.6,  gapMin: 0.8,  gapMax: 1.2, lives: 4 } },
+                { tier: 'NORMAL',    params: { ports: 6, speed: 210, blocksNeeded: 16, warn: 0.35, gapMin: 0.55, gapMax: 0.85, stepCost: 0.1, lives: 5 } },
+                { tier: 'HARD',      params: { ports: 8, speed: 270, blocksNeeded: 20, warn: 0.3,  gapMin: 0.42, gapMax: 0.68, stepCost: 0.1, burstChance: 0.25, lives: 6 } },
+                { tier: 'VERY HARD', params: { ports: 8, speed: 245, blocksNeeded: 20, warn: 0.3,  gapMin: 0.42, gapMax: 0.68, stepCost: 0.1, burstChance: 0.25, switchChance: 0.35, lives: 7 } }
+            ]
+        },
         { id: 4, key: 'RESET_CREDS',  story: 'Re-sync the compromised credential keys',           game: null, themeId: 4, available: false, stages: [] },
         { id: 5, key: 'TRACE_LOGS',   story: 'Follow the log stream back to the attacker',         game: null, themeId: 1, available: false, stages: [] },
         { id: 6, key: 'CUT_ACCESS',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] }

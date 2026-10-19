@@ -578,7 +578,7 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('5 gates', CAMPAIGN.gates.length === 5);
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
-    ok('acts 3-6 are in development', acts.slice(2).every(a => !a.available && a.stages.length === 0));
+    ok('acts 4-6 are in development', acts.slice(3).every(a => !a.available && a.stages.length === 0));
 
     const a1 = acts[0];
     ok('act 1 is the Timing Bar with 4 stages', a1.game === 'timingbar' && a1.stages.length === 4);
@@ -612,7 +612,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(3) && !P.isActAvailable(3));
+    ok('dev acts are never unlocked', !P.isActUnlocked(4) && !P.isActAvailable(4));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -628,9 +628,13 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate opens act 2', P.isActUnlocked(2) && P.isStageUnlocked(2, 0) && !P.isGatePlayable(1));
     for (let i = 0; i < 3; i++) P.completeStage(2, i, 10);
     ok('act 2 complete', P.isActComplete(2));
-    ok('gate 2 not playable while act 3 is in development', !P.isGatePlayable(2));
+    ok('gate 2 playable once act 2 is done (act 3 exists)', P.isGatePlayable(2) && !P.isActUnlocked(3));
+    P.openGate(2);
+    ok('gate 2 opens act 3', P.isActUnlocked(3) && P.isStageUnlocked(3, 0));
+    for (let i = 0; i < 4; i++) P.completeStage(3, i, 10);
+    ok('gate 3 not playable while act 4 is in development', P.isActComplete(3) && !P.isGatePlayable(3));
     ok('endless still locked (act 6 not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 2);
+    ok('current act points at the last open act', P.currentActId() === 3);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -732,7 +736,7 @@ suite('Act map HUB + gates', () => {
 
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    btn('act3').onClick();
+    btn('act4').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
     btn('act2').onClick();
     ok('locked act shows a message', gm.state.pendingState === null && /gate 1/i.test(gm._hubMessage));
@@ -759,11 +763,17 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 120; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
     ok('gate success opens act 2', gm.progress.isGateOpen(1) && gm.progress.isActUnlocked(2));
 
-    // Gate 2 cannot run while act 3 is in development.
+    // Gate 2 now opens act 3; gate 3 waits while act 4 is in development.
     for (let i = 0; i < 3; i++) gm.progress.completeStage(2, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(2);
-    ok('gate 2 waits for act 3', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('gate 2 starts once act 2 is done', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic.speedScale === mod.CAMPAIGN.gates[1].speedScale);
+    gm.progress.openGate(2);
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(3, i, 100);
+    settle(gm, S.HUB);
+    gm._tryStartGate(3);
+    ok('gate 3 waits for act 4', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -1435,6 +1445,10 @@ suite('Leave prompt in every game + first-stage hint', () => {
     spyCtx.fillText = (t) => { texts.push(String(t)); return spyCtx; };
     gm.state._handlers[S.MENU].render(spyCtx, 0);
     ok('menu badge says v3', texts.indexOf('(v3)') >= 0 && texts.indexOf('(v2)') < 0);
+    ok('menu footer: v3.0 written by dormhi', texts.indexOf('v3.0 · Written by dormhi') >= 0);
+    ok('menu footer: no beta line', !texts.some(t => /beta/i.test(t)));
+    ok('menu footer: birlikterutin credits kept',
+        texts.indexOf('thanks for birlikterutin family') >= 0 && texts.indexOf('alpyso and ezgyso') >= 0);
 
     // Timing Bar stage: button, Esc, pause, Space blocked, default STAY.
     gm._startStage(1, 0);
@@ -1517,6 +1531,207 @@ suite('Leave prompt in every game + first-stage hint', () => {
     btn('quit-leave').onClick();
     ok('leaving Endless goes to the results with the score',
         gm.state.pendingState === S.ENDLESS_OVER && gm.state.pendingContext.score === 1234 && gm.state.pendingContext.noRevive === true);
+});
+
+// ─────────────────────────────────────────────
+suite('Orbital Shield (Act 3) — rules, fairness, controls', () => {
+    const mod = loadGameManager();
+    const { OrbitalShieldMechanic, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[2];
+    ok('act 3 is Orbital Shield with 4 stages', act.available && act.game === 'orbital' && act.stages.length === 4);
+    ok('ports 4/6/8/8', act.stages.map(x => x.params.ports).join('/') === '4/6/8/8');
+    ok('packets to block 12/16/20/20', act.stages.map(x => x.params.blocksNeeded).join('/') === '12/16/20/20');
+    const h = act.stages[2].params, vh = act.stages[3].params;
+    const strip = (o) => JSON.stringify(Object.assign({}, o, { switchChance: undefined, lives: undefined, speed: undefined }));
+    ok('very hard = hard + hopping packets (+1 life)', strip(h) === strip(vh) && !h.switchChance && vh.switchChance > 0);
+    ok('very hard packets are slightly slower than hard', vh.speed < h.speed && vh.speed >= h.speed * 0.85);
+    ok('lives 4/5/6/7', act.stages.map(x => x.params.lives).join('/') === '4/5/6/7');
+    ok('only very hard hops', act.stages.slice(0, 3).every(x => !x.params.switchChance));
+
+    const make = (i, seed) => {
+        const m = new OrbitalShieldMechanic(Object.assign({ rng: makeRng(seed) }, act.stages[i].params));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+
+    // Controls
+    const c = make(0, 1);
+    c.handleKey('ArrowRight');
+    ok('→ moves one port clockwise', c.shieldPort === 1);
+    c.handleKey('KeyA'); c.handleKey('KeyA');
+    ok('A moves back and wraps', c.shieldPort === 3);
+    const p2 = c.portAngle(2);
+    c.handlePointer(c.cx + Math.cos(p2) * 200, c.cy + Math.sin(p2) * 200, 'down');
+    ok('tap snaps to the nearest port', c.shieldPort === 2);
+    c.handlePointer(c.cx + 3, c.cy + 3, 'down');
+    ok('tap on the core does nothing', c.shieldPort === 2);
+
+    // Fairness: every arrival leaves time to walk the shield from the
+    // previous packet's port.
+    for (let i = 0; i < 4; i++) {
+        const m = make(i, 7 + i);
+        const plan = [];
+        for (let k = 0; k < 120; k++) m._planNext();
+        let prev = { finalPort: 0, arrive: 1.2 }, okGap = true, okHop = true, okWarn = true;
+        for (const a of m.attacks) {
+            const need = m.portDistance(prev.finalPort, a.finalPort) * m.stepCost;
+            if (a.arrive - prev.arrive + 1e-9 < Math.min(need, m.burstGap)) okGap = false;
+            if (a.port !== a.finalPort && m.portDistance(a.port, a.finalPort) !== 1) okHop = false;
+            if (a.hop && a.arrive - a.hop.at < 0.3) okHop = false;
+            if (a.launch - a.warnAt + 1e-9 < m.warn) okWarn = false;
+            prev = a;
+        }
+        ok(`${act.stages[i].tier}: arrivals are reachable`, okGap);
+        ok(`${act.stages[i].tier}: every launch is announced`, okWarn);
+        if (i === 3) ok('hops go to a neighbour, early enough', okHop && m.attacks.some(a => a.hop));
+        else ok(`${act.stages[i].tier}: no hops`, m.attacks.every(a => !a.hop));
+        if (i >= 2) {
+            let burst = false;
+            for (let k = 2; k < m.attacks.length; k++) {
+                const [a, b, x] = [m.attacks[k - 2], m.attacks[k - 1], m.attacks[k]];
+                if (a.port === b.port && b.port === x.port && approx(x.arrive - b.arrive, m.burstGap, 1e-9)) burst = true;
+            }
+            ok(`${act.stages[i].tier}: bursts of 3 exist`, burst);
+        }
+    }
+
+    // A shield that follows the alerts wins; a frozen shield loses.
+    const follow = (m) => {
+        let t = 0;
+        while (m.result === null && t < 120) {
+            m.update(1 / 60); t += 1 / 60;
+            const next = m.attacks.filter(a => !a.done && m.time >= a.warnAt).sort((a, b) => a.arrive - b.arrive)[0];
+            if (next) m.setShield(m.time >= (next.hop ? next.hop.at : Infinity) ? next.finalPort : next.port);
+        }
+        return m;
+    };
+    const win = follow(make(3, 11));
+    ok('following the alerts clears very hard', win.result === 'success' && win.blocked === 20 && win.lives === 7);
+    ok('score = blocks*100 + lives*250', win.score === 20 * 100 + 7 * 250);
+
+    const idle = make(0, 3);
+    let t = 0;
+    while (idle.result === null && t < 60) { idle.update(1 / 60); t += 1 / 60; }
+    ok('a parked shield eventually loses', idle.result === 'fail' && idle.lives === 0 && idle.breaches === 4);
+
+    // A schedule that fell behind never asks for a reaction in the past.
+    const late = make(3, 5);
+    for (let i = 0; i < 300; i++) late.update(1 / 60);
+    late._lastArrive = late.time - 2;
+    late.attacks = [];
+    late._planNext();
+    ok('late plans still warn from now on', late.attacks[0].warnAt >= late.time - 1e-9 &&
+        late.attacks[0].arrive - late.time + 1e-9 >= late.warn + late.travel);
+
+    // Revive: one life, same run, fresh schedule in the future.
+    const blockedBefore = idle.blocked;
+    idle.revive();
+    ok('revive gives one life and clears the result', idle.lives === 1 && idle.result === null);
+    ok('revive keeps the progress', idle.blocked === blockedBefore);
+    ok('revive schedules ahead of now', idle.attacks.every(a => a.warnAt >= idle.time - 1e-9));
+
+    // Frame-rate independence: 30/60/144 Hz steps give the same outcome.
+    const run = (dt) => {
+        const m = make(2, 21);
+        let n = 0;
+        while (m.result === null && n < 20000) {
+            m.update(dt); n++;
+            const next = m.attacks.filter(a => !a.done && m.time >= a.warnAt).sort((a, b) => a.arrive - b.arrive)[0];
+            if (next) m.setShield(next.port);
+        }
+        return m.result + ':' + m.blocked + ':' + m.lives;
+    };
+    const r60 = run(1 / 60);
+    ok('same result at 30, 60 and 144 Hz', r60 === run(1 / 30) && r60 === run(1 / 144), r60);
+
+    const canvas = makeFakeCanvas();
+    win.render(makeFakeCtx(canvas), 960, 640, 0, 0.5);
+    ok('render runs', true);
+
+    // 7 hearts fit between the LEAVE button and the progress bar.
+    const xs = [];
+    const spy = makeFakeCtx(canvas);
+    spy.fillText = (t, x) => { if (t === '♥') xs.push(x); return spy; };
+    win._renderHud(spy, 960, 640);
+    ok('7 hearts drawn', xs.length === 7);
+    ok('hearts clear the LEAVE button and the bar', Math.min(...xs) > 66 + 52 && Math.max(...xs) + 22 < 960 / 2 - 80,
+        xs[0] + '..' + xs[xs.length - 1]);
+});
+
+// ─────────────────────────────────────────────
+suite('Orbital Shield in the campaign (stage flow + revive)', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(1, i, 10);
+    gm.progress.openGate(1);
+    for (let i = 0; i < 3; i++) gm.progress.completeStage(2, i, 10);
+    gm.progress.openGate(2);
+
+    settle(gm, S.ACT);
+    gm.state._handlers[S.ACT].enter({ actId: 3 });
+    ok('act 3 screen has 4 stage cards', [0, 1, 2, 3].every(i => !!btn('stage' + i)));
+    ok('stage card shows packets + ports', gm._stageSummary(gm.progress.act(3), gm.progress.act(3).stages[0]) === '12 PACKETS · 4 PORTS');
+    ok('act 3 tips', gm.tipBar.tips.some(t => /blinking port/.test(t)));
+
+    settle(gm, S.ACT);
+    gm._startStage(3, 0);
+    const cfg = gm.state.pendingContext;
+    ok('stage runs Orbital Shield', gm.state.pendingState === S.MINIGAME && cfg.mechanic instanceof mod.OrbitalShieldMechanic);
+    ok('first stage shows the faint hint', cfg.footHint && /blinking port/.test(cfg.footHint.touch));
+
+    const host = gm.state._handlers[S.MINIGAME];
+    settle(gm, S.MINIGAME);
+    host.enter(cfg);
+    const m = cfg.mechanic;
+    host.onKey({ code: 'ArrowRight' });
+    ok('arrows reach the shield through the host', m.shieldPort === 1);
+    ok('tap reaches the shield through the host', gm._hitTestUI(m.cx, m.cy + 200) === true && m.shieldPort === 2);
+    for (let i = 0; i < 20; i++) { host.update(1 / 60); host.render(ctx, 0.5); }
+
+    // Lose -> GAME_OVER with a revive button.
+    m.lives = 1; m.blocked = 5;
+    m.attacks.forEach(a => { a.arrive = m.time; });
+    m.setShield((m.attacks[0].finalPort + 1) % m.ports);
+    for (let i = 0; i < 100 && gm.state.pendingState !== S.GAME_OVER; i++) host.update(1 / 60);
+    ok('a breach on the last life fails the stage', gm.state.pendingState === S.GAME_OVER);
+    const go = gm.state.pendingContext;
+    ok('revivable: no "no revive" flag and the run is kept', go.noRevive === false && go.resume === cfg);
+    settle(gm, S.GAME_OVER);
+    gm.state._handlers[S.GAME_OVER].enter(go);
+    ok('revive button offered', !!btn('revive'));
+    btn('revive').onClick();
+    ok('revive runs the code breaker at act 3 difficulty', gm.state.pendingState === S.LOCKPICK && gm.state.pendingContext.difficulty === 3);
+
+    // Win the code breaker -> back into the SAME run with one life.
+    settle(gm, S.LOCKPICK);
+    gm.state._handlers[S.LOCKPICK].enter(gm.state.pendingContext || { reason: 'revive', difficulty: 3 });
+    gm.lockpick.onComplete(true);
+    ok('recovery resumes the same Orbital Shield run', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic === m && gm.state.pendingContext.resume === true);
+    const resumed = gm.state.pendingContext;
+    settle(gm, S.MINIGAME);
+    host.enter(resumed);
+    ok('resume does not reset the run', m.lives === 1 && m.blocked === 5 && m.result === null);
+    ok('revive count tracked for the stage', gm._stageRevives === 1);
+
+    // Second failure: one revive left, then none.
+    m.attacks.forEach(a => { a.arrive = m.time; });
+    m.setShield((m.attacks[0].finalPort + 1) % m.ports);
+    for (let i = 0; i < 100 && gm.state.pendingState !== S.GAME_OVER; i++) host.update(1 / 60);
+    const go2 = gm.state.pendingContext;
+    ok('revives used carried to GAME_OVER', go2.revivesUsed === 1);
+    gm._stageRevives = 2;
+    settle(gm, S.MINIGAME);
+    cfg.onComplete(false, m);
+    const go3 = gm.state.pendingContext;
+    settle(gm, S.GAME_OVER);
+    gm.state._handlers[S.GAME_OVER].enter(go3);
+    ok('no revive after two', go3.revivesUsed === 2 && !btn('revive'));
 });
 
 // ─────────────────────────────────────────────

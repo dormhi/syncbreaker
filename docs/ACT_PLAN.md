@@ -23,7 +23,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 |---|---|---|---|---|
 | 1 | REMOVE_MALWARE | Enfekte düğümleri temizle | **Timing Bar** | ✅ Kesin, 4 aşama |
 | 2 | REBUILD_FIREWALL | Firewall'u blok blok yeniden ör | **Stack Overflow** | ✅ Kesin, 3 aşama |
-| 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | Öneri: Orbital Shield | 🛠 Geliştiriliyor |
+| 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | Öneri: Signal Lock | 🛠 Geliştiriliyor |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | Öneri: Log Router / Patch Launcher | 🛠 Geliştiriliyor |
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | Öneri: Cable Cut | 🛠 Geliştiriliyor |
@@ -64,11 +64,67 @@ Zorluğu iki şey belirler: **gereken kule yüksekliği** ve **vinç hızı**. V
 - Revive yok, RETRY var.
 - Kabul şartı: bot denge taraması. ±10 px nişanla üç aşama da yüksek oranda kazanılmalı, Zor gözle görülür şekilde daha zor olmalı.
 
-### Act 3–6: Geliştiriliyor 🛠
+### Act 3: Orbital Shield, 4 aşama ✅ (mekanik kesin, 2026-10-19)
+
+**Sahne:** ortada çekirdek, etrafında bir halka. Halkanın üzerinde eşit aralıklı portlar var. Halka üzerinde **portlara kilitlenen** bir kalkan duruyor.
+
+**Akış:**
+- Bir saldırı paketi yola çıkmadan önce hedef portu kısaca yanıp söner.
+- Paket dışarıdan o porta doğru uçar.
+- Kalkan o portun önündeyse paket seker ve "engellendi" sayılır.
+- Kalkan orada değilse paket porta girer ve bir can gider.
+- **Kazanma:** N paketi engellemek. Ekranda bir ilerleme çubuğu var.
+- **Kaybetme:** canlar biterse. Can sayısı aşamaya göre değişiyor, tabloya bak.
+
+**Kontroller:** kalkan portlar arasında atlar, serbest dönmez. Böylece klavye ve dokunmatik eşit derecede adil.
+- Klavye: ← / → (ya da A / D) bir porta atlatır.
+- Fare: porta tıklamak.
+- Dokunmatik: porta dokunmak.
+
+**Revive:** var (lockpick), çünkü kesintisiz oynanan bir oyun.
+
+| | 1 · Kolay | 2 · Orta | 3 · Zor | 4 · Çok zor |
+|---|---|---|---|---|
+| Port | 4 | 6 | 8 | 8 |
+| Paket hızı | yavaş | orta | hızlı | **Zor ile aynı** |
+| Engellenecek paket | 12 | 16 | 20 | **Zor ile aynı (20)** |
+| Uyarı (yanıp sönme) | uzun | kısa | kısa | kısa |
+| Burst (aynı porta art arda 3) | – | – | var | var |
+| Hedef değiştiren paket | – | – | – | **var, rastgele çıkar** |
+| Can | **4** | **5** | **6** | **7** |
+
+- Çok zor, Zor'un aynısıdır. Farkları: rastgele çıkan bazı paketler yolda hedef portunu değiştirir, 1 can fazladır ve paketler biraz daha yavaştır (245 px/s, Zor'da 270).
+- Canlar ilk oyun testinden sonra 3'ten 4 / 5 / 6 / 7'ye çıkarıldı (2026-10-19: "3 can yetersiz"). Gerekirse oyun testlerine göre değişebilir.
+- İkinci oyun testinden sonra Çok zor'un paket hızı 270'ten 245'e düşürüldü (2026-10-19: "imkansız değil ama hala sağlam zor"). Değiştirirken yeni hedef port da yanıp söner, böylece oyuncu tepki verebilir.
+**Kesin sayılar** (bot denge taramasıyla belirlendi, `js/data/Campaign.js`):
+
+| | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| Paket hızı (px/s) | 150 | 210 | 270 | **245** |
+| Uyarı (sn) | 0.6 | 0.35 | 0.3 | 0.3 |
+| Varışlar arası boşluk (sn) | 0.8–1.2 | 0.55–0.85 | 0.42–0.68 | 0.42–0.68 |
+| Kalkanın port başına geçiş payı (sn) | 0.12 | 0.1 | 0.1 | 0.1 |
+| Burst ihtimali | – | – | %25 | %25 |
+| Hedef değiştirme ihtimali | – | – | – | %35 |
+
+**Adalet kuralları:**
+- Paketler varış zamanına göre planlanır. Art arda iki varış arasında, kalkanın aradaki portları geçmesine yetecek pay her zaman bırakılır.
+- Hedef değiştiren paket sadece komşu porta geçer. Bunu yolun %40'ında yapar ve yeni port da yanıp söner.
+
+**Denge sonucu** (insana benzer bot, aşama başına 30 deneme):
+
+| Bot | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| Hızlı (0.2 sn tepki) | 30/30 | 30/30 | 30/30 | 30/30 |
+| Ortalama (0.3 sn tepki) | 30/30 | 30/30 | 30/30 | 30/30 |
+| Yavaş (0.4 sn tepki) | 30/30 | 30/30 | 30/30 | 21/30 |
+
+Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçüldü. 270 px/s'de Çok zor sonuçları şöyleydi: ortalama oyuncu 29/30 (ortalama 2.9 can kaybı), yavaş oyuncu 15/30. 3 canla sonuçlar şöyleydi: ortalama oyuncu Zor'da 29/30, Çok zor'da 12/30; yavaş oyuncu Zor'da 20/30, Çok zor'da 1/30.
+
+### Act 4–6: Geliştiriliyor 🛠
 
 Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir:
 
-- **Orbital Shield (Act 3):** çekirdeğin etrafındaki kalkanı döndürüp gelen paketleri sektirmek. ←/→, fare ya da parmakla sürükleme.
 - **Signal Lock (Act 4):** basılı tutup bırakarak iki dalgayı çakıştırmak. Space ya da parmakla basılı tutma.
 - **Log Router / Patch Launcher (Act 5):** akışı yönlendirmek ya da çek-bırak fırlatma.
 - **Cable Cut (Act 6):** Matter.js ile kablo kesme bulmacası. Fare, parmakla kaydırma ya da 1–3 tuşları.
@@ -84,7 +140,7 @@ Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir
   - Deneme sınırı: her kapı için 3 dakikada 2 deneme (`ChallengeGate`).
   - Sonraki act geliştiriliyorsa kapı oynanamaz.
 - **Lockpick (Code Breaker): sadece revive için.** Aşama atlama kaldırıldı.
-  - Revive sadece kesintisiz oynanan oyunlarda var (Timing Bar ve Endless). Aşama başına 2 hak, her biri 1 enerji.
+  - Revive sadece kesintisiz oynanan oyunlarda var: Timing Bar, Orbital Shield ve Endless. Aşama başına 2 hak, her biri 1 enerji. Orbital Shield'da başarılı bir kurtarmadan sonra oyun aynı yerden 1 canla devam eder.
   - Lockpick'in zorluğu act numarasına göre seçilir ve biraz kolaylaştırıldı:
 
     | Zorluk | 1 | 2 | 3 | 4 | 5 | 6 |
@@ -150,10 +206,18 @@ Her fazın kabul şartları:
 | Faz | Kapsam | Durum |
 |---|---|---|
 | **1** | Kampanya altyapısı ve kayıt göçü. Act haritası ve act ekranı. Act 1 Timing Bar (4 aşama), Act 2 Stack Overflow (3 aşama), Kapı 1. Act 3–6 "IN DEVELOPMENT". Lockpick sadece revive. Klavye ile HUB. | ✅ Uygulandı |
-| 2 | Act 3: mekanik birlikte kararlaştırılacak. `InputManager` genişletmesi. Kapı 2. | Bekliyor |
+| 2 | Act 3 Orbital Shield (4 aşama, bölüm 3). Kapı 2 (Act 2 → 3). Kalkan portlara kilitlendiği için InputManager'a sürükleme gerekmiyor, dokunma ve tıklama yeterli. | ✅ Uygulandı |
 | 3 | Act 4 ve Kapı 3 | Bekliyor |
 | 4 | Act 5 ve Kapı 4 | Bekliyor |
 | 5 | Act 6, Kapı 5 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
+
+## 8b. Endless Mode değişecek (henüz planlanmadı)
+
+Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:** hedef, kampanyadaki **bütün oyunları destekleyen** bir sonsuz mod. Detaylar daha sonra ayrıca planlanacak.
+
+Şimdilik kesin olan:
+- Endless'ın açılma koşulu (Act 6) ve leaderboard sistemi (isim + şifre) aynı kalıyor.
+- Yeni oyunlar tasarlanırken sonsuz bir modda da çalışabilecekleri göz önünde tutulmalı. Yani zorluğun sürekli artırılabilir olması ve skor üretebilmeleri gerekiyor.
 
 ## 9. Kararlar
 
@@ -166,3 +230,5 @@ Her fazın kabul şartları:
 6. Lockpick sadece revive için ve biraz kolaylaştırıldı.
 7. Endless Act 6 bitince açılır, zaten açmış olanlarda açık kalır.
 8. Act 3–6 "IN DEVELOPMENT" olarak gösterilir. Mekanikleri birlikte kararlaştırılacak.
+10. **Endless Mode değişecek:** bütün oyunları destekleyen bir sonsuz mod olacak. Henüz planlanmadı, sonra ayrıca planlanacak (bölüm 8b).
+9. **Act 3 (Faz 2):** Orbital Shield, portlara kilitlenen kalkan. Kazanma koşulu N paket engellemek. 4 aşama: port sayısı 4 / 6 / 8 / 8, engellenecek paket 12 / 16 / 20 / 20. Zor ve Çok zor aynı ayarlarda oynanıyor, Çok zor'a rastgele çıkan ve yolda hedef değiştiren paketler ekleniyor.
