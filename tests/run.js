@@ -24,9 +24,29 @@ function approx(a, b, eps = 1e-9) {
     return Math.abs(a - b) <= eps;
 }
 
+/** Timing Bar stage config for act `actIdx` (0-based), stage `i`. */
+function stageCfg(campaign, actIdx, i) {
+    const a = campaign.acts[actIdx];
+    return Object.assign({ id: a.themeId, name: a.key + ' · ' + a.stages[i].tier, desc: a.story }, a.stages[i].params);
+}
+
+/** Put a GameManager into `state` with no transition pending. */
+function settle(gm, state) {
+    gm.state.currentState = state;
+    gm.state.transitioning = false;
+    gm.state.pendingState = null;
+    gm.state.pendingContext = null;
+}
+
+const pendingSuites = [];
+
 function suite(name, fn) {
     console.log('\n▸ ' + name);
-    fn();
+    const r = fn();
+    // Async suites (network/DB fakes) are awaited before the summary.
+    if (r && typeof r.then === 'function') {
+        pendingSuites.push(r.catch((e) => { failed++; failures.push(name + ' — threw: ' + (e && e.stack || e)); }));
+    }
 }
 
 // ─────────────────────────────────────────────
@@ -217,8 +237,9 @@ suite('LevelManager integration (smoke)', () => {
     const game = loadLevelManager();
     const lm = new game.LevelManager();
 
-    lm.startLevel(0);
-    ok('level started', !!lm.currentLevel && lm.currentLevel.id === 1);
+    lm.startStage(stageCfg(game.CAMPAIGN, 0, 0));
+    ok('stage started with the act theme', !!lm.currentLevel && lm.currentLevel.id === 3);
+    ok('stage lives come from the tier', lm.maxLives === 3 && lm.lives === 3);
     ok('zone within bounds', lm.targetZoneStart >= 0.05 - 1e-9 && lm.targetZoneEnd <= 0.95 + 1e-9);
 
     for (let i = 0; i < 120; i++) lm.update(1 / 60);
@@ -277,8 +298,8 @@ suite('GameManager full boot (headless)', () => {
     for (let i = 0; i < 5; i++) { gm.update(1 / 60); gm.render(ctx, 0.5); }
     ok('MENU loop runs without error', true);
 
-    // Jump into level 1 and run frames.
-    gm.levels.startLevel(0);
+    // Jump into act 1 stage 1 and run frames.
+    gm.levels.startStage(stageCfg(mod.CAMPAIGN, 0, 0));
     gm.state.currentState = gm.state.STATES.LEVEL;
     gm.state.transitioning = false;
     for (let i = 0; i < 40; i++) { gm.update(1 / 60); gm.render(ctx, i / 40); }
@@ -310,16 +331,15 @@ suite('GameManager full boot (headless)', () => {
 });
 
 // ─────────────────────────────────────────────
-suite('All 6 levels are completable (auto-play)', () => {
+suite('Act 1 stages are completable (auto-play)', () => {
     const game = loadLevelManager();
-    for (let idx = 0; idx < 6; idx++) {
+    const act = game.CAMPAIGN.acts[0];
+    for (let i = 0; i < act.stages.length; i++) {
         const lm = new game.LevelManager();
-        if (!lm.isBarLevel(idx)) continue; // node 5 is the physics mission
-        lm.levels.forEach(l => { l.unlocked = true; });
-        lm.startLevel(idx);
+        lm.startStage(stageCfg(game.CAMPAIGN, 0, i));
 
         let frames = 0;
-        const limit = 60 * 180; // 3 minutes of game time @60Hz
+        const limit = 60 * 180;
         while (!lm.levelComplete && !lm.levelFailed && frames < limit) {
             lm.update(1 / 60);
             const z = lm.timingBar.zone;
@@ -327,11 +347,12 @@ suite('All 6 levels are completable (auto-play)', () => {
             if (pos >= z.start && pos <= z.end) lm.hit();
             frames++;
         }
-
-        ok('level ' + (idx + 1) + ' completes',
-            lm.levelComplete === true,
-            'failed=' + lm.levelFailed + ' hits=' + lm.hitCount + '/' + lm.currentLevel.requiredHits +
-            ' frames=' + frames);
+        const p = act.stages[i].params;
+        ok('act 1 stage ' + (i + 1) + ' completes', lm.levelComplete === true,
+            'failed=' + lm.levelFailed + ' hits=' + lm.hitCount + '/' + p.requiredHits + ' frames=' + frames);
+        // A human needs slack: the bot must finish well inside the timer.
+        ok('act 1 stage ' + (i + 1) + ' leaves time to spare', frames / 60 < p.maxTime * 0.75,
+            (frames / 60).toFixed(1) + 's of ' + p.maxTime + 's');
     }
 });
 
@@ -339,7 +360,7 @@ suite('All 6 levels are completable (auto-play)', () => {
 suite('Render interpolation freeze (NODE CLEANED jitter fix)', () => {
     const game = loadLevelManager();
     const lm = new game.LevelManager();
-    lm.startLevel(0);
+    lm.startStage(stageCfg(game.CAMPAIGN, 0, 0));
 
     const runningA = lm._renderPos(0.1);
     const runningB = lm._renderPos(0.9);
@@ -354,7 +375,7 @@ suite('Render interpolation freeze (NODE CLEANED jitter fix)', () => {
 
     // Same for failure.
     const lm2 = new game.LevelManager();
-    lm2.startLevel(0);
+    lm2.startStage(stageCfg(game.CAMPAIGN, 0, 0));
     lm2.levelFailed = true;
     const f1 = lm2._renderPos(0.0);
     const f2 = lm2._renderPos(0.9);
@@ -362,28 +383,12 @@ suite('Render interpolation freeze (NODE CLEANED jitter fix)', () => {
 });
 
 // ─────────────────────────────────────────────
-suite('Endless unlock + congratulations flow', () => {
+suite('Congratulations screen flow', () => {
     const mod = loadGameManager();
     const canvas = makeFakeCanvas();
     const ctx = makeFakeCtx(canvas);
     const gm = new mod.GameManager(canvas, ctx);
-    const lm = gm.levels;
 
-    // First five nodes done; the sixth is about to be completed.
-    lm.levels.forEach((l, i) => { l.unlocked = true; l.completed = i < 5; });
-    lm.startLevel(5);
-    lm.score = 4321;
-    lm.currentLevel.bestScore = 0;
-    lm._onComplete();
-
-    ok('justUnlockedEndless set on final completion', lm.justUnlockedEndless === true);
-    ok('all nodes completed', lm.isAllCompleted() === true);
-
-    // Re-completing must not trigger the celebration again.
-    lm._onComplete();
-    ok('does not re-trigger once unlocked', lm.justUnlockedEndless === false);
-
-    // The congrats screen renders and closing it opens the leaderboard path.
     gm._renderCongrats(ctx);
     ok('_renderCongrats runs without error', true);
 
@@ -396,11 +401,15 @@ suite('Endless unlock + congratulations flow', () => {
         gm.state.pendingState === gm.state.STATES.HUB,
         'pending=' + gm.state.pendingState);
 
-    // With a profile present, closing goes straight to the hub.
     gm.state.transitioning = false;
     gm.leaderboard.profile = { id: 'x', displayName: 'OP' };
     gm._finishCongrats();
     ok('with profile routes to HUB', gm.state.pendingState === gm.state.STATES.HUB);
+
+    const handler = gm.state._handlers[gm.state.STATES.CONGRATS];
+    settle(gm, gm.state.STATES.CONGRATS);
+    handler.enter();
+    ok('opening congrats marks it seen', gm.progress.congratsSeen === true);
 });
 
 // ─────────────────────────────────────────────
@@ -560,176 +569,372 @@ suite('PacketPurgeMechanic — two waves, infected are faster', () => {
 });
 
 // ─────────────────────────────────────────────
-suite('LevelManager — ACT II gate & revives', () => {
-    const game = loadLevelManager();
-    const lm = new game.LevelManager();
-    lm.levels.forEach(l => { l.unlocked = false; l.completed = false; });
-    lm.levels[0].unlocked = true;
-    lm.group2Unlocked = false;
+suite('Campaign data — acts, stages, tuning', () => {
+    const { CAMPAIGN } = loadGameManager();
+    const acts = CAMPAIGN.acts;
+    ok('6 acts', acts.length === 6);
+    ok('act names follow the story',
+        acts.map(a => a.key).join(',') === 'REMOVE_MALWARE,REBUILD_FIREWALL,CLOSE_PORTS,RESET_CREDS,TRACE_LOGS,CUT_ACCESS');
+    ok('5 gates', CAMPAIGN.gates.length === 5);
+    ok('available acts have 3-5 stages', acts.filter(a => a.available)
+        .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
+    ok('acts 3-6 are in development', acts.slice(2).every(a => !a.available && a.stages.length === 0));
 
-    ok('ACT II starts locked', !lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
-    ok('ACT I not complete initially', !lm.isActOneComplete());
+    const a1 = acts[0];
+    ok('act 1 is the Timing Bar with 4 stages', a1.game === 'timingbar' && a1.stages.length === 4);
+    ok('act 1 hits are 8/10/14/18', a1.stages.map(s => s.params.requiredHits).join('/') === '8/10/14/18');
+    const sp = a1.stages.map(s => s.params.barSpeed);
+    ok('act 1 bar speed rises', sp.every((v, i) => i === 0 || v > sp[i - 1]), sp.join(', '));
+    for (const st of a1.stages) {
+        const p = st.params;
+        const maxSpeed = Math.min(p.barSpeed + 0.01 * p.requiredHits, 1.9);
+        const zoneTimeMs = (p.targetSize / maxSpeed) * 1000;
+        ok(`act 1 ${st.tier} zone window playable`, zoneTimeMs >= 40, zoneTimeMs.toFixed(1) + 'ms');
+    }
 
-    // Simulate ACT I being nearly cleared.
-    lm.levels[0].completed = true;
-    lm.levels[1].completed = true;
-    lm.currentLevelIndex = 2;
-    lm.currentLevel = lm.levels[2];
-    lm.score = 100;
-    lm._onComplete();
-    ok('completing ACT I does not unlock level 4', !lm.levels[3].unlocked);
-    ok('ACT I is now complete', lm.isActOneComplete());
+    const a2 = acts[1];
+    ok('act 2 is Stack Overflow with 3 stages', a2.game === 'stack' && a2.stages.length === 3);
+    ok('act 2 heights are 5/7/9', a2.stages.map(s => s.params.targetBlocks).join('/') === '5/7/9');
+    const om = a2.stages.map(s => s.params.baseOmega);
+    ok('act 2 crane speed rises in micro steps',
+        om.every((v, i) => i === 0 || (v > om[i - 1] && v - om[i - 1] <= 0.1 + 1e-9)), om.join(', '));
+    ok('act 2 budget is height + 5', a2.stages.every(s => s.params.maxDrops === s.params.targetBlocks + 5));
 
-    lm.unlockGroup2();
-    ok('gate opens level 4 ONLY', lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
-
-    // Sequential progression continues inside ACT II.
-    lm.currentLevelIndex = 3;
-    lm.currentLevel = lm.levels[3];
-    lm.score = 200;
-    lm._onComplete();
-    ok('completing 4 unlocks 5 (not 6)', lm.levels[4].unlocked && !lm.levels[5].unlocked);
-
-    lm.currentLevelIndex = 4;
-    lm.currentLevel = lm.levels[4];
-    lm.score = 300;
-    lm._onComplete();
-    ok('completing 5 unlocks 6', lm.levels[5].unlocked);
-
-    lm.startLevel(0);
-    ok('revives reset per level', lm.revivesUsed === 0 && lm.maxRevives === 2);
+    ok('gate 1 is the original Packet Purge', CAMPAIGN.gates[0].waves === 2 && CAMPAIGN.gates[0].speedScale === 1);
+    const gs = CAMPAIGN.gates.map(g => g.speedScale);
+    ok('gates get harder', gs.every((v, i) => i === 0 || v > gs[i - 1]));
 });
 
 // ─────────────────────────────────────────────
-suite('HUB redesign + generic MINIGAME host', () => {
+suite('CampaignProgress — lock rules', () => {
+    const mod = loadGameManager();
+    const P = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
+
+    ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
+    ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
+    ok('dev acts are never unlocked', !P.isActUnlocked(3) && !P.isActAvailable(3));
+    ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
+
+    for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
+    ok('3 of 4 stages: act not complete', !P.isActComplete(1) && P.stagesDone(1) === 3);
+    ok('gate not playable yet', !P.isGatePlayable(1));
+    const r = P.completeStage(1, 3, 900);
+    ok('last stage completes the act', r.actCompleted === true && P.isActComplete(1));
+    ok('gate 1 playable after act 1', P.isGatePlayable(1) && !P.isActUnlocked(2));
+    ok('replay does not re-report completion', P.completeStage(1, 3, 50).actCompleted === false);
+    ok('best score kept on a worse replay', P.stage(1, 3).best === 900);
+
+    P.openGate(1);
+    ok('gate opens act 2', P.isActUnlocked(2) && P.isStageUnlocked(2, 0) && !P.isGatePlayable(1));
+    for (let i = 0; i < 3; i++) P.completeStage(2, i, 10);
+    ok('act 2 complete', P.isActComplete(2));
+    ok('gate 2 not playable while act 3 is in development', !P.isGatePlayable(2));
+    ok('endless still locked (act 6 not done)', !P.isEndlessUnlocked());
+    ok('current act points at the last open act', P.currentActId() === 2);
+
+    // Persistence round-trip.
+    const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
+    ok('progress persists', P2.isActComplete(1) && P2.isGateOpen(1) && P2.stage(1, 3).best === 900);
+
+    P2.reset();
+    ok('reset clears everything', !P2.isActComplete(1) && !P2.isGateOpen(1));
+
+    // Endless rule against a fully available fake campaign.
+    const fake = JSON.parse(JSON.stringify(mod.CAMPAIGN));
+    fake.acts.forEach(a => { a.available = true; if (!a.stages.length) a.stages = [{ tier: 'EASY', params: {} }, { tier: 'NORMAL', params: {} }, { tier: 'HARD', params: {} }]; });
+    const F = new mod.CampaignProgress(fake, { getItem: () => null, setItem: () => {} });
+    for (const a of fake.acts) {
+        if (a.id > 1) F.openGate(a.id - 1);
+        let last = null;
+        for (let i = 0; i < a.stages.length; i++) last = F.completeStage(a.id, i, 1);
+        if (a.id < 6) ok(`endless locked after act ${a.id}`, !F.isEndlessUnlocked() && !last.endlessUnlocked);
+        else ok('act 6 unlocks endless', F.isEndlessUnlocked() && last.endlessUnlocked === true);
+    }
+    ok('campaign complete', F.isCampaignComplete());
+});
+
+// ─────────────────────────────────────────────
+suite('CampaignProgress — legacy save migration', () => {
+    const legacy = (doneIds, extra = {}) => Object.assign({
+        sb_progress: JSON.stringify([1, 2, 3, 4, 5, 6].map(id => ({
+            id, unlocked: true, completed: doneIds.indexOf(id) >= 0, bestScore: id * 100
+        })))
+    }, extra);
+
+    const migrate = (store) => {
+        const mod = loadGameManager(store);
+        return { mod, P: new mod.CampaignProgress(mod.CAMPAIGN, mod.storage) };
+    };
+
+    let { P } = migrate({});
+    ok('fresh install: nothing done', P.stagesDone(1) === 0 && !P.isGateOpen(1) && !P.isEndlessUnlocked());
+
+    ({ P } = migrate(legacy([1, 2])));
+    ok('old 1-2 -> act 1 stages 1-2', P.isStageCompleted(1, 0) && P.isStageCompleted(1, 1) && !P.isStageCompleted(1, 2));
+    ok('best scores carried', P.stage(1, 0).best === 100 && P.stage(1, 1).best === 200);
+
+    ({ P } = migrate(legacy([1, 2, 3])));
+    ok('old ACT I -> act 1 stages 1-3, stage 4 open', P.stagesDone(1) === 3 && P.isStageUnlocked(1, 3) && !P.isActComplete(1));
+
+    ({ P } = migrate(legacy([1, 2, 3], { sb_group2_unlocked: '1' })));
+    ok('old gate -> gate 1 open, act 2 reachable', P.isGateOpen(1) && P.isActUnlocked(2) && P.isStageUnlocked(2, 0));
+
+    ({ P } = migrate(legacy([1, 2, 3, 4, 5], { sb_group2_unlocked: '1' })));
+    ok('old 4-5 -> act 2 stages 1-2', P.isStageCompleted(2, 0) && P.isStageCompleted(2, 1) && !P.isStageCompleted(2, 2));
+    ok('old 4/5 bests land on act 2 stages 1/2', P.stage(2, 0).best === 400 && P.stage(2, 1).best === 500);
+    ok('endless not granted without all 6', !P.isEndlessUnlocked());
+
+    const all = legacy([1, 2, 3, 4, 5, 6], { sb_group2_unlocked: '1', sb_congrats_seen: '1' });
+    let m;
+    ({ mod: m, P } = migrate(all));
+    ok('all 6 old nodes -> act 2 complete', P.isActComplete(2));
+    ok('all 6 old nodes keep Endless', P.isEndlessUnlocked());
+    ok('congrats seen carried', P.congratsSeen === true);
+
+    // Idempotent: a second boot reads the new key and changes nothing.
+    const snap = JSON.stringify(P.data);
+    const again = new m.CampaignProgress(m.CAMPAIGN, m.storage);
+    ok('migration is idempotent', JSON.stringify(again.data) === snap);
+    m.storage.setItem('sb_progress', '[]');
+    const later = new m.CampaignProgress(m.CAMPAIGN, m.storage);
+    ok('legacy keys are not re-read once migrated', later.isEndlessUnlocked() && later.isActComplete(2));
+
+    ({ P } = migrate({ sb_progress: '{broken' }));
+    ok('corrupt legacy save starts fresh', P.stagesDone(1) === 0);
+});
+
+// ─────────────────────────────────────────────
+suite('Act map HUB + gates', () => {
     const mod = loadGameManager();
     const canvas = makeFakeCanvas();
     const ctx = makeFakeCtx(canvas);
     const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
 
-    // ACT I cleared, ACT II still gated.
-    gm.levels.levels.forEach(l => { l.unlocked = false; l.completed = false; });
-    gm.levels.levels[0].unlocked = true;
-    gm.levels.group2Unlocked = false;
-    gm.levels.levels.forEach((l, i) => { if (i < 3) { l.unlocked = true; l.completed = true; } });
+    settle(gm, S.HUB);
+    gm.state._handlers[S.HUB].enter();
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    ok('6 act cards', [1, 2, 3, 4, 5, 6].every(n => !!btn('act' + n)));
+    ok('5 gate nodes', [1, 2, 3, 4, 5].every(n => !!btn('gate' + n)));
+    ok('gate nodes are 44px tap targets', [1, 2, 3, 4, 5].every(n => btn('gate' + n).w >= 44 && btn('gate' + n).h >= 44));
+    const vis = gm.ui.buttons.filter(b => !b.hidden);
+    const overlap = (a, b) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
+    let clash = null;
+    for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) if (overlap(vis[i], vis[j])) clash = vis[i].id + '/' + vis[j].id;
+    ok('no HUB buttons overlap', clash === null, clash);
+    ok('all HUB buttons inside the canvas', vis.every(b => b.x - b.w / 2 >= 0 && b.x + b.w / 2 <= 960 && b.y - b.h / 2 >= 0 && b.y + b.h / 2 <= 640));
+    ok('snake layout: act 4 sits under act 3', btn('act4').x === btn('act3').x && btn('act4').y > btn('act3').y);
+    ok('endless locked for a new player', btn('endless').disabled === true && !btn('leaderboard'));
+    ok('current act is focused', gm.ui.focusId === 'act1');
 
-    gm.state.currentState = gm.state.STATES.HUB;
-    gm.state.transitioning = false;
-    gm._buildHubButtons();
-    gm._pickEnergyEggCell();
-
-    ok('ACT II cards start locked', gm.levels.levels[3].unlocked === false);
-    ok('6 level cards registered', gm.ui.buttons.filter(b => b.card).length === 6);
-    const gate = gm.ui.buttons.find(b => b.id === 'packet-purge');
-    ok('gate node exists while locked', !!gate);
-
-    // HUB renders (panels, gate node, cards, energy bar) without error.
     gm.render(ctx, 0);
     ok('HUB render runs', true);
 
-    // Hidden energy easter egg starts Dual Ring.
+    // Dev act and locked act give a message instead of opening.
+    settle(gm, S.HUB);
+    btn('act3').onClick();
+    ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    btn('act2').onClick();
+    ok('locked act shows a message', gm.state.pendingState === null && /gate 1/i.test(gm._hubMessage));
+    btn('act1').onClick();
+    ok('open act goes to the ACT screen', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
+
+    // Gate before the act is cleared.
+    settle(gm, S.HUB);
+    gm._tryStartGate(1);
+    ok('gate blocked until act 1 is complete', gm.state.pendingState === null && /ACT 1/.test(gm._hubMessage));
+
+    // Clear act 1, breach gate 1 through the MINIGAME host.
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(1, i, 100);
+    settle(gm, S.HUB);
+    gm._hitTestUI(btn('gate1').x, btn('gate1').y);
+    ok('gate click starts Packet Purge', gm.state.pendingState === S.MINIGAME);
+    const pending = gm.state.pendingContext;
+    ok('gate 1 uses the original tuning', pending.mechanic.waves === 2 && pending.mechanic.speedScale === 1);
+    settle(gm, S.HUB);
+    gm.state.change(S.MINIGAME, pending);
+    for (let i = 0; i < 20; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
+    ok('gate minigame active', !!gm._activeMinigame);
+    if (gm._activeMinigame) gm._activeMinigame.result = 'success';
+    for (let i = 0; i < 120; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
+    ok('gate success opens act 2', gm.progress.isGateOpen(1) && gm.progress.isActUnlocked(2));
+
+    // Gate 2 cannot run while act 3 is in development.
+    for (let i = 0; i < 3; i++) gm.progress.completeStage(2, i, 100);
+    settle(gm, S.HUB);
+    gm._tryStartGate(2);
+    ok('gate 2 waits for act 3', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+
+    // Hidden energy easter egg still starts Dual Ring.
+    settle(gm, S.HUB);
+    gm.ui.clearButtons();
+    gm._buildActMapButtons();
     gm.energy.currentEnergy = 4;
     gm._pickEnergyEggCell();
     const cell = gm.ui.getEnergyCellRect(gm._energyEggCell, gm.energy.maxEnergy);
-    ok('egg cell rect valid', !!cell);
-    gm.state.transitioning = false;
-    const handled = gm._hitTestUI(cell.x + 2, cell.y + 2);
-    ok('clicking hidden energy cell starts Dual Ring', handled === true);
-    ok('Dual Ring state queued', gm.state.pendingState === gm.state.STATES.MINIGAME);
+    ok('clicking hidden energy cell starts Dual Ring', gm._hitTestUI(cell.x + 2, cell.y + 2) === true &&
+        gm.state.pendingState === S.MINIGAME);
 
-    // Clicking the gate node starts Packet Purge (ACT I is cleared here).
-    gm.state.currentState = gm.state.STATES.HUB;
-    gm.state.transitioning = false;
-    gm.state.pendingState = null;
-    const gy = gm._hubLockY;
-    const handledGate = gm._hitTestUI(canvas.width / 2, gy);
-    ok('clicking the gate starts Packet Purge', handledGate === true);
-    ok('Packet Purge state queued', gm.state.pendingState === gm.state.STATES.MINIGAME);
-    const pending = gm.state.pendingContext;
-    ok('Packet Purge mechanic provided', pending && pending.mechanic);
-
-    // Run the MINIGAME host to completion and confirm the gate opens level 4 only.
-    gm.state.pendingState = null;
-    gm.state.transitioning = false;
-    gm.state.change(gm.state.STATES.MINIGAME, pending);
-    for (let i = 0; i < 20; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
-    ok('minigame became active', !!gm._activeMinigame);
-    if (gm._activeMinigame) gm._activeMinigame.result = 'success';
-    for (let i = 0; i < 120; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
-    ok('Packet Purge success unlocks ACT II gate', gm.levels.isGroup2Unlocked() === true);
-    ok('gate opens level 4 only, 5/6 stay sequential',
-        gm.levels.levels[3].unlocked === true &&
-        gm.levels.levels[4].unlocked === false &&
-        gm.levels.levels[5].unlocked === false);
+    // Packet Purge gate tiers scale speeds (same RNG -> scaled values).
+    const a = new mod.PacketPurgeMechanic({ rng: makeRng(5) });
+    const b = new mod.PacketPurgeMechanic({ rng: makeRng(5), speedScale: 1.25, waves: 3 });
+    a.init({}); b.init({});
+    ok('harder gate: faster packets', approx(b.badSpeed, a.badSpeed * 1.25, 1e-9) && approx(b.goodSpeed, a.goodSpeed * 1.25, 1e-9));
+    ok('harder gate: more waves', b.waves === 3);
 });
 
 // ─────────────────────────────────────────────
-suite('Packet Purge gate is blocked before ACT I is cleared', () => {
+suite('Keyboard navigation of menus', () => {
     const mod = loadGameManager();
     const canvas = makeFakeCanvas();
     const ctx = makeFakeCtx(canvas);
     const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
 
-    gm.levels.levels.forEach((l, i) => { l.unlocked = i === 0; l.completed = false; });
-    gm.levels.group2Unlocked = false;
-    gm.state.currentState = gm.state.STATES.HUB;
-    gm.state.transitioning = false;
-    gm.state.pendingState = null;
+    settle(gm, S.HUB);
+    gm.state._handlers[S.HUB].enter();
+    ok('focus starts on act 1', gm.ui.focusId === 'act1');
+    gm._dispatchKey({ code: 'ArrowRight' });
+    ok('ArrowRight moves to act 2', gm.ui.focusId === 'act2' || gm.ui.focusId === 'gate1');
+    while (gm.ui.focusId !== 'act1') { if (!gm.ui.moveFocus('left')) break; }
+    gm._dispatchKey({ code: 'Enter' });
+    ok('Enter opens the focused act', gm.state.pendingState === S.ACT);
 
-    gm._tryStartPacketPurge();
-    ok('gate does not start before ACT I', gm.state.pendingState !== gm.state.STATES.MINIGAME);
-    ok('a helpful message is shown', !!gm._hubMessage);
+    gm.ui.updateMouse(10, 10);
+    ok('mouse movement clears keyboard focus', gm.ui.focusId === null);
+
+    // In gameplay, arrows are NOT eaten by the menu navigation.
+    settle(gm, S.LOCKPICK);
+    ok('arrows pass through during the lockpick', gm._handleUiNavKey('ArrowUp') === false);
 });
 
 // ─────────────────────────────────────────────
-suite('LevelManager — sequential self-heal', () => {
-    const game = loadLevelManager();
-    const lm = new game.LevelManager();
+suite('Act screen + stage flow', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
 
-    // Stale save from the earlier "unlock all at once" build.
-    lm.levels.forEach(l => { l.completed = false; l.unlocked = true; });
-    lm.group2Unlocked = false;
-    lm._enforceSequentialUnlocks();
-    ok('stale save: only level 1 stays open',
-        lm.levels[0].unlocked && !lm.levels[1].unlocked && !lm.levels[3].unlocked && !lm.levels[5].unlocked);
+    settle(gm, S.ACT);
+    gm.state._handlers[S.ACT].enter({ actId: 1 });
+    ok('act 1 screen has 4 stage cards', [0, 1, 2, 3].every(i => !!btn('stage' + i)) && !btn('stage4'));
+    ok('first stage focused', gm.ui.focusId === 'stage0');
+    ok('no gate button yet', !btn('gate'));
+    gm.render(ctx, 0);
+    gm.state._handlers[S.ACT].render(ctx, 0);
+    ok('ACT render runs', true);
 
-    lm.levels[0].completed = true;
-    lm._enforceSequentialUnlocks();
-    ok('level 2 opens after 1 is completed',
-        lm.levels[1].unlocked && !lm.levels[2].unlocked);
+    settle(gm, S.ACT);
+    btn('stage1').onClick();
+    ok('locked stage does not start', gm.state.pendingState === null);
 
-    lm.levels[1].completed = true;
-    lm.levels[2].completed = true;
-    lm.group2Unlocked = true;
-    lm._enforceSequentialUnlocks();
-    ok('gate + ACT I completion opens level 4 only',
-        lm.levels[3].unlocked && !lm.levels[4].unlocked && !lm.levels[5].unlocked);
+    btn('stage0').onClick();
+    ok('stage 1 starts the Timing Bar', gm.state.pendingState === S.LEVEL);
+    ok('tier params applied', gm.levels.currentLevel.requiredHits === 8 && gm.levels.currentLevel.id === 3);
+
+    // Clear it through the LEVEL handler.
+    settle(gm, S.LEVEL);
+    gm.levels.levelComplete = true;
+    gm._onStageCleared(1234, 0);
+    ok('cleared stage recorded', gm.progress.isStageCompleted(1, 0) && gm.progress.stage(1, 0).best === 1234);
+    ok('back to the act screen', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
+
+    // Failure on a Timing Bar stage offers the lockpick revive at act difficulty.
+    settle(gm, S.ACT);
+    gm._startStage(1, 1);
+    settle(gm, S.LEVEL);
+    gm._onStageFailed({ score: 50, revivesUsed: 0 });
+    ok('failure goes to GAME_OVER', gm.state.pendingState === S.GAME_OVER);
+    const go = gm.state._handlers[S.GAME_OVER];
+    const goCtx = gm.state.pendingContext;
+    settle(gm, S.GAME_OVER);
+    go.enter(goCtx);
+    ok('revive offered for the Timing Bar', !!btn('revive'));
+    ok('back button returns to the act', !!btn('hub') && btn('hub').label === '← ACT');
+    btn('revive').onClick();
+    ok('revive opens the lockpick at act difficulty',
+        gm.state.pendingState === S.LOCKPICK && gm.state.pendingContext.difficulty === 1);
+
+    // Finish act 1 -> act complete message + gate button on the act screen.
+    for (let i = 1; i < 3; i++) gm.progress.completeStage(1, i, 100);
+    gm._stage = { actId: 1, index: 3 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(500, 0);
+    ok('act complete message', /ACT 1 COMPLETE/.test(gm._hubMessage));
+    settle(gm, S.ACT);
+    gm.ui.clearButtons();
+    gm.state._handlers[S.ACT].enter({ actId: 1 });
+    ok('gate button on the cleared act', !!btn('gate'));
+    ok('gate button focused once all stages are done', gm.ui.focusId === 'gate');
+
+    // Act 2 stage runs Stack Overflow with the tier params.
+    gm.progress.openGate(1);
+    settle(gm, S.ACT);
+    gm._startStage(2, 0);
+    ok('act 2 runs in the MINIGAME host', gm.state.pendingState === S.MINIGAME);
+    const cfg = gm.state.pendingContext;
+    const mech = cfg.mechanic;
+    ok('act 2 stage 1 is Stack Overflow EASY',
+        mech instanceof mod.StackOverflowMechanic && mech.targetBlocks === 5 && mech.baseOmega === 1.30);
+    ok('stack hint mentions tap (mobile)', /tap/i.test(cfg.hint));
+
+    // Host forwards the sub-frame offset; a tap anywhere drops.
+    const host = gm.state._handlers[S.MINIGAME];
+    settle(gm, S.MINIGAME);
+    host.enter(cfg);
+    for (let i = 0; i < 10; i++) { host.update(1 / 60); host.render(ctx, 0.5); }
+    gm._pendingInputOffset = 0.25 * mech.stepDt;
+    const expected = mech.craneX(mech.time - mech.stepDt + gm._pendingInputOffset);
+    host.onKey({ code: 'Space' });
+    gm._pendingInputOffset = 0;
+    ok('host forwards the sub-frame input offset',
+        mech.falling && approx(mech.falling.body.position.x, expected, 1e-9));
+    for (let i = 0; i < 120 && !mech.canDrop; i++) host.update(1 / 60);
+    const drops = mech.drops;
+    ok('tap anywhere drops', gm._hitTestUI(100, 500) === true && mech.drops === drops + 1);
+
+    // Stack failure: no revive, own message, RETRY restarts the stage.
+    settle(gm, S.MINIGAME);
+    cfg.onComplete(false, mech);
+    const fail = gm.state.pendingContext;
+    ok('stack failure has no revive', gm.state.pendingState === S.GAME_OVER && fail.noRevive === true && /firewall/i.test(fail.message));
+    settle(gm, S.GAME_OVER);
+    go.enter(fail);
+    ok('no revive button for the stack', !btn('revive'));
+    for (let i = 0; i < 70; i++) go.update(1 / 60);
+    go.onKey({ code: 'Space' });
+    ok('RETRY restarts the same stack stage',
+        gm.state.pendingState === S.MINIGAME && gm.state.pendingContext.mechanic.targetBlocks === 5);
+
+    // Escape from a stage returns to its act.
+    settle(gm, S.MINIGAME);
+    gm._mgConfig = { stage: true };
+    host.onKey({ code: 'Escape' });
+    ok('Escape returns to the act screen', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 2);
+
+    // Stack success records the stage.
+    settle(gm, S.MINIGAME);
+    gm._stage = { actId: 2, index: 0 };
+    cfg.onComplete(true, { score: 1650 });
+    ok('stack success records the stage', gm.progress.isStageCompleted(2, 0) && gm.progress.stage(2, 0).best === 1650);
 });
 
 // ─────────────────────────────────────────────
-suite('Bar speed is normalized across levels', () => {
-    const game = loadLevelManager();
-    const lm = new game.LevelManager();
-    const barLevels = lm.levels.filter((l, i) => lm.isBarLevel(i));
-    const speeds = barLevels.map(l => l.barSpeed);
-
-    let monotonic = true;
-    for (let i = 1; i < speeds.length; i++) if (speeds[i] <= speeds[i - 1]) monotonic = false;
-    ok('base speeds strictly increase', monotonic, speeds.join(', '));
-
-    // Even the hardest level must stay readable on a 60 Hz screen.
-    for (let i = 0; i < barLevels.length; i++) {
-        const lvl = barLevels[i];
-        const maxSpeed = Math.min(lvl.barSpeed + 0.01 * lvl.requiredHits, 1.9);
-        const zoneTimeMs = (lvl.targetSize / maxSpeed) * 1000;
-        ok(`level ${lvl.id} zone window playable`, zoneTimeMs >= 40,
-            `${zoneTimeMs.toFixed(1)}ms maxSpeed=${maxSpeed.toFixed(2)}`);
+suite('Lockpick — revive-only tuning', () => {
+    const mod = loadGameManager();
+    const lp = new mod.LockpickSystem();
+    const want = [[3, 60, 30], [4, 75, 27], [4, 90, 24], [5, 105, 21], [5, 125, 18], [6, 150, 16]];
+    let okAll = true;
+    for (let d = 1; d <= 6; d++) {
+        lp.start(d, () => {});
+        const [n, sp, tol] = want[d - 1];
+        if (lp.nodeCount !== n || lp.cursorSpeed !== sp || lp.hitTolerance !== tol) okAll = false;
     }
-
-    // The hardest level is meaningfully tamer than the old 2.0/3.5 curve.
-    const last = lm.levels[5];
-    ok('level 6 final speed is bounded',
-        Math.min(last.barSpeed + 0.01 * last.requiredHits, 1.9) <= 1.7);
+    ok('lockpick table matches the plan', okAll);
+    lp.start(1, () => {});
+    ok('nodes generated', lp.nodes.length === 3);
 });
 
 // ─────────────────────────────────────────────
@@ -744,8 +949,7 @@ suite('Input sampling aligns with the rendered bar', () => {
     const origUpdate = gm.state.update.bind(gm.state);
     gm.state.update = (dt) => { origUpdate(dt); wallAtStateEnd = performance.now(); };
 
-    gm.levels.levels[5].unlocked = true; // unlock the hardest level for the test
-    gm.levels.startLevel(5); // hardest level
+    gm.levels.startStage(stageCfg(mod.CAMPAIGN, 0, 3)); // hardest stage
     gm.state.currentState = gm.state.STATES.LEVEL;
     gm.state.transitioning = false;
     gm.update(1 / 60);
@@ -791,7 +995,8 @@ suite('GAME OVER restart cooldown', () => {
     gm.state.currentState = gm.state.STATES.GAME_OVER;
     gm.state.transitioning = false;
     gm.state.pendingState = null;
-    handler.enter({ levelIndex: 0, score: 0, revivesUsed: 0 });
+    gm._stage = { actId: 1, index: 0 };
+    handler.enter({ stage: gm._stage, score: 0, revivesUsed: 0 });
 
     ok('cooldown starts at 1s', Math.abs(gm._goCooldown - 1.0) < 1e-9);
 
@@ -828,7 +1033,7 @@ suite('Sound mute toggle + HUB button', () => {
     const canvas = makeFakeCanvas();
     const ctx = makeFakeCtx(canvas);
     const gm = new mod.GameManager(canvas, ctx);
-    gm._buildHubButtons();
+    gm._buildActMapButtons();
 
     const btn = gm.ui.buttons.find(b => b.id === 'sound');
     ok('HUB has a sound button', !!btn);
@@ -1018,128 +1223,208 @@ suite('Stack Overflow — physics minigame', () => {
 });
 
 // ─────────────────────────────────────────────
-suite('Mission 5 + 6 tuning', () => {
-    const game = loadLevelManager();
-    const lm = new game.LevelManager();
-    const l5 = lm.levels[4], l6 = lm.levels[5];
+suite('LeaderboardService — operator name + password', () => {
+    const { LeaderboardService } = loadGameManager();
+    const V = LeaderboardService;
+    ok('valid name', V.validateName('Neo_01') === null);
+    ok('short name rejected', V.validateName('ab') !== null);
+    ok('bad characters rejected', V.validateName('neo!') !== null);
+    ok('8-char password ok', V.validatePassword('abcdefgh') === null);
+    ok('7-char password rejected', V.validatePassword('abcdefg') !== null);
+    ok('over 72 bytes rejected', V.validatePassword('x'.repeat(73)) !== null);
+    ok('duplicate -> taken', /taken/.test(V.friendlyError({ message: 'duplicate key value violates unique constraint' })));
+    ok('rate limit message', /15 minutes/.test(V.friendlyError({ message: 'Too many attempts. Try again in 15 minutes' })));
 
-    ok('mission 5 is the physics stack mission', l5.mechanic === 'stack' && !lm.isBarLevel(4));
-    ok('startLevel refuses the physics mission', (() => { l5.unlocked = true; return lm.startLevel(4) === false; })());
-    ok('mission 6 needs 20 hits', l6.requiredHits === 20);
-    ok('mission 6 bar is slightly slower', l6.barSpeed === 1.35);
-    ok('mission 6 zone matches the old mission 5', l6.targetSize === 0.10);
-    l6.unlocked = true;
-    lm.startLevel(5);
-    ok('mission 6 lives unchanged (5)', lm.maxLives === 5 && lm.lives === 5);
-    ok('mission 6 still harder than mission 4',
-        l6.barSpeed > lm.levels[3].barSpeed && l6.targetSize < lm.levels[3].targetSize &&
-        l6.requiredHits > lm.levels[3].requiredHits);
+    // Fake Supabase client: records RPC calls and returns scripted rows.
+    const calls = [];
+    const script = {};
+    const fakeClient = {
+        auth: {
+            getSession: async () => ({ data: { session: { id: 's' } }, error: null }),
+            getUser: async () => ({ data: { user: { id: 'u1' } }, error: null })
+        },
+        rpc: async (name, args) => { calls.push([name, args]); return script[name] ? script[name](args) : { data: null, error: null }; },
+        from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { display_name: 'Legacy' }, error: null }) }) }) })
+    };
+    const make = () => { const lb = new LeaderboardService(); lb.client = fakeClient; return lb; };
+    const run = async () => {
+        const lb = make();
+        script.get_my_operator = () => ({ data: [], error: null });
+        await lb.loadProfile();
+        ok('no operator yet', lb.profile === null && !lb.hasProfile());
 
-    // completeExternal follows the normal progression.
-    const lm2 = new game.LevelManager();
-    lm2.levels.slice(0, 4).forEach(l => { l.completed = true; });
-    lm2.group2Unlocked = true;
-    lm2._enforceSequentialUnlocks();
-    ok('mission 5 unlocks after mission 4', lm2.levels[4].unlocked && !lm2.levels[5].unlocked);
-    ok('completeExternal clears mission 5', lm2.completeExternal(4, 1700) && lm2.levels[4].completed);
-    ok('completeExternal unlocks mission 6', lm2.levels[5].unlocked);
-    ok('completeExternal stores the best score', lm2.levels[4].bestScore === 1700);
-    lm2.completeExternal(4, 900);
-    ok('a lower score keeps the best', lm2.levels[4].bestScore === 1700);
-    const lm3 = new (loadLevelManager().LevelManager)(); // fresh storage
-    ok('completeExternal refuses a locked node', lm3.completeExternal(4, 100) === false && !lm3.levels[4].completed);
+        script.create_operator = (a) => ({ data: [{ id: 'p1', display_name: a.p_display_name, has_password: true }], error: null });
+        await lb.createProfile('  Neo  ', 'hunter2222');
+        ok('createProfile sends trimmed name + password',
+            calls.some(([n, a]) => n === 'create_operator' && a.p_display_name === 'Neo' && a.p_password === 'hunter2222'));
+        ok('created profile is protected', lb.profile.displayName === 'Neo' && !lb.needsPassword());
+
+        let threw = null;
+        try { await make().createProfile('Neo', 'short'); } catch (e) { threw = e.message; }
+        ok('short password never reaches the server', /8–72/.test(threw || ''));
+
+        const other = make();
+        script.sign_in_operator = (a) => ({ data: a.p_password === 'hunter2222' ? [{ id: 'p1', display_name: 'Neo', has_password: true }] : [], error: null });
+        ok('wrong password -> null', (await other.signIn('neo', 'nope-nope')) === null && other.profile === null);
+        const p = await other.signIn('neo', 'hunter2222');
+        ok('right password -> same operator', p && p.id === 'p1' && other.profile.displayName === 'Neo');
+
+        const legacy = make();
+        script.get_my_operator = () => ({ data: [{ id: 'u1', display_name: 'Oldie', has_password: false }], error: null });
+        await legacy.loadProfile();
+        ok('legacy operator needs a password', legacy.needsPassword());
+        await legacy.setPassword('oldiepass1');
+        ok('setPassword clears the prompt', !legacy.needsPassword() &&
+            calls.some(([n, a]) => n === 'set_operator_password' && a.p_password === 'oldiepass1'));
+
+        // Database not migrated yet: fall back to the old profile lookup.
+        const old = make();
+        script.get_my_operator = () => ({ data: null, error: { message: 'Could not find the function public.get_my_operator without parameters' } });
+        await old.loadProfile();
+        ok('falls back before the migration', old.profile && old.profile.displayName === 'Legacy' && !old.needsPassword());
+    };
+    return run();
 });
 
 // ─────────────────────────────────────────────
-suite('Mission 5 — HUB node + MINIGAME host', () => {
+suite('Profile setup flow (overlay form)', () => {
     const mod = loadGameManager();
     const canvas = makeFakeCanvas();
     const ctx = makeFakeCtx(canvas);
     const gm = new mod.GameManager(canvas, ctx);
     const S = gm.state.STATES;
-    const ready = (state) => {
-        gm.state.currentState = state;
-        gm.state.transitioning = false;
-        gm.state.pendingState = null;
-        gm.state.pendingContext = null;
+    ok('no DOM form in headless tests', gm.profileForm === null);
+
+    const opened = [];
+    gm.profileForm = { mode: null, open(m, h) { this.mode = m; this.h = h; opened.push(m); }, close() { this.closed = true; } };
+    gm.leaderboard.configurationError = null;
+
+    const run = async () => {
+        // New player -> create form.
+        gm.leaderboard.initialize = async () => null;
+        gm.leaderboard.profile = null;
+        settle(gm, S.PROFILE_SETUP);
+        gm.state._handlers[S.PROFILE_SETUP].enter({ returnState: S.LEADERBOARD });
+        await new Promise(r => setTimeout(r, 0));
+        ok('new player gets the create form', opened[opened.length - 1] === 'create');
+
+        gm.leaderboard.createProfile = async () => { throw new Error('duplicate key value violates unique constraint'); };
+        const err = await gm._submitProfileForm('create', { name: 'Neo', password: 'hunter2222' });
+        ok('taken name is reported in the form', /taken/.test(err) && gm.state.pendingState === null);
+
+        gm.leaderboard.signIn = async () => null;
+        ok('wrong sign-in is reported', /incorrect/.test(await gm._submitProfileForm('signin', { name: 'Neo', password: 'x' })));
+        gm.leaderboard.signIn = async () => ({ id: 'p1', displayName: 'Neo', hasPassword: true });
+        ok('good sign-in succeeds', (await gm._submitProfileForm('signin', { name: 'Neo', password: 'hunter2222' })) === null);
+        ok('sign-in returns to the leaderboard', gm.state.pendingState === S.LEADERBOARD && gm.profileForm.closed);
+
+        // Legacy operator -> secure form; "later" is remembered this session.
+        gm.leaderboard.profile = { id: 'u', displayName: 'Oldie', hasPassword: false };
+        gm.leaderboard.initialize = async () => gm.leaderboard.profile;
+        settle(gm, S.PROFILE_SETUP);
+        gm.state._handlers[S.PROFILE_SETUP].enter({ returnState: S.LEADERBOARD, mode: 'secure' });
+        await new Promise(r => setTimeout(r, 0));
+        ok('legacy operator gets the secure form', opened[opened.length - 1] === 'secure');
+        settle(gm, S.PROFILE_SETUP);
+        gm.profileForm.h.onCancel();
+        ok('LATER dismisses the prompt for the session', gm._securePromptDismissed === true);
+
+        // Protected operator -> no form at all.
+        gm.leaderboard.profile = { id: 'p1', displayName: 'Neo', hasPassword: true };
+        const before = opened.length;
+        settle(gm, S.PROFILE_SETUP);
+        gm.state._handlers[S.PROFILE_SETUP].enter({ returnState: S.HUB });
+        await new Promise(r => setTimeout(r, 0));
+        ok('protected operator skips the form', opened.length === before && gm.state.pendingState === S.HUB);
+
+        gm.state._handlers[S.PROFILE_SETUP].render(ctx, 0);
+        ok('profile screen renders', true);
     };
-
-    gm.levels.levels.slice(0, 4).forEach(l => { l.completed = true; });
-    gm.levels.group2Unlocked = true;
-    gm.levels._enforceSequentialUnlocks();
-    gm.ui.clearButtons();
-    gm._buildHubButtons();
-    ok('no separate bonus button on the HUB', !gm.ui.buttons.find(b => /stack/i.test(b.id)));
-
-    // Clicking node 5 launches the physics mission.
-    ready(S.HUB);
-    gm.ui.buttons.find(b => b.id === 'lvl4').onClick();
-    ok('node 5 opens the MINIGAME state', gm.state.pendingState === S.MINIGAME);
-    const cfg = gm.state.pendingContext;
-    ok('node 5 runs StackOverflowMechanic', cfg && cfg.mechanic instanceof mod.StackOverflowMechanic);
-    ok('mission hint mentions tapping (mobile)', cfg && /tap/i.test(cfg.hint));
-
-    // Drive the MINIGAME handler with that context.
-    const handler = gm.state._handlers[S.MINIGAME];
-    ready(S.MINIGAME);
-    handler.enter(cfg);
-    const mech = cfg.mechanic;
-    ok('mechanic initialised by the host', mech.world !== null && mech.hanging !== null);
-    for (let i = 0; i < 10; i++) { handler.update(1 / 60); handler.render(ctx, 0.5); }
-
-    gm._pendingInputOffset = 0.25 * mech.stepDt;
-    const expected = mech.craneX(mech.time - mech.stepDt + gm._pendingInputOffset);
-    handler.onKey({ code: 'Space' });
-    gm._pendingInputOffset = 0;
-    ok('Space drops a frame via the host', mech.falling !== null);
-    ok('host forwards the sub-frame input offset',
-        mech.falling && approx(mech.falling.body.position.x, expected, 1e-9));
-
-    // A tap anywhere on the canvas drops (mobile path: hitTestUI -> handlePointer).
-    for (let i = 0; i < 120 && !mech.canDrop; i++) handler.update(1 / 60);
-    const dropsBefore = mech.drops;
-    ok('tap is consumed by the mission', gm._hitTestUI(100, 500) === true);
-    ok('tap anywhere drops a frame', mech.drops === dropsBefore + 1);
-
-    // Failure -> GAME_OVER without revive, with its own message.
-    ready(S.MINIGAME);
-    cfg.onComplete(false, mech);
-    ok('failure goes to GAME_OVER', gm.state.pendingState === S.GAME_OVER);
-    const go = gm.state.pendingContext;
-    ok('no lockpick revive for the physics mission', go.noRevive === true && go.levelIndex === 4);
-    const goHandler = gm.state._handlers[S.GAME_OVER];
-    ready(S.GAME_OVER);
-    goHandler.enter(go);
-    ok('no revive button', !gm.ui.buttons.find(b => b.id === 'revive'));
-    for (let i = 0; i < 70; i++) goHandler.update(1 / 60);
-    goHandler.onKey({ code: 'Space' });
-    ok('RETRY restarts the stack mission', gm.state.pendingState === S.MINIGAME &&
-        gm.state.pendingContext.mechanic instanceof mod.StackOverflowMechanic);
-
-    // Success -> node cleared, mission 6 unlocked, back to HUB.
-    ready(S.MINIGAME);
-    cfg.onComplete(true, { score: 1650 });
-    ok('success clears node 5', gm.levels.levels[4].completed && gm.levels.levels[4].bestScore === 1650);
-    ok('success unlocks node 6', gm.levels.levels[5].unlocked);
-    ok('success returns to the HUB', gm.state.pendingState === S.HUB);
-
-    // Escape leaves a minigame.
-    ready(S.MINIGAME);
-    handler.onKey({ code: 'Escape' });
-    ok('Escape leaves the mission', gm.state.pendingState === S.HUB);
-
-    // Node 6 still starts the timing bar.
-    ready(S.HUB);
-    gm._startNode(5);
-    ok('node 6 starts a LEVEL', gm.state.pendingState === S.LEVEL && gm.levels.currentLevelIndex === 5);
+    return run();
 });
 
 // ─────────────────────────────────────────────
-console.log('\n' + '─'.repeat(50));
-console.log(`PASS ${passed}   FAIL ${failed}`);
-if (failures.length) {
-    console.log('\nFailures:');
-    for (const f of failures) console.log('  ✗ ' + f);
-    process.exit(1);
-}
-console.log('All tests passed.');
+suite('Tip bar + field guide', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const { TipBar } = mod;
+
+    const tb = new TipBar();
+    tb.setTips('x', [{ desktop: 'Press H', touch: 'Tap ?' }, 'second']);
+    ok('desktop variant', tb.current('desktop') === 'Press H');
+    ok('touch variant', tb.current('touch') === 'Tap ?');
+    ok('starts faded in from 0', tb.alpha === 0);
+    tb.update(3);
+    ok('fully visible mid-slot', tb.alpha === 1);
+    tb.update(4.1);
+    ok('rotates after the hold time', tb.current('desktop') === 'second');
+    tb.setTips('x', ['ignored']);
+    ok('same key keeps rotating', tb.current('desktop') === 'second');
+
+    settle(gm, S.HUB);
+    gm.state._handlers[S.HUB].enter();
+    ok('map tips on the HUB', gm.tipBar.key === 'map');
+    ok('guide button on the map', !!gm.ui.buttons.find(b => b.id === 'guide'));
+    gm.render(ctx, 0);
+    ok('HUB renders the tip line', true);
+
+    settle(gm, S.ACT);
+    gm.state._handlers[S.ACT].enter({ actId: 2 });
+    ok('act tips follow the game', gm.tipBar.key === 'act2' && gm.tipBar.tips.some(t => /momentum/.test(t)));
+    ok('guide button on the act screen', !!gm.ui.buttons.find(b => b.id === 'guide'));
+
+    // H opens the guide from the act screen and returns there.
+    settle(gm, S.ACT);
+    gm.state._handlers[S.ACT].onKey({ code: 'KeyH' });
+    ok('H opens the guide', gm.state.pendingState === S.GUIDE);
+    const gctx = gm.state.pendingContext;
+    ok('guide remembers the act', gctx.returnState === S.ACT && gctx.returnContext.actId === 2);
+    ok('guide not seen before', gm._guideSeen === false);
+    const guide = gm.state._handlers[S.GUIDE];
+    settle(gm, S.GUIDE);
+    guide.enter(gctx);
+    ok('opening marks the guide seen', gm._guideSeen === true && mod.storage.getItem('sb_guide_seen') === '1');
+    const pages = mod.GameManager.GUIDE_PAGES.length;
+    for (let i = 0; i < pages; i++) { gm._setGuidePage(i); guide.render(ctx, 0); }
+    ok('every guide page renders', true);
+    gm._setGuidePage(0);
+    guide.onKey({ code: 'ArrowLeft' });
+    ok('pages wrap around', gm._guidePage === pages - 1);
+    ok('4 tabs + prev/close/next', gm.ui.buttons.filter(b => /^guide-/.test(b.id)).length === pages + 3);
+    settle(gm, S.GUIDE);
+    guide.onKey({ code: 'Escape' });
+    ok('Esc returns to the same act', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 2);
+});
+
+// ─────────────────────────────────────────────
+suite('Typing in a form field is not gameplay', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const seen = [];
+    gm._handleKeyAction = (a) => seen.push(a.code);
+    let prevented = 0;
+    const ev = (tagName, code) => ({ code, key: ' ', repeat: false, timeStamp: 1, target: { tagName }, preventDefault: () => { prevented++; } });
+
+    mod.fireDocument('keydown', ev('INPUT', 'Space'));
+    ok('keys typed into an input are ignored', seen.length === 0 && prevented === 0);
+    mod.fireDocument('keydown', ev('BODY', 'Space'));
+    ok('keys on the page still reach the game', seen.length === 1 && prevented === 1);
+    ok('keyboard switches hints to desktop', gm.input.mode === 'desktop');
+});
+
+// ─────────────────────────────────────────────
+Promise.all(pendingSuites).then(() => {
+    console.log('\n' + '─'.repeat(50));
+    console.log(`PASS ${passed}   FAIL ${failed}`);
+    if (failures.length) {
+        console.log('\nFailures:');
+        for (const f of failures) console.log('  ✗ ' + f);
+        process.exit(1);
+    }
+    console.log('All tests passed.');
+});

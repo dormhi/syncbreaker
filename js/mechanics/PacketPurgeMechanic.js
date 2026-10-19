@@ -18,6 +18,8 @@ class PacketPurgeMechanic extends _MechanicBasePP {
         super();
         this.rng = options.rng || Math.random;
         this.waves = options.waves || 2;
+        // Campaign gates get harder: packet speeds scale (gate 1 = 1.0).
+        this.speedScale = options.speedScale || 1;
         this.resultDuration = 1.2;
     }
 
@@ -32,8 +34,8 @@ class PacketPurgeMechanic extends _MechanicBasePP {
         this.height = context.height || 640;
         this.field = this._fieldFor(this.width, this.height);
 
-        this.badSpeed = this._rand(120, 165);   // infected — faster
-        this.goodSpeed = this._rand(70, 95);    // clean — slower
+        this.badSpeed = this._rand(120, 165) * this.speedScale;   // infected — faster
+        this.goodSpeed = this._rand(70, 95) * this.speedScale;    // clean — slower
         this.spawnInterval = this._rand(0.8, 1.2);
         this.badRatio = this._rand(0.55, 0.65);
 
@@ -59,8 +61,8 @@ class PacketPurgeMechanic extends _MechanicBasePP {
 
     _increaseDifficulty() {
         this.badRatio = Math.min(this.badRatio + 0.06, 0.82);
-        this.badSpeed = Math.min(this.badSpeed + 14, 215);
-        this.goodSpeed = Math.min(this.goodSpeed + 6, 120);
+        this.badSpeed = Math.min(this.badSpeed + 14, 215 * this.speedScale);
+        this.goodSpeed = Math.min(this.goodSpeed + 6, 120 * this.speedScale);
         this.spawnInterval = Math.max(this.spawnInterval * 0.85, 0.55);
     }
 

@@ -41,6 +41,7 @@ const EXPORTS = [
 
 const GAME_FILES = [
     'js/utils.js',
+    'js/data/Campaign.js',
     'js/core/Collision.js',
     'js/mechanics/Mechanic.js',
     'js/mechanics/TimingBarMechanic.js',
@@ -55,7 +56,8 @@ const GAME_EXPORTS = [
     'TimingBarMechanic',
     'LevelManager',
     'getLevelTheme',
-    'LEVEL_THEMES'
+    'LEVEL_THEMES',
+    'CAMPAIGN'
 ];
 
 function makeSandbox(extra = {}) {
@@ -134,6 +136,7 @@ const FULL_FILES = [
     'js/core/GameLoop.js',
     'js/core/ChallengeGate.js',
     'js/core/InputManager.js',
+    'js/data/Campaign.js',
     'js/core/PhysicsWorld.js',
     'js/mechanics/Mechanic.js',
     'js/mechanics/TimingBarMechanic.js',
@@ -141,6 +144,8 @@ const FULL_FILES = [
     'js/mechanics/PacketPurgeMechanic.js',
     'js/mechanics/PhysicsMechanic.js',
     'js/mechanics/StackOverflowMechanic.js',
+    'js/core/GameRegistry.js',
+    'js/CampaignProgress.js',
     'vendor/matter.min.js',
     'js/EnergySystem.js',
     'js/StateManager.js',
@@ -151,10 +156,14 @@ const FULL_FILES = [
     'js/LevelIcons.js',
     'js/LevelManager.js',
     'js/LeaderboardService.js',
+    'js/ProfileForm.js',
+    'js/TipBar.js',
     'js/GameManager.js'
 ];
 
-const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound'];
+const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
+    'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
+    'LeaderboardService', 'TipBar'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {
@@ -182,19 +191,38 @@ function makeFakeCanvas() {
     };
 }
 
-/** Loads the entire game with DOM stubs; returns { GameManager, Matter }. */
-function loadGameManager() {
-    const store = new Map();
+/**
+ * Loads the entire game with DOM stubs. `initialStorage` pre-fills
+ * localStorage (e.g. a legacy save for migration tests).
+ */
+function loadGameManager(initialStorage = {}) {
+    const store = new Map(Object.entries(initialStorage).map(([k, v]) => [k, String(v)]));
     const localStorage = {
         getItem: (k) => (store.has(k) ? store.get(k) : null),
         setItem: (k, v) => { store.set(k, String(v)); },
         removeItem: (k) => { store.delete(k); }
     };
+    const listeners = {};
     const document = {
-        addEventListener: () => {},
-        removeEventListener: () => {}
+        addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
+        removeEventListener: (type, fn) => {
+            const list = listeners[type] || [];
+            const i = list.indexOf(fn);
+            if (i >= 0) list.splice(i, 1);
+        }
     };
-    return runFiles(FULL_FILES, FULL_EXPORTS, { localStorage, document });
+    // Silent Web Audio: any member is a chainable no-op, numbers coerce to 0.
+    const silent = new Proxy(function () {}, {
+        get: (t, p) => (p === Symbol.toPrimitive ? () => 0 : silent),
+        apply: () => silent,
+        construct: () => silent
+    });
+    const window = { AudioContext: silent };
+    const api = runFiles(FULL_FILES, FULL_EXPORTS, { localStorage, document, window });
+    api.storage = localStorage;
+    // Fire a document event at the registered listeners (keyboard tests).
+    api.fireDocument = (type, event) => (listeners[type] || []).slice().forEach(fn => fn(event));
+    return api;
 }
 
 module.exports = { loadModules, loadLevelManager, loadGameManager, makeRng, makeFakeCanvas, makeFakeCtx };

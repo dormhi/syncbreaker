@@ -12,7 +12,8 @@ You are tasked with defending a system against an active cyber attack. You must 
 ## ✨ Features
 - **Object-Oriented Architecture:** Fully decoupled systems for UI, Game State, Energy Management, and Level configurations.
 - **Endless Mode:** Survive an infinite wave of attacks where difficulty progressively scales up.
-- **Online Endless Leaderboard:** Unlock Endless Mode, choose a unique operator name, and compete on the shared top 10 leaderboard.
+- **Online Endless Leaderboard:** Unlock Endless Mode, pick a unique operator name and password, and keep your rank on any browser.
+- **Field guide & tips:** a `?` button (or H) opens a short in-game guide; a quiet tip line adapts to touch or keyboard.
 - **Energy & Progression System:** Energy depletes when taking shortcuts or reviving, and slowly regenerates over time (persists via `localStorage`).
 - **Mobile-Ready:** Fully supports touch interactions (Tap to shoot, Swipe to lockpick) for a seamless mobile experience.
 
@@ -42,10 +43,10 @@ node tests/run.js
 ```
 
 It verifies collision semantics, the timing-bar motion model, hit detection,
-frame-rate independence, calibration against the legacy clamp (difficulty is
-unchanged), sub-frame input resolution, the fixed-timestep game loop, a
-`LevelManager` integration smoke test, and the Matter.js layer (fixed step,
-units, interpolation, collision events) plus Stack Overflow gameplay.
+frame-rate independence, sub-frame input resolution, the fixed-timestep game
+loop, the Matter.js layer, Stack Overflow gameplay, and the campaign: data,
+lock rules, old-save migration, the act map / act screen flows, keyboard
+navigation and the lockpick tuning.
 
 ## ⚙️ v2 Architecture (physics hardening)
 This branch reworks the timing/physics layer for frame-rate independence and
@@ -70,11 +71,13 @@ flawless hit detection without changing difficulty:
   every body for render interpolation, exposes px/s and px/s² units, and
   reports collisions by parent body.
 
-The frozen difficulty contract (bar speeds, target sizes, hit requirements,
-scoring, lives, lockpick tuning, energy costs) is unchanged, except for the
-deliberate mission 5/6 rework below.
+Difficulty numbers now live in `js/data/Campaign.js` and are changed only on
+purpose (see `docs/ACT_PLAN.md`).
 
 ## 🧩 Phase 1 — Minigames & progression
+> History: this describes the earlier 6-node build. The HUB, the ACT I / II
+> split and the lockpick skip were replaced by the 6-act campaign below.
+
 - **Level selector (HUB) redesign:** modern ACT I / ACT II panels with vector
   mission logos (`js/LevelIcons.js`), per-node status, best score, and a gate
   node between the acts.
@@ -96,30 +99,37 @@ deliberate mission 5/6 rework below.
   Decorations use a continuous animation clock (no jump on the 360°→0° wrap),
   with solve pulses and a start pop.
 
-## 🧱 Mission 5 — FIREWALL · Stack Overflow (Matter.js)
-Node 5 is no longer a timing-bar level: it is played with
-`js/mechanics/StackOverflowMechanic.js` (on `js/mechanics/PhysicsMechanic.js`).
+## 🗺 Campaign: 6 acts
+The game is a campaign of 6 acts. Each act is one game, and its 3-5 stages
+are that game's rising difficulty tiers. Clearing every stage completes the
+act. A gate (Packet Purge, harder each time) opens the next act. The full plan
+and all decisions are in [`docs/ACT_PLAN.md`](docs/ACT_PLAN.md); the short
+version for contributors and agents is in [`AGENTS.md`](AGENTS.md).
 
+| Act | Name | Game | Stages |
+|---|---|---|---|
+| 1 | REMOVE_MALWARE | Timing Bar | 4 (8 / 10 / 14 / 18 hits) |
+| 2 | REBUILD_FIREWALL | Stack Overflow (Matter.js) | 3 (5 / 7 / 9 blocks high) |
+| 3-6 | CLOSE_PORTS, RESET_CREDS, TRACE_LOGS, CUT_ACCESS | in development | — |
+
+- Data lives in `js/data/Campaign.js`; progress, lock rules and the one-time
+  migration of old saves live in `js/CampaignProgress.js` (`sb_campaign_v1`).
+- HUB: an act map (snake layout with the gates between acts) and a per-act
+  stage screen. Both can be driven by touch, mouse or keyboard
+  (arrows + Enter, Escape to go back).
+- The lockpick is only used for revives (Timing Bar and Endless), with a
+  slightly easier tuning. Endless unlocks after Act 6; players who already had
+  it keep it.
+
+### Stack Overflow (Act 2)
 - A crane sweeps above the core; tap anywhere (or SPACE) to drop a block. It
   falls under real rigid-body physics and keeps 30% of the crane's sideways
-  momentum (no air drag, so the drift is readable).
+  momentum.
 - Build a tower that stands still above the limit line for 1 s. Blocks that
-  fall off cost a life (3 lives, 12 blocks); the crane speeds up per block.
-- Clearing it completes node 5 and unlocks node 6 through the normal
-  progression (`LevelManager.completeExternal`). Failing goes to
-  OPERATION FAILED without a lockpick revive; RETRY restarts the mission.
-- Score: 100 per block in the tower + 250 per life left + 50 per unused block.
-- The release point is sampled on the same clock the crane is drawn with, and
-  the sub-frame input offset is honoured, so a block drops exactly where the
-  player saw it.
-- Settled blocks buried 3+ deep are frozen. Iterative solvers let tall box
-  stacks creep and collapse on their own; freezing keeps the physics where the
-  player acts and removes phantom collapses.
-- Mobile-first: the whole screen is the drop button and the HUD is sized to
-  stay legible when the canvas is scaled down to a phone.
-
-**Mission 6 (CUT_ACCESS)** now uses the old mission 5 bar: speed 1.35 (was
-1.5), target 0.10 (was 0.08), 20 hits (was 18), 5 lives, 60 s.
+  fall off cost a life (3 lives). Difficulty comes from the tower height and a
+  micro-step faster crane.
+- Settled blocks buried 3+ deep are frozen, so the solver cannot make a tall
+  stack creep and collapse on its own.
 
 ## 🎓 About
 Developed as a Computer Graphics University Final Project.

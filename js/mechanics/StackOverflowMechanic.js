@@ -42,7 +42,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
 
         // Crane
         this.craneAmp = 170;          // px either side of center
-        this.baseOmega = 1.35;        // rad/s at the start
+        this.baseOmega = options.baseOmega || 1.35; // rad/s at the start
         this.omegaStep = 0.07;        // +7% per placed frame
         this.momentumKeep = 0.3;      // share of crane velocity the frame keeps
 

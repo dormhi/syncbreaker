@@ -10,6 +10,9 @@ class UIManager {
         this.buttons = [];
         this.mouseX = 0;
         this.mouseY = 0;
+        // Keyboard focus (arrow keys + Enter). Stored by id because button
+        // lists are rebuilt on every screen change.
+        this.focusId = null;
     }
 
     // ── Button system ──
@@ -26,7 +29,10 @@ class UIManager {
             icon: style.icon,
             status: style.status || null, // 'completed' | 'unlocked' | 'locked'
             score: style.score || 0,
-            hidden: style.hidden || false
+            hidden: style.hidden || false,
+            focusable: style.focusable !== false,
+            // Custom painter: draw(ctx, btn, highlighted)
+            draw: style.draw || null
         });
     }
 
@@ -44,11 +50,62 @@ class UIManager {
 
     clearButtons() {
         this.buttons = [];
+        this.focusId = null;
     }
 
     updateMouse(x, y) {
         this.mouseX = x;
         this.mouseY = y;
+        // The mouse takes over: drop the keyboard highlight.
+        this.focusId = null;
+    }
+
+    // ── Keyboard focus ──
+
+    _focusables() {
+        return this.buttons.filter(b => !b.hidden && !b.disabled && b.focusable);
+    }
+
+    get focused() {
+        return this._focusables().find(b => b.id === this.focusId) || null;
+    }
+
+    focus(id) {
+        if (this._focusables().some(b => b.id === id)) this.focusId = id;
+    }
+
+    /**
+     * Move focus to the nearest button in a direction
+     * ('up' | 'down' | 'left' | 'right'). With nothing focused yet, the
+     * first focusable button is picked.
+     */
+    moveFocus(dir) {
+        const list = this._focusables();
+        if (!list.length) return false;
+        const cur = this.focused;
+        if (!cur) { this.focusId = list[0].id; return true; }
+        const v = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[dir];
+        if (!v) return false;
+        let best = null, bestScore = Infinity;
+        for (const b of list) {
+            if (b === cur) continue;
+            const dx = b.x - cur.x, dy = b.y - cur.y;
+            const along = dx * v[0] + dy * v[1];
+            if (along <= 1) continue;
+            const across = Math.abs(dx * v[1] - dy * v[0]);
+            const score = along + across * 2;
+            if (score < bestScore) { bestScore = score; best = b; }
+        }
+        if (best) this.focusId = best.id;
+        return !!best;
+    }
+
+    /** Press the focused button. @returns {boolean} true if one was pressed. */
+    activateFocus() {
+        const b = this.focused;
+        if (!b) return false;
+        b.onClick();
+        return true;
     }
 
     handleClick(x, y) {
@@ -65,6 +122,7 @@ class UIManager {
     }
 
     isHovered(btn) {
+        if (this.focusId !== null && btn.id === this.focusId) return true;
         const inX = this.mouseX >= btn.x - btn.w / 2 && this.mouseX <= btn.x + btn.w / 2;
         const inY = this.mouseY >= btn.y - btn.h / 2 && this.mouseY <= btn.y + btn.h / 2;
         return inX && inY;
@@ -76,6 +134,7 @@ class UIManager {
         const ctx = this.ctx;
         for (const btn of this.buttons) {
             if (btn.hidden) continue;
+            if (btn.draw) { btn.draw(ctx, btn, !btn.disabled && this.isHovered(btn)); continue; }
             if (btn.card) { this._renderCard(btn); continue; }
             if (btn.custom === 'sound') { this._renderSoundButton(btn); continue; }
             const hovered = !btn.disabled && this.isHovered(btn);

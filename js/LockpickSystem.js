@@ -90,13 +90,15 @@ class LockpickSystem {
     }
 
     _configure() {
-        const nodeCounts = [4, 5, 5, 6, 6, 7];
+        // Revive-only tuning (docs/ACT_PLAN.md): one node fewer, slower
+        // cursor and a wider window than the old shortcut lockpick.
+        const nodeCounts = [3, 4, 4, 5, 5, 6];
         this.nodeCount = nodeCounts[this.difficulty - 1];
 
-        const speeds = [70, 90, 110, 130, 160, 200];
+        const speeds = [60, 75, 90, 105, 125, 150];
         this.cursorSpeed = speeds[this.difficulty - 1];
 
-        const tolerances = [28, 24, 20, 16, 13, 10];
+        const tolerances = [30, 27, 24, 21, 18, 16];
         this.hitTolerance = tolerances[this.difficulty - 1];
     }
 

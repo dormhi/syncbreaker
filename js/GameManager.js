@@ -15,15 +15,29 @@ class GameManager {
         this.lockpick = new LockpickSystem();
         this.levels = new LevelManager();
         this.leaderboard = new LeaderboardService();
+        // DOM overlay for operator name + password (absent in headless tests).
+        this.profileForm = (typeof document !== 'undefined' && document.createElement && typeof ProfileForm !== 'undefined')
+            ? new ProfileForm(canvas) : null;
+        this._securePromptDismissed = false;
 
-        // Challenge attempt windows (easter egg / gate)
+        // Campaign: acts, stages, gates (docs/ACT_PLAN.md)
+        this.progress = new CampaignProgress(CAMPAIGN);
+        this._stage = null;      // { actId, index } of the stage being played
+        this._actView = this.progress.currentActId();
+
+        // Challenge attempt windows (easter egg / gates)
         this.dualRingGate = new ChallengeGate('sb_dualring');
-        this.packetGate = new ChallengeGate('sb_packetpurge');
+        this._gateTrackers = {};
 
         // Hidden energy easter egg + transient hub message
         this._energyEggCell = null;
         this._hubMessage = '';
         this._hubMessageTimer = 0;
+
+        // Quiet hint line + field guide
+        this.tipBar = new TipBar();
+        this._guidePage = 0;
+        this._guideSeen = this._readFlag('sb_guide_seen');
 
         // Active generic minigame (S.MINIGAME)
         this._activeMinigame = null;
@@ -47,6 +61,7 @@ class GameManager {
 
     update(dt) {
         this.energy.update(dt);
+        this.tipBar.update(dt);
         this.bgTime += dt;
         this._updateBgParticles(dt);
         this._updateDataRain(dt);
@@ -151,9 +166,9 @@ class GameManager {
                     { text: 'The attacker is still active and spreading.', color: '#f59e0b' },
                     { text: '', color: '' },
                     { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
-                    { text: 'Access each infected node and clean the malicious data.', color: '#e2e8f0' },
-                    { text: 'Use the code breaker (lockpick) to access locked nodes.', color: '#e2e8f0' },
-                    { text: 'If you fail, you can activate the recovery protocol.', color: '#e2e8f0' },
+                    { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
+                    { text: 'Six acts stand between the attacker and full control of the system.', color: '#e2e8f0' },
+                    { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#e2e8f0' },
                     { text: '', color: '' },
                     { text: '> CAUTION: Energy resources are limited. Each operation costs charges.', color: '#f59e0b' },
                     { text: '  Do not stop until the system is fully cleansed!', color: '#64748b' },
@@ -192,20 +207,20 @@ class GameManager {
             }
         });
 
-        // ── HUB (Level Selection) ──
+        // ── HUB (Act map) ──
         this.state.register(S.HUB, {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.startAmbient();
-                this._buildHubButtons();
+                this._buildActMapButtons();
                 this._pickEnergyEggCell();
+                this.tipBar.setTips('map', TipBar.MAP);
             },
             update: (dt) => {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
-                // Migration / catch-up: if all nodes were already cleaned in a
-                // previous session, show the celebration exactly once.
-                if (this.levels.isAllCompleted() && !this.levels.congratsSeen) {
-                    this.levels._markCongratsSeen();
+                // Catch-up: a finished campaign shows the celebration once.
+                if (this.progress.isCampaignComplete() && !this.progress.congratsSeen) {
+                    this.progress.markCongratsSeen();
                     this.state.change(S.CONGRATS);
                 }
             },
@@ -213,51 +228,89 @@ class GameManager {
                 const W = this.canvas.width;
                 const H = this.canvas.height;
 
-                // Title
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '700 22px Orbitron';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'alphabetic';
-                ctx.fillText('INFECTED NODES', W / 2, 30);
+                ctx.fillText('OPERATION MAP', W / 2, 30);
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '400 13px Rajdhani';
-                ctx.fillText('Select system nodes to clean', W / 2, 48);
+                ctx.fillText('Clear every stage of an act, then breach the gate', W / 2, 48);
 
-                // Header: global node progress + divider
                 this._renderHubHeader(ctx, W);
 
-                // Energy
                 this.ui.renderEnergyBar({
                     current: this.energy.currentEnergy,
                     max: this.energy.maxEnergy,
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
 
-                // Act panels + gate node (behind the level cards)
-                this._renderHubConnections(ctx);
-                this._renderHubLockNode(ctx);
-
-                // Cards
+                this._renderActMap(ctx);
                 this.ui.renderButtons();
-
-                // Transient message (attempt limits, rewards, gate)
-                if (this._hubMessageTimer > 0 && this._hubMessage) {
-                    ctx.save();
-                    ctx.globalAlpha = Math.min(1, this._hubMessageTimer);
-                    ctx.fillStyle = '#f59e0b';
-                    ctx.font = '600 15px Rajdhani';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(this._hubMessage, W / 2, H - 52);
-                    ctx.restore();
-                }
-
-                // Footer legend chips
-                this._renderHubFooter(ctx, W, H);
+                this._renderHubMessage(ctx, W, H);
+                this.tipBar.render(ctx, W / 2, H - 20, this._inputMode(), 560);
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.MENU);
+                if (e.code === 'KeyH') this._openGuide();
+            }
+        });
+
+        // ── ACT (stage selection inside one act) ──
+        this.state.register(S.ACT, {
+            enter: (context) => {
+                this.ui.clearButtons();
+                Sound.startAmbient();
+                if (context && context.actId) this._actView = context.actId;
+                this._buildActButtons();
+                const act = this.progress.act(this._actView);
+                this.tipBar.setTips('act' + this._actView,
+                    [TipBar.ACT.common].concat((act && TipBar.ACT[act.game]) || []));
+            },
+            update: (dt) => {
+                if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
+            },
+            render: (ctx) => {
+                const W = this.canvas.width;
+                const H = this.canvas.height;
+                this.ui.renderEnergyBar({
+                    current: this.energy.currentEnergy,
+                    max: this.energy.maxEnergy,
+                    nextRegenIn: this.energy.getTimeToNextRegen()
+                });
+                this._renderActScreen(ctx);
+                this.ui.renderButtons();
+                this._renderHubMessage(ctx, W, H);
+                this.tipBar.render(ctx, W / 2, H - 35, this._inputMode(), 560);
+            },
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => {
+                if (e.code === 'Escape') this.state.change(S.HUB);
+                if (e.code === 'KeyH') this._openGuide();
+            }
+        });
+
+        // ── GUIDE (field guide, opened from the map / act screen) ──
+        this.state.register(S.GUIDE, {
+            enter: (context) => {
+                const c = context || {};
+                this._guideReturn = c.returnState || S.HUB;
+                this._guideReturnCtx = c.returnContext || null;
+                if (typeof c.page === 'number') this._guidePage = c.page;
+                if (!this._guideSeen) {
+                    this._guideSeen = true;
+                    this._writeFlag('sb_guide_seen');
+                }
+                this._buildGuideButtons();
+            },
+            render: (ctx) => this._renderGuide(ctx),
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => {
+                if (e.code === 'ArrowRight' || e.code === 'KeyD') this._setGuidePage(this._guidePage + 1);
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') this._setGuidePage(this._guidePage - 1);
+                if (e.code === 'Escape' || e.code === 'KeyH' || e.code === 'Enter') this._closeGuide();
             }
         });
 
@@ -269,13 +322,12 @@ class GameManager {
 
                 if (this.levels.levelComplete === true) {
                     this.levels.levelComplete = 'handled';
-                    this._afterNodeComplete(1200, 1500);
+                    this._onStageCleared(this.levels.score, 1500);
                 }
 
                 if (this.levels.levelFailed === true) {
                     this.levels.levelFailed = 'handled';
-                    this.state.change(S.GAME_OVER, {
-                        levelIndex: this.levels.currentLevelIndex,
+                    this._onStageFailed({
                         score: this.levels.score,
                         revivesUsed: this.levels.revivesUsed
                     });
@@ -307,7 +359,7 @@ class GameManager {
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Space') this.levels.hit(this._pendingInputOffset || 0);
-                if (e.code === 'Escape') this.state.change(S.HUB);
+                if (e.code === 'Escape') this._backToAct();
             }
         });
 
@@ -317,8 +369,7 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
                 const lCtx = context || {};
-                this._lockpickReason = lCtx.reason || 'shortcut';
-                this._lockpickLevelIndex = lCtx.levelIndex;
+                this._lockpickReason = lCtx.reason || 'revive';
                 this._lockpickScore = lCtx.score || 0;
                 // Endless revive context
                 this._lockpickEndlessCtx = {
@@ -331,13 +382,7 @@ class GameManager {
                 const diff = lCtx.difficulty || 1;
                 this.lockpick.start(diff, (success) => {
                     if (success) {
-                        if (this._lockpickReason === 'shortcut') {
-                            if (this._lockpickLevelIndex !== undefined) {
-                                this.levels.levels[this._lockpickLevelIndex].unlocked = true;
-                                this.levels._saveProgress();
-                            }
-                            this.state.change(S.HUB);
-                        } else if (this._lockpickReason === 'revive') {
+                        if (this._lockpickReason === 'revive') {
                             this.levels.lives = 1;
                             this.levels.levelFailed = false;
                             this.levels.revivesUsed = (this.levels.revivesUsed || 0) + 1;
@@ -350,8 +395,7 @@ class GameManager {
                         }
                     } else {
                         if (this._lockpickReason === 'revive') {
-                            this.state.change(S.GAME_OVER, {
-                                levelIndex: this._lockpickLevelIndex,
+                            this._onStageFailed({
                                 score: this._lockpickScore,
                                 noRevive: true
                             });
@@ -376,9 +420,7 @@ class GameManager {
                 // Title
                 const isRevive = this._lockpickReason === 'revive' || this._lockpickReason === 'endless_revive';
                 const title = isRevive ? 'RECOVERY PROTOCOL' : 'CODE BREAKER';
-                const subtitle = isRevive
-                    ? 'Break the code to restore the connection'
-                    : 'Break the security code to access the locked node';
+                const subtitle = 'Break the code to restore the connection';
                 ctx.fillStyle = '#f59e0b';
                 ctx.font = '700 22px Orbitron';
                 ctx.textAlign = 'center';
@@ -481,7 +523,11 @@ class GameManager {
             },
             exit: () => { this.ui.clearButtons(); this._activeMinigame = null; },
             onKey: (e) => {
-                if (e.code === 'Escape') { this.state.change(S.HUB); return; }
+                if (e.code === 'Escape') {
+                    if ((this._mgConfig || {}).stage) this._backToAct();
+                    else this.state.change(S.HUB);
+                    return;
+                }
                 const m = this._activeMinigame;
                 if (!m) return;
                 const offset = this._pendingInputOffset || 0;
@@ -501,7 +547,7 @@ class GameManager {
                 const lCtx = context || {};
 
                 this._goScore = lCtx.score || 0;
-                this._goLevelIndex = lCtx.levelIndex;
+                this._goStage = lCtx.stage || this._stage;
                 this._noRevive = lCtx.noRevive || false;
                 this._revivesUsed = lCtx.revivesUsed || 0;
                 this._goMessage = lCtx.message || null;
@@ -511,16 +557,17 @@ class GameManager {
                 const maxRevives = this.levels.maxRevives || 2;
                 const revivesLeft = Math.max(0, maxRevives - this._revivesUsed);
 
-                // Revive button: energy available AND recovery charges remain
-                if (!this._noRevive && revivesLeft > 0 && this.energy.canAfford('REVIVE')) {
-                    const level = this.levels.levels[this._goLevelIndex];
+                // Revive button: only for continuous games, energy available
+                // AND recovery charges remain. Lockpick difficulty = act number.
+                const goAct = this._goStage ? this.progress.act(this._goStage.actId) : null;
+                const game = goAct ? GameRegistry.get(goAct.game) : null;
+                if (!this._noRevive && game && game.revive && revivesLeft > 0 && this.energy.canAfford('REVIVE')) {
                     this.ui.addButton('revive', `🔄 TRY RECOVERY PROTOCOL (1⚡) · ${revivesLeft} left`, cx, cy + 30, 320, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
                                 this.state.change(S.LOCKPICK, {
                                     reason: 'revive',
-                                    difficulty: level ? level.lockpickDiff : 1,
-                                    levelIndex: this._goLevelIndex,
+                                    difficulty: goAct.id,
                                     score: this._goScore
                                 });
                             }
@@ -536,9 +583,9 @@ class GameManager {
                 );
                 this._updateRetryButton();
 
-                // Back to hub
-                this.ui.addButton('hub', '← NODE SELECT', cx, cy + 135, 200, 40,
-                    () => this.state.change(S.HUB),
+                // Back to the act's stage list
+                this.ui.addButton('hub', '← ACT', cx, cy + 135, 200, 40,
+                    () => this._backToAct(),
                     { color: '#64748b' }
                 );
             },
@@ -588,7 +635,7 @@ class GameManager {
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Space') this._restartFromGameOver();
-                if (e.code === 'Escape') this.state.change(S.HUB);
+                if (e.code === 'Escape') this._backToAct();
             }
         });
 
@@ -760,7 +807,7 @@ class GameManager {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
-                if (this.levels && this.levels._markCongratsSeen) this.levels._markCongratsSeen();
+                this.progress.markCongratsSeen();
                 const cx = this.canvas.width / 2;
                 const cy = this.canvas.height / 2;
                 this.ui.addButton('congrats-continue', '▶  CONTINUE', cx, cy + 240, 260, 46,
@@ -776,48 +823,40 @@ class GameManager {
             }
         });
 
-        // ── PROFILE SETUP ──
+        // ── PROFILE SETUP (operator name + password, DOM overlay) ──
         this.state.register(S.PROFILE_SETUP, {
             enter: (context) => {
                 this.ui.clearButtons();
                 const lCtx = context || {};
                 this._profileReturnState = lCtx.returnState || S.HUB;
-                this._profileName = '';
+                this._profileMode = lCtx.mode || null;
                 this._profileStatus = 'Connecting to leaderboard...';
-                this._profileSubmitting = false;
-                const cx = this.canvas.width / 2;
-                const cy = this.canvas.height / 2;
-
-                this.ui.addButton('profile-submit', 'CREATE OPERATOR', cx, cy + 95, 220, 42,
-                    () => this._submitProfileName(), { color: '#f59e0b' });
-                this.ui.addButton('profile-mobile-name', 'ENTER NAME', cx, cy + 145, 180, 36,
-                    () => {
-                        const entered = window.prompt('Choose a unique operator name (3–16 characters):', this._profileName);
-                        if (entered !== null) this._profileName = entered.trim().slice(0, 16);
-                    }, { color: '#3b82f6' });
-                this.ui.addButton('profile-skip', '← BACK', cx, cy + 195, 160, 36,
-                    () => this.state.change(this._profileReturnState), { color: '#64748b' });
 
                 if (!this.leaderboard.isConfigured()) {
                     this._profileStatus = 'Leaderboard is not configured yet.';
+                    this._addProfileBackButton();
                     return;
                 }
                 this.leaderboard.initialize().then((profile) => {
                     if (this.state.currentState !== S.PROFILE_SETUP) return;
-                    if (profile) {
+                    if (profile && !this.leaderboard.needsPassword()) {
                         this.state.change(this._profileReturnState);
-                    } else {
-                        this._profileStatus = 'Choose your unique operator name.';
+                        return;
                     }
+                    this._profileStatus = '';
+                    this._openProfileForm(profile ? 'secure' : (this._profileMode || 'create'));
                 }).catch(() => {
-                    if (this.state.currentState === S.PROFILE_SETUP) {
-                        this._profileStatus = 'Offline: choose a name and retry when connected.';
-                    }
+                    if (this.state.currentState !== S.PROFILE_SETUP) return;
+                    this._profileStatus = 'Offline: connect to the internet and try again.';
+                    this._addProfileBackButton();
                 });
             },
             render: (ctx) => this._renderProfileSetup(ctx),
-            exit: () => this.ui.clearButtons(),
-            onKey: (e) => this._handleProfileKey(e)
+            exit: () => {
+                this.ui.clearButtons();
+                if (this.profileForm) this.profileForm.close();
+            },
+            onKey: (e) => { if (e.code === 'Escape') this.state.change(this._profileReturnState); }
         });
 
         // ── LEADERBOARD ──
@@ -837,7 +876,9 @@ class GameManager {
                 this.leaderboard.initialize().then((profile) => {
                     if (this.state.currentState !== S.LEADERBOARD) return;
                     if (!profile) this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD });
-                    else this._loadLeaderboard();
+                    else if (this.leaderboard.needsPassword() && !this._securePromptDismissed) {
+                        this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD, mode: 'secure' });
+                    } else this._loadLeaderboard();
                 }).catch(() => {
                     if (this.state.currentState === S.LEADERBOARD) {
                         this._leaderboardStatus = 'Leaderboard unavailable. Check your connection.';
@@ -854,72 +895,59 @@ class GameManager {
         if (menuH) menuH.enter();
     }
 
-    async _submitProfileName() {
-        if (this._profileSubmitting) return;
-        if (!this.leaderboard.isConfigured()) {
-            this._profileStatus = 'Leaderboard is not configured yet.';
-            return;
-        }
-        this._profileSubmitting = true;
-        this._profileStatus = 'Creating operator profile...';
-        try {
-            await this.leaderboard.createProfile(this._profileName);
-            this.state.change(this._profileReturnState);
-        } catch (error) {
-            const message = error && error.message ? error.message : 'Unable to create profile.';
-            this._profileStatus = /duplicate|unique/i.test(message)
-                ? 'That operator name is already taken.'
-                : message;
-        } finally {
-            this._profileSubmitting = false;
-        }
+    _addProfileBackButton() {
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
+        this.ui.addButton('profile-back', '← BACK', cx, cy + 60, 160, 40,
+            () => this.state.change(this._profileReturnState), { color: '#64748b' });
     }
 
-    _handleProfileKey(e) {
-        if (e.code === 'Escape') {
-            this.state.change(this._profileReturnState);
-            return;
+    _openProfileForm(mode) {
+        if (!this.profileForm) return;
+        const S = this.state.STATES;
+        this.profileForm.open(mode, {
+            onSubmit: (m, v) => this._submitProfileForm(m, v),
+            onCancel: () => {
+                // "Later" on the password prompt: don't nag again this session.
+                if (mode === 'secure') this._securePromptDismissed = true;
+                this.state.change(this._profileReturnState || S.HUB);
+            }
+        });
+    }
+
+    /** @returns {Promise<string|null>} error to show, or null on success. */
+    async _submitProfileForm(mode, values) {
+        try {
+            if (mode === 'create') {
+                await this.leaderboard.createProfile(values.name, values.password);
+            } else if (mode === 'signin') {
+                const profile = await this.leaderboard.signIn(values.name, values.password);
+                if (!profile) return 'Name or password is incorrect.';
+            } else {
+                await this.leaderboard.setPassword(values.password);
+            }
+        } catch (error) {
+            return LeaderboardService.friendlyError(error, 'Something went wrong. Try again.');
         }
-        if (e.code === 'Enter') {
-            this._submitProfileName();
-            return;
-        }
-        if (e.code === 'Backspace') {
-            this._profileName = this._profileName.slice(0, -1);
-            return;
-        }
-        if (e.key && /^[A-Za-z0-9_ -]$/.test(e.key) && this._profileName.length < 16) {
-            this._profileName += e.key;
-        }
+        if (this.profileForm) this.profileForm.close();
+        this.state.change(this._profileReturnState);
+        return null;
     }
 
     _renderProfileSetup(ctx) {
         const W = this.canvas.width;
         const H = this.canvas.height;
         const cx = W / 2;
-        const cy = H / 2;
         ctx.save();
         ctx.fillStyle = '#f59e0b';
         ctx.font = '700 24px Orbitron';
         ctx.textAlign = 'center';
-        ctx.fillText('OPERATOR PROFILE', cx, cy - 125);
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '400 15px Rajdhani';
-        ctx.fillText('Choose a unique name for the Endless leaderboard', cx, cy - 95);
-        ctx.fillStyle = 'rgba(15,23,42,0.85)';
-        ctx.strokeStyle = '#f59e0b';
-        Utils.roundRect(ctx, cx - 180, cy - 55, 360, 52, 6);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = this._profileName ? '#e2e8f0' : '#64748b';
-        ctx.font = '600 22px Rajdhani';
-        ctx.fillText(this._profileName || 'TYPE YOUR NAME', cx, cy - 22);
-        ctx.fillStyle = '#64748b';
-        ctx.font = '400 12px Rajdhani';
-        ctx.fillText(`${this._profileName.length}/16  •  letters, numbers, spaces, _ or -`, cx, cy + 23);
-        ctx.fillStyle = this._profileStatus.includes('taken') || this._profileStatus.includes('not configured') ? '#ef4444' : '#94a3b8';
-        ctx.font = '400 14px Rajdhani';
-        ctx.fillText(this._profileStatus, cx, cy + 48);
+        ctx.fillText('OPERATOR PROFILE', cx, H / 2 - 40);
+        if (this._profileStatus) {
+            ctx.fillStyle = /not configured|Offline/.test(this._profileStatus) ? '#ef4444' : '#94a3b8';
+            ctx.font = '400 15px Rajdhani';
+            ctx.fillText(this._profileStatus, cx, H / 2);
+        }
         ctx.restore();
         this.ui.renderButtons();
     }
@@ -1051,13 +1079,13 @@ class GameManager {
 
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '600 14px Rajdhani';
-        ctx.fillText('ALL 6 NODES CLEANED — THE CYBER ATTACK IS REPELLED', cx, py + 86);
+        ctx.fillText('ALL 6 ACTS COMPLETE — THE CYBER ATTACK IS REPELLED', cx, py + 86);
 
         // Story body
         const lines = [
             'Congratulations, Operator. You held the line.',
-            'Every infected node is clean, the backdoors are sealed,',
-            'credentials are reset and the firewall stands strong.',
+            'The malware is purged, the firewall stands, the ports are sealed,',
+            'credentials are reset and the attacker is cut off.',
             '',
             'You defended the system — and earned ENDLESS MODE.',
         ];
@@ -1089,7 +1117,7 @@ class GameManager {
         ctx.fillText('on the online leaderboard — play as long as you like.', cx, by + 70);
 
         // Total best score
-        const totalBest = this.levels.levels.reduce((sum, l) => sum + (l.bestScore || 0), 0);
+        const totalBest = this._totalBest();
         ctx.fillStyle = '#64748b';
         ctx.font = '500 13px Rajdhani';
         ctx.fillText(`TOTAL BEST SCORE  ${totalBest}`, cx, py + ph - 24);
@@ -1099,115 +1127,93 @@ class GameManager {
         this.ui.renderButtons();
     }
 
-    // ── HUB Buttons ──
+    // ── Act map (HUB) ──
 
-    /** Single source of truth for the HUB layout (prevents overlap drift). */
-    _hubLayout() {
+    /** Single source of truth for the act map geometry (snake layout). */
+    _actMapLayout() {
         const W = this.canvas.width;
-        const cols = 3;
-        const cardW = 280;
-        const cardH = 104;
-        const gapX = 16;
-        const totalW = cols * cardW + (cols - 1) * gapX;
-        const left = (W - totalW) / 2 - 18;
-        const panelW = totalW + 36;
-        const startX = (W - totalW) / 2 + cardW / 2;
-        const row1Y = 164;
-        const row2Y = 372;
-        const headH = 30;
-        const panel1Top = row1Y - cardH / 2 - headH;
-        const panel1H = cardH + headH;
-        const panel2Top = row2Y - cardH / 2 - headH;
-        const panel2H = cardH + headH;
-        const lockY = (panel1Top + panel1H + panel2Top) / 2;
-        return {
-            W, cols, cardW, cardH, gapX, totalW, left, panelW, startX,
-            row1Y, row2Y, headH, panel1Top, panel1H, panel2Top, panel2H, lockY
-        };
+        const cardW = 250, cardH = 128, gapX = 64;
+        const totalW = 3 * cardW + 2 * gapX;
+        const left = (W - totalW) / 2;
+        const colX = [0, 1, 2].map(c => left + cardW / 2 + c * (cardW + gapX));
+        const rowY = [160, 352];
+        // Row 1 runs 1 -> 3, row 2 runs back 4 -> 6 so the gates form a path.
+        const slots = [
+            [colX[0], rowY[0]], [colX[1], rowY[0]], [colX[2], rowY[0]],
+            [colX[2], rowY[1]], [colX[1], rowY[1]], [colX[0], rowY[1]]
+        ];
+        const gates = [];
+        for (let i = 0; i < 5; i++) {
+            const [ax, ay] = slots[i], [bx, by] = slots[i + 1];
+            gates.push([(ax + bx) / 2, (ay + by) / 2]);
+        }
+        return { W, cardW, cardH, slots, gates, endlessY: 462 };
     }
 
-    _buildHubButtons() {
+    /** 'complete' | 'active' | 'locked' | 'dev' */
+    _actStatus(actId) {
+        if (!this.progress.isActAvailable(actId)) return 'dev';
+        if (this.progress.isActComplete(actId)) return 'complete';
+        if (this.progress.isActUnlocked(actId)) return 'active';
+        return 'locked';
+    }
+
+    _buildActMapButtons() {
         const W = this.canvas.width;
         const H = this.canvas.height;
-        const levels = this.levels.levels;
-        const L = this._hubLayout();
-        const { cols, cardW, cardH, gapX, startX, row1Y, row2Y } = L;
-        this._hubLockY = L.lockY;
-        const group2 = this.levels.isGroup2Unlocked();
+        const L = this._actMapLayout();
 
-        this._hubPositions = [];
-
-        for (let i = 0; i < levels.length; i++) {
-            const level = levels[i];
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const x = startX + col * (cardW + gapX);
-            const y = row === 0 ? row1Y : row2Y;
-
-            this._hubPositions.push({ x, y, w: cardW, h: cardH, level, row });
-
-            let status = level.completed ? 'completed' : (level.unlocked ? 'unlocked' : 'locked');
-            if (i >= 3 && !group2) status = 'locked';
-
-            if (status === 'locked' && i <= 2) {
-                // ACT I locked nodes can be skipped with the Code Breaker.
-                this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
-                    () => this._tryShortcutUnlock(i),
-                    { color: '#475569', subtitle: level.desc, card: true, icon: level.id, status: 'locked' });
-            } else if (status === 'locked') {
-                // ACT II: no shortcut. Locked either by the gate or by the
-                // previous node not being completed yet.
-                const lockMsg = !group2
-                    ? 'Breach the lock between the acts first'
-                    : 'Complete the previous node first';
-                this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
-                    () => {
-                        this._hubMessage = lockMsg;
+        this.progress.acts.forEach((act, i) => {
+            const [x, y] = L.slots[i];
+            const status = this._actStatus(act.id);
+            this.ui.addButton(`act${act.id}`, act.key, x, y, L.cardW, L.cardH,
+                () => {
+                    if (status === 'dev') {
+                        this._hubMessage = `ACT ${act.id} is in development`;
                         this._hubMessageTimer = 2.5;
-                    },
-                    { color: '#334155', subtitle: level.desc, card: true, icon: level.id, status: 'locked', disabled: true });
-            } else {
-                const color = level.completed ? '#22c55e' : '#3b82f6';
-                this.ui.addButton(`lvl${i}`, level.name, x, y, cardW, cardH,
-                    () => this._startNode(i),
-                    { color, subtitle: level.desc, card: true, icon: level.id, status, score: level.bestScore });
-            }
-        }
+                    } else if (status === 'locked') {
+                        this._hubMessage = `Breach gate ${act.id - 1} to reach ACT ${act.id}`;
+                        this._hubMessageTimer = 2.5;
+                    } else {
+                        this.state.change(this.state.STATES.ACT, { actId: act.id });
+                    }
+                },
+                { draw: (ctx, btn, hovered) => this._drawActCard(ctx, btn, hovered, act, status) });
+        });
 
-        // ACT II gate node (drawn manually, hidden clickable button)
-        if (!group2) {
-            this.ui.addButton('packet-purge', '', W / 2, this._hubLockY, 64, 64,
-                () => this._tryStartPacketPurge(),
-                { hidden: true });
-        }
+        // Gate nodes between acts (44 px tap targets).
+        L.gates.forEach(([x, y], i) => {
+            const n = i + 1;
+            this.ui.addButton(`gate${n}`, '', x, y, 44, 44,
+                () => this._tryStartGate(n),
+                { draw: (ctx, btn, hovered) => this._drawGateNode(ctx, btn, hovered, n) });
+        });
 
-        // Endless Mode button (below ACT II)
-        const allDone = this.levels.isAllCompleted();
-        const endlessY = 458;
-        if (allDone) {
+        // Endless Mode (after ACT 6; kept for players who already had it)
+        if (this.progress.isEndlessUnlocked()) {
             const bestScore = this.levels._loadEndlessBest();
             const endlessSubtitle = bestScore > 0 ? `Best: ${bestScore}` : 'Unlimited challenge, unlimited fun';
-            this.ui.addButton('endless', '∞ ENDLESS MODE', W / 2, endlessY, 240, 46,
+            this.ui.addButton('endless', '∞ ENDLESS MODE', W / 2 - 125, L.endlessY, 230, 46,
                 () => this.state.change(this.state.STATES.ENDLESS),
-                { color: '#f59e0b', subtitle: endlessSubtitle }
-            );
-            this.ui.addButton('leaderboard', '🏆 LEADERBOARD', W / 2, endlessY + 54, 220, 36,
+                { color: '#f59e0b', subtitle: endlessSubtitle });
+            this.ui.addButton('leaderboard', '🏆 LEADERBOARD', W / 2 + 125, L.endlessY, 230, 46,
                 () => this.state.change(this.state.STATES.LEADERBOARD),
-                { color: '#f59e0b' }
-            );
+                { color: '#f59e0b' });
         } else {
-            const remaining = this.levels.levels.filter(l => !l.completed).length;
-            this.ui.addButton('endless', `🔒 ENDLESS MODE`, W / 2, endlessY, 240, 46,
+            this.ui.addButton('endless', '🔒 ENDLESS MODE', W / 2, L.endlessY, 240, 46,
                 () => { },
-                { color: '#475569', disabled: true, subtitle: `${remaining} nodes remaining` }
-            );
+                { color: '#475569', disabled: true, subtitle: `Complete ACT ${CAMPAIGN.finalAct} to unlock` });
         }
 
-        // Back to menu
+        this._addHubChrome(W, H);
+        this.ui.focus(`act${this.progress.currentActId()}`);
+    }
+
+    /** Menu, sound and reset buttons shared by the map. */
+    _addHubChrome(W, H) {
         this.ui.addButton('menu', '← MENU', 70, H - 35, 100, 32,
             () => this.state.change(this.state.STATES.MENU),
-            { color: '#475569' }
-        );
+            { color: '#475569' });
 
         // Sound toggle (top-left, away from the footer text)
         this.ui.addButton('sound', '', 36, 30, 44, 30,
@@ -1216,29 +1222,181 @@ class GameManager {
                 this._updateSoundButton();
                 if (!Sound.isMuted()) Sound.startAmbient();
             },
-            { color: '#475569', custom: 'sound' }
-        );
+            { color: '#475569', custom: 'sound' });
         this._updateSoundButton();
+        this._addGuideButton();
 
-        // Reset Data
         this.ui.addButton('reset', '🗑 RESET', W - 75, H - 35, 110, 32,
             () => {
                 if (window.confirm('Are you sure you want to delete all data and start fresh?')) {
-                    ['sb_progress', 'sb_energy', 'sb_congrats_seen',
-                        'sb_group2_unlocked', 'sb_dualring', 'sb_packetpurge']
+                    ['sb_progress', 'sb_energy', 'sb_congrats_seen', 'sb_group2_unlocked',
+                        'sb_dualring', 'sb_packetpurge', CampaignProgress.KEY, 'sb_guide_seen',
+                        'sb_gate_2', 'sb_gate_3', 'sb_gate_4', 'sb_gate_5']
                         .forEach(k => localStorage.removeItem(k));
                     window.location.href = window.location.href;
                 }
             },
-            { color: '#ef4444' }
-        );
+            { color: '#ef4444' });
     }
 
-    /** Header: a 6-segment node-cleansing progress bar + divider. */
+    _drawActCard(ctx, btn, hovered, act, status) {
+        const theme = getLevelTheme(act.themeId);
+        const left = btn.x - btn.w / 2;
+        const top = btn.y - btn.h / 2;
+        const w = btn.w, h = btn.h;
+        const dim = status === 'locked' || status === 'dev';
+        const color = status === 'complete' ? '#22c55e' : dim ? '#475569' : theme.zoneColor;
+
+        ctx.save();
+        ctx.globalAlpha = dim ? 0.7 : 1;
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = hovered ? 2 : 1.2;
+        if (status === 'dev') ctx.setLineDash([6, 6]);
+        if (hovered && !dim) { ctx.shadowColor = color; ctx.shadowBlur = 14; }
+        Utils.roundRect(ctx, left, top, w, h, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.shadowBlur = 0;
+
+        // Icon badge
+        const ix = left + 34, iy = top + 36;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(ix, iy, 19, 0, Math.PI * 2); ctx.stroke();
+        ctx.save();
+        ctx.translate(ix, iy);
+        LevelIcons.draw(ctx, act.themeId, 20, color);
+        ctx.restore();
+
+        // Text
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(left + 4, top + 2, w - 8, h - 4);
+        ctx.clip();
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = color;
+        ctx.font = '700 11px Orbitron';
+        ctx.fillText(`ACT ${act.id}`, left + 62, top + 28);
+        ctx.fillStyle = dim ? '#64748b' : '#e2e8f0';
+        ctx.font = '600 14px Orbitron';
+        ctx.fillText(this.ui._fitText(act.key, w - 74), left + 62, top + 48);
+
+        // Story: wrapped to at most two lines
+        ctx.fillStyle = '#64748b';
+        ctx.font = '400 12px Rajdhani';
+        const lines = this._wrapText(ctx, act.story, w - 28, 2);
+        lines.forEach((line, k) => ctx.fillText(line, left + 14, top + 72 + k * 15));
+
+        // Footer: stage pips or development note
+        const fy = top + h - 20;
+        if (status === 'dev') {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '600 12px Rajdhani';
+            ctx.fillText('⚙ IN DEVELOPMENT', left + 14, fy + 4);
+        } else {
+            const n = act.stages.length;
+            const done = this.progress.stagesDone(act.id);
+            for (let i = 0; i < n; i++) {
+                ctx.beginPath();
+                ctx.arc(left + 20 + i * 16, fy, 5, 0, Math.PI * 2);
+                ctx.fillStyle = i < done ? color : 'rgba(71,85,105,0.45)';
+                ctx.fill();
+            }
+            const label = status === 'complete' ? 'COMPLETE'
+                : status === 'locked' ? 'LOCKED' : `${done}/${n} STAGES`;
+            ctx.textAlign = 'right';
+            ctx.fillStyle = status === 'complete' ? '#22c55e' : status === 'locked' ? '#94a3b8' : '#3b82f6';
+            ctx.font = '600 12px Rajdhani';
+            ctx.fillText(label, left + w - 14, fy + 4);
+        }
+        ctx.restore();
+        ctx.restore();
+    }
+
+    /** Greedy word wrap; the last allowed line is ellipsised if needed. */
+    _wrapText(ctx, text, maxW, maxLines) {
+        const width = (t) => {
+            const m = ctx.measureText(t);
+            return (m && typeof m.width === 'number' && isFinite(m.width)) ? m.width : t.length * 6;
+        };
+        const words = String(text).split(' ');
+        const lines = [];
+        let i = 0;
+        while (i < words.length && lines.length < maxLines) {
+            let line = words[i++];
+            while (i < words.length && width(line + ' ' + words[i]) <= maxW) line += ' ' + words[i++];
+            if (lines.length === maxLines - 1 && i < words.length) {
+                line = this.ui._fitText(line + ' ' + words.slice(i).join(' '), maxW);
+                i = words.length;
+            }
+            lines.push(line);
+        }
+        return lines;
+    }
+
+    _drawGateNode(ctx, btn, hovered, n) {
+        const open = this.progress.isGateOpen(n);
+        const playable = this.progress.isGatePlayable(n);
+        const color = open ? '#22c55e' : playable ? '#f59e0b' : '#475569';
+        const x = btn.x, y = btn.y, r = 16;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(15,23,42,0.96)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = hovered ? 2.5 : 2;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 2;
+        if (open) {
+            ctx.beginPath();
+            ctx.moveTo(x - 7, y);
+            ctx.lineTo(x - 2, y + 6);
+            ctx.lineTo(x + 7, y - 6);
+            ctx.stroke();
+        } else {
+            Utils.roundRect(ctx, x - 7, y - 2, 14, 10, 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x, y - 2, 4, Math.PI, 0, false);
+            ctx.stroke();
+        }
+        if (playable) {
+            const pulse = 0.5 + 0.5 * Math.sin((this.bgTime || 0) * 3);
+            ctx.globalAlpha = 0.12 + 0.28 * (1 - pulse);
+            ctx.beginPath();
+            ctx.arc(x, y, r + pulse * 8, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    /** Connectors behind the cards and gates. */
+    _renderActMap(ctx) {
+        const L = this._actMapLayout();
+        ctx.save();
+        for (let i = 0; i < 5; i++) {
+            const [ax, ay] = L.slots[i], [bx, by] = L.slots[i + 1];
+            ctx.strokeStyle = this.progress.isGateOpen(i + 1) ? 'rgba(34,197,94,0.45)' : 'rgba(71,85,105,0.45)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 6]);
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(bx, by);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.restore();
+    }
+
+    /** Header: one segment per act + divider. */
     _renderHubHeader(ctx, W) {
-        const levels = this.levels.levels;
-        const n = levels.length;
-        const done = levels.filter(l => l.completed).length;
+        const acts = this.progress.acts;
+        const n = acts.length;
+        const done = acts.filter(a => this.progress.isActComplete(a.id)).length;
 
         const segW = 26, gap = 4, barH = 6, y = 58;
         const totalW = n * segW + (n - 1) * gap;
@@ -1255,9 +1413,8 @@ class GameManager {
         ctx.font = '600 12px Rajdhani';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${done}/${n}`, W / 2 + totalW / 2 + 10, y + barH / 2);
+        ctx.fillText(`${done}/${n} ACTS`, W / 2 + totalW / 2 + 10, y + barH / 2);
 
-        // Divider under the header
         ctx.strokeStyle = 'rgba(71,85,105,0.25)';
         ctx.lineWidth = 1;
         ctx.beginPath();
@@ -1268,177 +1425,336 @@ class GameManager {
         ctx.textBaseline = 'alphabetic';
     }
 
-    /** Footer: compact legend chips instead of a long sentence. */
-    _renderHubFooter(ctx, W, H) {
-        const chips = [
-            { text: 'ACT I SKIP · 2⚡', color: '#3b82f6' },
-            { text: 'GATE · PACKET PURGE', color: '#f59e0b' }
-        ];
-        const padX = 12, h = 20, gap = 12, y = H - 20;
-
+    _renderHubMessage(ctx, W, H) {
+        if (!(this._hubMessageTimer > 0) || !this._hubMessage) return;
         ctx.save();
-        ctx.font = '600 11px Rajdhani';
-        ctx.textBaseline = 'middle';
+        ctx.globalAlpha = Math.min(1, this._hubMessageTimer);
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '600 15px Rajdhani';
         ctx.textAlign = 'center';
-
-        const widths = chips.map(c => {
-            const m = ctx.measureText(c.text);
-            const tw = (m && typeof m.width === 'number' && isFinite(m.width)) ? m.width : 90;
-            return tw + padX * 2;
-        });
-        const totalW = widths.reduce((a, b) => a + b, 0) + gap * (chips.length - 1);
-        let x = W / 2 - totalW / 2;
-
-        chips.forEach((c, i) => {
-            const w = widths[i];
-            ctx.fillStyle = 'rgba(15,23,42,0.6)';
-            ctx.strokeStyle = c.color;
-            ctx.globalAlpha = 0.85;
-            ctx.lineWidth = 1;
-            Utils.roundRect(ctx, x, y - h / 2, w, h, 10);
-            ctx.fill();
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = c.color;
-            ctx.fillText(c.text, x + w / 2, y + 1);
-            x += w + gap;
-        });
-
+        ctx.fillText(this._hubMessage, W / 2, H - 52);
         ctx.restore();
     }
 
-    _renderHubConnections(ctx) {
-        const L = this._hubLayout();
-        const { W, left, panelW, panel1Top, panel1H, panel2Top, panel2H, lockY } = L;
-        const gateR = 20;
+    // ── Field guide ──
+
+    _inputMode() {
+        return (this.input && this.input.mode) || 'desktop';
+    }
+
+    _readFlag(key) {
+        try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+    }
+
+    _writeFlag(key) {
+        try { localStorage.setItem(key, '1'); } catch (e) { }
+    }
+
+    /** Small "?" next to the sound toggle; a soft dot until first opened. */
+    _addGuideButton() {
+        this.ui.addButton('guide', '', 88, 30, 44, 30,
+            () => this._openGuide(),
+            { draw: (ctx, btn, hovered) => this._drawGuideButton(ctx, btn, hovered) });
+    }
+
+    _drawGuideButton(ctx, btn, hovered) {
+        const left = btn.x - btn.w / 2, top = btn.y - btn.h / 2;
+        ctx.save();
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.85)' : 'rgba(15,23,42,0.55)';
+        ctx.strokeStyle = hovered ? 'rgba(148,163,184,0.6)' : 'rgba(100,116,139,0.35)';
+        ctx.lineWidth = 1;
+        Utils.roundRect(ctx, left, top, btn.w, btn.h, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 15px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', btn.x, btn.y + 1);
+        if (!this._guideSeen) {
+            const pulse = 0.5 + 0.5 * Math.sin((this.bgTime || 0) * 3);
+            ctx.globalAlpha = 0.55 + 0.45 * pulse;
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(left + btn.w - 5, top + 5, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    _openGuide(page) {
+        const S = this.state.STATES;
+        const from = this.state.currentState;
+        this.state.change(S.GUIDE, {
+            returnState: from === S.ACT ? S.ACT : S.HUB,
+            returnContext: from === S.ACT ? { actId: this._actView } : null,
+            page
+        });
+    }
+
+    _closeGuide() {
+        this.state.change(this._guideReturn || this.state.STATES.HUB, this._guideReturnCtx);
+    }
+
+    _setGuidePage(i) {
+        const n = GameManager.GUIDE_PAGES.length;
+        this._guidePage = (i + n) % n;
+        this.ui.clearButtons();
+        this._buildGuideButtons();
+    }
+
+    _guideLayout() {
+        const W = this.canvas.width;
+        return { x: W / 2 - 380, y: 62, w: 760, h: 530 };
+    }
+
+    _buildGuideButtons() {
+        const W = this.canvas.width;
+        const L = this._guideLayout();
+        const pages = GameManager.GUIDE_PAGES;
+        const tabW = 160, gap = 10;
+        const x0 = W / 2 - (pages.length * tabW + (pages.length - 1) * gap) / 2 + tabW / 2;
+        pages.forEach((p, i) => {
+            this.ui.addButton(`guide-tab${i}`, p.title, x0 + i * (tabW + gap), L.y + 78, tabW, 34,
+                () => this._setGuidePage(i),
+                { color: i === this._guidePage ? '#f59e0b' : '#475569' });
+        });
+        const by = L.y + L.h - 34;
+        this.ui.addButton('guide-prev', '‹ PREV', W / 2 - 170, by, 140, 40,
+            () => this._setGuidePage(this._guidePage - 1), { color: '#475569' });
+        this.ui.addButton('guide-close', 'CLOSE', W / 2, by, 140, 40,
+            () => this._closeGuide(), { color: '#3b82f6' });
+        this.ui.addButton('guide-next', 'NEXT ›', W / 2 + 170, by, 140, 40,
+            () => this._setGuidePage(this._guidePage + 1), { color: '#475569' });
+        this.ui.focus('guide-close');
+    }
+
+    _renderGuide(ctx) {
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const L = this._guideLayout();
+        const page = GameManager.GUIDE_PAGES[this._guidePage];
+        const touch = this._inputMode() === 'touch';
 
         ctx.save();
-
-        // Act panels
-        const drawPanel = (top, h, color) => {
-            ctx.fillStyle = 'rgba(15,23,42,0.45)';
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1;
-            Utils.roundRect(ctx, left, top, panelW, h, 12);
-            ctx.fill();
-            ctx.stroke();
-        };
-        drawPanel(panel1Top, panel1H, 'rgba(59,130,246,0.25)');
-        drawPanel(panel2Top, panel2H, 'rgba(245,158,11,0.25)');
-
-        // Act headers with per-act progress
-        const actDone = [
-            this.levels.levels.slice(0, 3).filter(l => l.completed).length,
-            this.levels.levels.slice(3, 6).filter(l => l.completed).length
-        ];
-        const drawHeader = (top, label, color, done) => {
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'alphabetic';
-            ctx.fillStyle = color;
-            ctx.font = '700 12px Orbitron';
-            ctx.fillText(label, left + 16, top + 16);
-
-            ctx.textAlign = 'right';
-            ctx.fillStyle = '#64748b';
-            ctx.font = '600 11px Rajdhani';
-            ctx.fillText(`${done}/3`, left + panelW - 16, top + 16);
-
-            const bx = left + 16, bw = panelW - 32, by = top + 22;
-            ctx.fillStyle = 'rgba(71,85,105,0.3)';
-            Utils.roundRect(ctx, bx, by, bw, 3, 2);
-            ctx.fill();
-            if (done > 0) {
-                ctx.fillStyle = color;
-                Utils.roundRect(ctx, bx, by, bw * (done / 3), 3, 2);
-                ctx.fill();
-            }
-            ctx.textAlign = 'left';
-        };
-        drawHeader(panel1Top, 'ACT I  ·  SYSTEM BREACH', '#3b82f6', actDone[0]);
-        drawHeader(panel2Top, 'ACT II  ·  DEEP INCURSION', '#f59e0b', actDone[1]);
-
-        // Connector to the gate
-        ctx.strokeStyle = 'rgba(71,85,105,0.5)';
+        ctx.fillStyle = 'rgba(6,10,18,0.78)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = 'rgba(12,18,30,0.97)';
+        ctx.strokeStyle = 'rgba(59,130,246,0.45)';
         ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(W / 2, panel1Top + panel1H);
-        ctx.lineTo(W / 2, lockY - gateR);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(W / 2, lockY + gateR);
-        ctx.lineTo(W / 2, panel2Top);
-        ctx.stroke();
-
-        ctx.restore();
-    }
-
-    _renderHubLockNode(ctx) {
-        const L = this._hubLayout();
-        const x = L.W / 2;
-        const y = L.lockY;
-        const r = 20;
-        const unlocked = this.levels.isGroup2Unlocked();
-        const color = unlocked ? '#22c55e' : '#f59e0b';
-
-        ctx.save();
-        // Node
-        ctx.fillStyle = 'rgba(15,23,42,0.96)';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
+        Utils.roundRect(ctx, L.x, L.y, L.w, L.h, 12);
         ctx.fill();
         ctx.stroke();
 
-        // Lock / check glyph
-        ctx.strokeStyle = color;
-        ctx.fillStyle = color;
-        ctx.lineWidth = 2;
-        if (unlocked) {
-            ctx.beginPath();
-            ctx.moveTo(x - 8, y);
-            ctx.lineTo(x - 2, y + 7);
-            ctx.lineTo(x + 9, y - 7);
-            ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '700 22px Orbitron';
+        ctx.fillText('FIELD GUIDE', W / 2, L.y + 42);
+
+        const left = L.x + 48, maxW = L.w - 96;
+        let y = L.y + 138;
+        if (page.table) {
+            // Controls: one row per action, desktop vs touch side by side.
+            const colA = left + 210, colB = left + 470;
+            ctx.textAlign = 'left';
+            ctx.font = '700 11px Orbitron';
+            ctx.fillStyle = touch ? '#64748b' : '#3b82f6';
+            ctx.fillText('KEYBOARD / MOUSE', colA, y);
+            ctx.fillStyle = touch ? '#3b82f6' : '#64748b';
+            ctx.fillText('TOUCH', colB, y);
+            y += 30;
+            for (const [what, desk, tap] of page.table) {
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '600 16px Rajdhani';
+                ctx.fillText(what, left, y);
+                ctx.fillStyle = touch ? '#64748b' : '#e2e8f0';
+                ctx.fillText(desk, colA, y);
+                ctx.fillStyle = touch ? '#e2e8f0' : '#64748b';
+                ctx.fillText(tap, colB, y);
+                y += 32;
+            }
         } else {
-            // Body
-            Utils.roundRect(ctx, x - 9, y - 2, 18, 13, 3);
-            ctx.fill();
-            // Shackle
-            ctx.beginPath();
-            ctx.arc(x, y - 2, 5, Math.PI, 0, false);
-            ctx.stroke();
+            ctx.textAlign = 'left';
+            for (const item of page.items) {
+                if (item.head) {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '700 13px Orbitron';
+                    ctx.fillText(item.head, left, y);
+                    y += 22;
+                }
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = '400 17px Rajdhani';
+                for (const line of this._wrapText(ctx, item.text, maxW, 3)) {
+                    ctx.fillText(line, left, y);
+                    y += 23;
+                }
+                y += 14;
+            }
         }
 
-        // Pulse when the gate is playable (ACT I cleared)
-        if (!unlocked && this.levels.isActOneComplete()) {
-            const pulse = 0.5 + 0.5 * Math.sin((this.bgTime || 0) * 3);
-            ctx.globalAlpha = 0.12 + 0.28 * (1 - pulse);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(x, y, r + pulse * 8, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.globalAlpha = 1;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#475569';
+        ctx.font = '500 12px Rajdhani';
+        ctx.fillText(`${this._guidePage + 1} / ${GameManager.GUIDE_PAGES.length}`, W / 2, L.y + L.h - 64);
+        ctx.restore();
+
+        this.ui.renderButtons();
+    }
+
+    // ── Act screen ──
+
+    _actScreenLayout(n) {
+        const W = this.canvas.width;
+        const cardW = 170, cardH = 150, gap = 18;
+        const totalW = n * cardW + (n - 1) * gap;
+        const x0 = (W - totalW) / 2 + cardW / 2;
+        return { cardW, cardH, y: 262, xs: Array.from({ length: n }, (_, i) => x0 + i * (cardW + gap)) };
+    }
+
+    /** One-line summary of a stage's key difficulty number. */
+    _stageSummary(act, stage) {
+        const p = stage.params;
+        if (act.game === 'timingbar') return `${p.requiredHits} HITS · ${p.maxTime}s`;
+        if (act.game === 'stack') return `${p.targetBlocks} BLOCKS HIGH`;
+        return '';
+    }
+
+    _buildActButtons() {
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+        const act = this.progress.act(this._actView);
+        if (!act) return;
+        const L = this._actScreenLayout(act.stages.length);
+
+        act.stages.forEach((stage, i) => {
+            this.ui.addButton(`stage${i}`, stage.tier, L.xs[i], L.y, L.cardW, L.cardH,
+                () => this._startStage(act.id, i),
+                { draw: (ctx, btn, hovered) => this._drawStageCard(ctx, btn, hovered, act, i) });
+        });
+
+        const n = act.id;
+        if (this.progress.isGatePlayable(n)) {
+            this.ui.addButton('gate', `⚡ BREACH GATE ${n} → ACT ${n + 1}`, W / 2, 430, 320, 46,
+                () => this._tryStartGate(n),
+                { color: '#f59e0b' });
+        } else if (this.progress.isActComplete(n) && this.progress.isActUnlocked(n + 1)) {
+            this.ui.addButton('next', `NEXT: ACT ${n + 1} →`, W / 2, 430, 240, 42,
+                () => this.state.change(this.state.STATES.ACT, { actId: n + 1 }),
+                { color: '#22c55e' });
+        }
+
+        this.ui.addButton('back', '← ACTS', 70, H - 35, 100, 32,
+            () => this.state.change(this.state.STATES.HUB),
+            { color: '#475569' });
+        this._addGuideButton();
+
+        // Focus the first stage that still needs work (or the gate).
+        let target = 'gate';
+        for (let i = 0; i < act.stages.length; i++) {
+            if (this.progress.isStageUnlocked(act.id, i) && !this.progress.isStageCompleted(act.id, i)) {
+                target = `stage${i}`;
+                break;
+            }
+        }
+        this.ui.focus(target);
+        if (!this.ui.focused) this.ui.focus('stage0');
+    }
+
+    _drawStageCard(ctx, btn, hovered, act, i) {
+        const theme = getLevelTheme(act.themeId);
+        const stage = act.stages[i];
+        const done = this.progress.isStageCompleted(act.id, i);
+        const unlocked = this.progress.isStageUnlocked(act.id, i);
+        const color = done ? '#22c55e' : unlocked ? theme.zoneColor : '#475569';
+        const left = btn.x - btn.w / 2, top = btn.y - btn.h / 2;
+
+        ctx.save();
+        ctx.globalAlpha = unlocked ? 1 : 0.6;
+        ctx.fillStyle = hovered && unlocked ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = hovered ? 2 : 1.2;
+        if (hovered && unlocked) { ctx.shadowColor = color; ctx.shadowBlur = 14; }
+        Utils.roundRect(ctx, left, top, btn.w, btn.h, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#64748b';
+        ctx.font = '600 12px Rajdhani';
+        ctx.fillText(`STAGE ${i + 1}`, btn.x, top + 26);
+        ctx.fillStyle = color;
+        ctx.font = '700 17px Orbitron';
+        ctx.fillText(stage.tier, btn.x, top + 56);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 14px Rajdhani';
+        ctx.fillText(this._stageSummary(act, stage), btn.x, top + 84);
+
+        const status = done ? 'CLEARED' : unlocked ? 'READY' : 'LOCKED';
+        ctx.fillStyle = done ? '#22c55e' : unlocked ? '#3b82f6' : '#94a3b8';
+        ctx.font = '700 13px Rajdhani';
+        ctx.fillText(status, btn.x, top + 116);
+
+        const best = this.progress.stage(act.id, i).best;
+        if (best > 0) {
+            ctx.fillStyle = '#475569';
+            ctx.font = '400 12px Rajdhani';
+            ctx.fillText('BEST ' + best, btn.x, top + 136);
         }
         ctx.restore();
     }
 
-    // ── Hub interactions / easter egg ──
+    _renderActScreen(ctx) {
+        const W = this.canvas.width;
+        const act = this.progress.act(this._actView);
+        if (!act) return;
+        const theme = getLevelTheme(act.themeId);
+        const game = GameRegistry.get(act.game);
 
-    _tryShortcutUnlock(levelIndex) {
-        if (!this.energy.canAfford('SHORTCUT')) {
-            this._hubMessage = 'Not enough energy (2⚡ required)';
-            this._hubMessageTimer = 2.5;
-            return;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = theme.zoneColor;
+        ctx.font = '700 13px Orbitron';
+        ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, W / 2, 34);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '700 26px Orbitron';
+        ctx.fillText(act.key, W / 2, 68);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '400 16px Rajdhani';
+        ctx.fillText(act.story, W / 2, 98);
+        if (act.controls) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '500 14px Rajdhani';
+            ctx.fillText(act.controls, W / 2, 124);
         }
-        if (!this.energy.spend('SHORTCUT')) return;
-        const level = this.levels.levels[levelIndex];
-        this.state.change(this.state.STATES.LOCKPICK, {
-            reason: 'shortcut',
-            difficulty: level.lockpickDiff,
-            levelIndex
-        });
+
+        // Path between stage cards
+        const L = this._actScreenLayout(act.stages.length);
+        ctx.strokeStyle = 'rgba(71,85,105,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 6]);
+        ctx.beginPath();
+        ctx.moveTo(L.xs[0], L.y);
+        ctx.lineTo(L.xs[L.xs.length - 1], L.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const done = this.progress.stagesDone(act.id);
+        ctx.fillStyle = done === act.stages.length ? '#22c55e' : '#64748b';
+        ctx.font = '600 14px Rajdhani';
+        ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, 372);
+        ctx.restore();
+    }
+
+    _totalBest() {
+        let sum = 0;
+        for (const a of this.progress.acts) {
+            for (let i = 0; i < a.stages.length; i++) sum += this.progress.stage(a.id, i).best;
+        }
+        return sum;
     }
 
     _pickEnergyEggCell() {
@@ -1483,33 +1799,40 @@ class GameManager {
         });
     }
 
-    _tryStartPacketPurge() {
-        if (this.levels.isGroup2Unlocked()) return;
-        if (!this.levels.isActOneComplete()) {
-            this._hubMessage = 'Clear all ACT I nodes first';
-            this._hubMessageTimer = 2.5;
-            return;
-        }
+    _gateTracker(n) {
+        // Gate 1 keeps the original key so pre-campaign attempts still count.
+        const key = n === 1 ? 'sb_packetpurge' : `sb_gate_${n}`;
+        return this._gateTrackers[n] || (this._gateTrackers[n] = new ChallengeGate(key));
+    }
+
+    /** Gate n opens act n + 1 (Packet Purge, harder each gate). */
+    _tryStartGate(n) {
+        const say = (msg) => { this._hubMessage = msg; this._hubMessageTimer = 2.5; };
+        if (this.progress.isGateOpen(n)) { say(`Gate ${n} is already breached`); return; }
+        if (!this.progress.isActComplete(n)) { say(`Clear every stage of ACT ${n} first`); return; }
+        if (!this.progress.isActAvailable(n + 1)) { say(`ACT ${n + 1} is in development`); return; }
+
         const WINDOW = 3 * 60 * 1000;
         const MAX = 2;
-        if (!this.packetGate.canAttempt(WINDOW, MAX)) {
-            const wait = Math.ceil(this.packetGate.timeUntilReset(WINDOW, MAX));
-            this._hubMessage = `The lock is recalibrating (${wait}s)`;
-            this._hubMessageTimer = 2.5;
+        const tracker = this._gateTracker(n);
+        if (!tracker.canAttempt(WINDOW, MAX)) {
+            const wait = Math.ceil(tracker.timeUntilReset(WINDOW, MAX));
+            say(`The lock is recalibrating (${wait}s)`);
             return;
         }
-        this.packetGate.record(WINDOW);
+        tracker.record(WINDOW);
 
-        const mechanic = new PacketPurgeMechanic();
+        const cfg = CAMPAIGN.gates[n - 1];
+        const mechanic = new PacketPurgeMechanic({ waves: cfg.waves, speedScale: cfg.speedScale });
         this.state.change(this.state.STATES.MINIGAME, {
             mechanic,
-            title: 'PACKET PURGE',
-            subtitle: 'Two waves — purge infected packets before they reach the core',
+            title: `GATE ${n} · PACKET PURGE`,
+            subtitle: `${cfg.waves} waves — purge infected packets before they reach the core`,
             hint: 'Tap the faster RED packets — leave the blue ones',
             onComplete: (success) => {
                 if (success) {
-                    this.levels.unlockGroup2();
-                    this._hubMessage = 'ACT II UNLOCKED';
+                    this.progress.openGate(n);
+                    this._hubMessage = `ACT ${n + 1} UNLOCKED`;
                 } else {
                     this._hubMessage = 'Purge failed — the lock holds';
                 }
@@ -1519,64 +1842,82 @@ class GameManager {
         });
     }
 
-    /** Start a HUB node: timing-bar level or the physics mission. */
-    _startNode(index) {
-        if (this.levels.isBarLevel(index)) {
-            if (this.levels.startLevel(index)) this.state.change(this.state.STATES.LEVEL);
-            return;
+    /** Start stage `index` of act `actId` with that game's tier params. */
+    _startStage(actId, index) {
+        const act = this.progress.act(actId);
+        if (!act || !this.progress.isStageUnlocked(actId, index)) {
+            this._hubMessage = 'Clear the previous stage first';
+            this._hubMessageTimer = 2.5;
+            return false;
         }
-        this._startStackMission(index);
-    }
+        const stage = act.stages[index];
+        const game = GameRegistry.get(act.game);
+        if (!game) return false;
+        this._stage = { actId, index };
+        this._actView = actId;
+        const S = this.state.STATES;
 
-    /** Mission 5 — Stack Overflow on Matter.js. */
-    _startStackMission(index) {
-        const level = this.levels.levels[index];
-        if (!level || !level.unlocked) return;
-        const mechanic = new StackOverflowMechanic();
-        this.state.change(this.state.STATES.MINIGAME, {
+        if (game.kind === 'bar') {
+            this.levels.startStage(Object.assign({
+                id: act.themeId,
+                name: `${act.key} · ${stage.tier}`,
+                desc: act.story
+            }, stage.params));
+            this.state.change(S.LEVEL);
+            return true;
+        }
+
+        const mechanic = game.create(stage.params);
+        this.state.change(S.MINIGAME, {
             mechanic,
-            title: level.name + ' · STACK OVERFLOW',
-            subtitle: 'Stack the blocks up to the limit line — keep the tower standing',
-            hint: 'Tap anywhere (or SPACE) to drop · blocks keep the crane\'s momentum',
+            stage: true,
+            title: `${act.key} · ${stage.tier}`,
+            subtitle: act.story,
+            hint: act.controls,
             onComplete: (success, m) => {
                 if (success) {
-                    this.levels.completeExternal(index, m.score);
-                    this._afterNodeComplete(0, 0);
+                    this._onStageCleared(m.score, 0);
                 } else {
-                    this.state.change(this.state.STATES.GAME_OVER, {
-                        levelIndex: index,
-                        score: m.computeScore(),
+                    this._onStageFailed({
+                        score: m.computeScore ? m.computeScore() : (m.score || 0),
                         noRevive: true,
-                        message: 'The firewall collapsed — rebuild it from scratch'
+                        message: game.failMessage || null
                     });
                 }
             }
         });
+        return true;
     }
 
-    /**
-     * Where to go after a node is cleaned: the one-time congratulations
-     * screen, the leaderboard profile setup, or back to the HUB.
-     */
-    _afterNodeComplete(congratsDelayMs, hubDelayMs) {
+    /** Record a cleared stage, then route: congrats / act screen. */
+    _onStageCleared(score, delayMs) {
         const S = this.state.STATES;
+        const st = this._stage;
+        if (!st) return;
+        const res = this.progress.completeStage(st.actId, st.index, score);
         const later = (ms, fn) => (ms > 0 ? setTimeout(fn, ms) : fn());
 
-        // First time all 6 nodes are cleaned → celebration screen.
-        if (this.levels.justUnlockedEndless) {
-            this.levels.justUnlockedEndless = false;
-            later(congratsDelayMs, () => this.state.change(S.CONGRATS));
+        if (res.actCompleted && this.progress.isCampaignComplete() && !this.progress.congratsSeen) {
+            later(delayMs, () => this.state.change(S.CONGRATS));
             return;
         }
+        if (res.actCompleted) {
+            const n = st.actId;
+            this._hubMessage = this.progress.isActAvailable(n + 1)
+                ? `ACT ${n} COMPLETE — breach gate ${n} to reach ACT ${n + 1}`
+                : `ACT ${n} COMPLETE — ACT ${n + 1} is in development`;
+            this._hubMessageTimer = 3.5;
+        }
+        later(delayMs, () => this.state.change(S.ACT, { actId: st.actId }));
+    }
 
-        const unlockedEndless = this.levels.isAllCompleted();
-        later(hubDelayMs, () => {
-            if (unlockedEndless && !this.leaderboard.hasProfile()) {
-                this.state.change(S.PROFILE_SETUP, { returnState: S.HUB });
-            } else {
-                this.state.change(S.HUB);
-            }
-        });
+    _onStageFailed(ctx) {
+        this.state.change(this.state.STATES.GAME_OVER, Object.assign({ stage: this._stage }, ctx));
+    }
+
+    _backToAct() {
+        const actId = (this._stage && this._stage.actId) || this._actView;
+        this.state.change(this.state.STATES.ACT, { actId });
     }
 
     /** Routes canvas presses: UI buttons → minigame → hidden energy easter egg. */
@@ -1605,7 +1946,8 @@ class GameManager {
     /** Retry from the failure screen, gated by the restart cooldown. */
     _restartFromGameOver() {
         if ((this._goCooldown || 0) > 0) return;
-        this._startNode(this._goLevelIndex);
+        const st = this._goStage || this._stage;
+        if (st) this._startStage(st.actId, st.index);
     }
 
     /** Reflect the restart cooldown on the RETRY button. */
@@ -1655,7 +1997,22 @@ class GameManager {
         return Math.min(dt, 1 / 30);
     }
 
+    /** Arrow keys + Enter drive the on-screen buttons on menu-like screens. */
+    _handleUiNavKey(code) {
+        const S = this.state.STATES;
+        const nav = [S.MENU, S.HUB, S.ACT, S.GAME_OVER, S.ENDLESS_OVER, S.CONGRATS, S.LEADERBOARD];
+        if (this.state.transitioning || nav.indexOf(this.state.currentState) < 0) return false;
+        const dirs = {
+            ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+            KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
+        };
+        if (dirs[code]) { this.ui.moveFocus(dirs[code]); return true; }
+        if (code === 'Enter' || code === 'NumpadEnter') return this.ui.activateFocus();
+        return false;
+    }
+
     _dispatchKey(action) {
+        if (this._handleUiNavKey(action.code)) return;
         this._pendingInputOffset = this._computeInputOffset(action.timestamp);
         try {
             this.state.handleKey(Object.assign({ preventDefault: () => {} }, action));
@@ -1805,3 +2162,43 @@ class GameManager {
         ctx.restore();
     }
 }
+
+// Field guide pages (rendered by _renderGuide).
+GameManager.GUIDE_PAGES = [
+    {
+        title: 'MISSION',
+        items: [
+            { text: 'An attacker is inside the system. Six acts stand between them and full control.' },
+            { head: 'ACTS & STAGES', text: 'Each act is one game. Its stages are that game\'s difficulty tiers — clear them in order to complete the act.' },
+            { head: 'GATES', text: 'A cleared act opens its gate. Breach the gate (Packet Purge) to reach the next act. Acts marked IN DEVELOPMENT are on their way.' }
+        ]
+    },
+    {
+        title: 'CONTROLS',
+        table: [
+            ['Menus', 'Arrow keys + Enter', 'Tap'],
+            ['Go back', 'Esc', '← buttons'],
+            ['Timing Bar', 'SPACE', 'Tap anywhere'],
+            ['Stack Overflow', 'SPACE or click', 'Tap anywhere'],
+            ['Packet Purge', 'Click red packets', 'Tap red packets'],
+            ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
+            ['Field guide', 'H', '? button']
+        ]
+    },
+    {
+        title: 'GAMES',
+        items: [
+            { head: 'TIMING BAR', text: 'Hit while the marker is inside the zone. Centre hits score PERFECT and combos multiply your score.' },
+            { head: 'STACK OVERFLOW', text: 'Drop blocks to build a tower past the limit line. Blocks keep the crane\'s sideways momentum, so release a little early.' },
+            { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
+        ]
+    },
+    {
+        title: 'ENERGY',
+        items: [
+            { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar stage? Spend 1⚡ and win the Code Breaker to continue with one life — twice per stage.' },
+            { head: 'ENDLESS MODE', text: 'Unlocks after ACT 6. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.' }
+        ]
+    }
+];

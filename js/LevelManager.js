@@ -1,12 +1,11 @@
 /* =========================================
-   LevelManager.js — Level Manager
-   Timing bar mechanic + level data
+   LevelManager.js — Timing Bar runner
+   Plays one Timing Bar stage (startStage) or Endless. Campaign data
+   and progress live in Campaign.js / CampaignProgress.js.
    ========================================= */
 
 class LevelManager {
     constructor() {
-        this.levels = this._createLevels();
-        this.currentLevelIndex = -1;
         this.currentLevel = null;
 
         // In-game
@@ -34,7 +33,6 @@ class LevelManager {
         // State
         this.levelComplete = false;
         this.levelFailed = false;
-        this.justUnlockedEndless = false;
 
         // Particles (simple)
         this.particles = [];
@@ -43,51 +41,24 @@ class LevelManager {
         this.hitFlashTimer = 0;
         this.gameTime = 0;
 
-        this._loadProgress();
-        this.congratsSeen = this._loadCongratsSeen();
-        this.group2Unlocked = this._loadGroup2();
-        this._enforceSequentialUnlocks();
     }
 
-    _createLevels() {
-        return [
-            { id: 1, name: 'CLEAR_LOGS', desc: 'Delete the attacker\'s log files', difficulty: 1, barSpeed: 0.7, targetSize: 0.22, requiredHits: 8, maxTime: 25, unlocked: true, completed: false, bestScore: 0, lockpickDiff: 1 },
-            { id: 2, name: 'CLOSE_PORTS', desc: 'Shut down open backdoors', difficulty: 2, barSpeed: 0.9, targetSize: 0.18, requiredHits: 10, maxTime: 28, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 2 },
-            { id: 3, name: 'REMOVE_MALWARE', desc: 'Detect and remove malicious software', difficulty: 3, barSpeed: 1.1, targetSize: 0.15, requiredHits: 12, maxTime: 30, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 3 },
-            { id: 4, name: 'RESET_CREDS', desc: 'Reset compromised credentials', difficulty: 4, barSpeed: 1.2, targetSize: 0.12, requiredHits: 14, maxTime: 35, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 4 },
-            // Node 5 is the Matter.js physics mission (StackOverflowMechanic),
-            // not a timing-bar level. It is started by GameManager, not startLevel().
-            { id: 5, name: 'FIREWALL', desc: 'Stack the firewall up to the limit line', mechanic: 'stack', difficulty: 5, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 5 },
-            { id: 6, name: 'CUT_ACCESS', desc: 'Completely sever the attacker\'s connection', difficulty: 6, barSpeed: 1.35, targetSize: 0.10, requiredHits: 20, maxTime: 60, unlocked: false, completed: false, bestScore: 0, lockpickDiff: 6 }
-        ];
-    }
-
-    /** True when the node is played on the timing bar (startLevel). */
-    isBarLevel(index) {
-        const level = this.levels[index];
-        return !!level && !level.mechanic;
-    }
-
-    startLevel(index) {
-        if (index < 0 || index >= this.levels.length) return false;
-        const level = this.levels[index];
-        if (!level.unlocked || level.mechanic) return false;
-
-        this.currentLevelIndex = index;
+    /**
+     * Start one Timing Bar stage.
+     * @param {object} cfg { id (theme id), name, desc, barSpeed, targetSize,
+     *                       requiredHits, maxTime, lives }
+     */
+    startStage(cfg) {
+        if (!cfg) return false;
+        const level = cfg;
+        this.endlessMode = false;
         this.currentLevel = level;
 
         this.score = 0;
         this.combo = 0;
         this.maxCombo = 0;
 
-        // Dinamik yanma hakkı
-        if (index <= 2) {
-            this.maxLives = 3;
-        } else if (index <= 4) {
-            this.maxLives = 4;
-        } else {
-            this.maxLives = 5;
-        }
+        this.maxLives = level.lives || 3;
         this.lives = this.maxLives;
         this.hitCount = 0;
         this.barPosition = 0;
@@ -205,36 +176,7 @@ class LevelManager {
         }
     }
 
-    /**
-     * Complete a node that was played outside the timing bar (e.g. the
-     * Stack Overflow physics mission). Same progression as a bar level.
-     */
-    completeExternal(index, score) {
-        const level = this.levels[index];
-        if (!level || !level.unlocked) return false;
-        this.currentLevelIndex = index;
-        this.currentLevel = level;
-        this.score = score || 0;
-        this._onComplete();
-        return true;
-    }
-
     _onComplete() {
-        const wasAllCompleted = this.levels.every(x => x.completed);
-        const l = this.currentLevel;
-        if (this.score > l.bestScore) l.bestScore = this.score;
-        l.completed = true;
-        const next = this.currentLevelIndex + 1;
-        // Sequential progression. ACT I (levels 1-3) advances by completion.
-        // ACT II (levels 4-6) additionally requires the Packet Purge gate;
-        // within ACT II each node still needs the previous one completed.
-        if (next < this.levels.length && (next <= 2 || this.group2Unlocked)) {
-            this.levels[next].unlocked = true;
-        }
-        // Flag the single moment Endless Mode is first earned, so the
-        // congratulations screen is shown exactly once.
-        this.justUnlockedEndless = this.levels.every(x => x.completed) && !wasAllCompleted && !this.congratsSeen;
-        this._saveProgress();
         Sound.playLevelComplete();
     }
 
@@ -474,90 +416,9 @@ class LevelManager {
         ctx.restore();
     }
 
-    // ── Persistence ──
-
-    _saveProgress() {
-        try {
-            const data = this.levels.map(l => ({ id: l.id, unlocked: l.unlocked, completed: l.completed, bestScore: l.bestScore }));
-            localStorage.setItem('sb_progress', JSON.stringify(data));
-        } catch (e) { }
-    }
-
-    _loadProgress() {
-        try {
-            const data = JSON.parse(localStorage.getItem('sb_progress'));
-            if (!data) return;
-            for (const s of data) {
-                const l = this.levels.find(x => x.id === s.id);
-                if (l) { l.unlocked = s.unlocked; l.completed = s.completed; l.bestScore = s.bestScore; }
-            }
-        } catch (e) { }
-    }
-
-    _loadCongratsSeen() {
-        try { return localStorage.getItem('sb_congrats_seen') === '1'; } catch (e) { return false; }
-    }
-
-    _markCongratsSeen() {
-        this.congratsSeen = true;
-        try { localStorage.setItem('sb_congrats_seen', '1'); } catch (e) { }
-    }
-
-    // ── ACT II gate (Packet Purge) ──
-
-    _loadGroup2() {
-        try { return localStorage.getItem('sb_group2_unlocked') === '1'; } catch (e) { return false; }
-    }
-
-    _saveGroup2() {
-        try { localStorage.setItem('sb_group2_unlocked', this.group2Unlocked ? '1' : '0'); } catch (e) { }
-    }
-
-    _applyGroup2Unlock() {
-        this._enforceSequentialUnlocks();
-    }
-
-    /**
-     * Access is strictly sequential: a node is playable only when the
-     * previous one is completed. Level 4 additionally requires the gate.
-     * This also self-heals saves created by the earlier "open all at once"
-     * behaviour, so no manual reset is needed.
-     */
-    _enforceSequentialUnlocks() {
-        if (!this.levels.length) return;
-        this.levels[0].unlocked = true;
-        for (let i = 1; i < this.levels.length; i++) {
-            if (i === 3) {
-                this.levels[i].unlocked = this.group2Unlocked && !!this.levels[2].completed;
-            } else {
-                this.levels[i].unlocked = !!this.levels[i - 1].completed;
-            }
-        }
-    }
-
-    unlockGroup2() {
-        const wasUnlocked = this.group2Unlocked;
-        this.group2Unlocked = true;
-        this._enforceSequentialUnlocks();
-        this._saveGroup2();
-        this._saveProgress();
-        return !wasUnlocked;
-    }
-
-    isGroup2Unlocked() { return this.group2Unlocked; }
-
-    /** ACT I = the first three nodes (levels 1-3). */
-    isActOneComplete() {
-        return this.levels.slice(0, 3).every(l => l.completed);
-    }
-
     // ════════════════════════════════════════
     //  ENDLESS MODE
     // ════════════════════════════════════════
-
-    isAllCompleted() {
-        return this.levels.every(l => l.completed);
-    }
 
     /**
      * Start endless mode
@@ -565,7 +426,6 @@ class LevelManager {
      */
     startEndless() {
         this.endlessMode = true;
-        this.currentLevelIndex = -1;
         this.currentLevel = {
             id: 999,
             name: 'ENDLESS_MODE',

@@ -23,7 +23,17 @@ class InputManager {
         this.handlers = handlers;
         this._touch = null;
         this._suppressClickUntil = 0;
+        // 'touch' | 'desktop' — last kind of input used (drives on-screen hints).
+        this.mode = InputManager.detectMode();
         this._setup();
+    }
+
+    static detectMode() {
+        try {
+            if (typeof window !== 'undefined' && window.matchMedia &&
+                window.matchMedia('(pointer: coarse)').matches) return 'touch';
+        } catch (e) { }
+        return 'desktop';
     }
 
     _coords(clientX, clientY) {
@@ -59,6 +69,7 @@ class InputManager {
 
         // Touch / pen: pointer events unify tap + swipe, no synth click.
         canvas.addEventListener('pointerdown', (e) => {
+            this.mode = e.pointerType === 'mouse' ? 'desktop' : 'touch';
             if (e.pointerType === 'mouse') return;
             const { x, y } = this._coords(e.clientX, e.clientY);
             this._touch = {
@@ -101,6 +112,10 @@ class InputManager {
         canvas.addEventListener('pointercancel', () => { this._touch = null; });
 
         document.addEventListener('keydown', (e) => {
+            // Typing in a form field (operator profile) is not gameplay.
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            this.mode = 'desktop';
             const isGameKey = e.code === 'Space' ||
                 e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
                 e.code === 'ArrowLeft' || e.code === 'ArrowRight';

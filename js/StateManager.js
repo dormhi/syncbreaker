@@ -8,6 +8,8 @@ class StateManager {
         this.STATES = {
             MENU: 'MENU',
             HUB: 'HUB',
+            ACT: 'ACT',
+            GUIDE: 'GUIDE',
             LEVEL: 'LEVEL',
             LOCKPICK: 'LOCKPICK',
             MINIGAME: 'MINIGAME',
