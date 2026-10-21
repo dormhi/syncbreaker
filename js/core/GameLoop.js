@@ -22,6 +22,7 @@ class GameLoop {
         this.accumulator = 0;
         this.lastTime = null;
         this.simulatedTime = 0;
+        this.paused = false;
         this._running = false;
         this._raf = null;
         this._frame = this._frame.bind(this);
@@ -33,6 +34,16 @@ class GameLoop {
         this._raf = requestAnimationFrame(this._frame);
     }
 
+    /**
+     * Freeze the simulation (e.g. while the phone is held upright). Render
+     * keeps running; on resume the time spent paused is not caught up.
+     */
+    setPaused(paused) {
+        this.paused = !!paused;
+        this.accumulator = 0;
+        this.lastTime = null;
+    }
+
     stop() {
         this._running = false;
         if (this._raf !== null) cancelAnimationFrame(this._raf);
@@ -40,6 +51,11 @@ class GameLoop {
     }
 
     _frame(timestamp) {
+        if (this.paused) {
+            this.render(0, this.fixedDt);
+            if (this._running) this._raf = requestAnimationFrame(this._frame);
+            return;
+        }
         if (this.lastTime === null) this.lastTime = timestamp;
 
         let frameTime = (timestamp - this.lastTime) / 1000;

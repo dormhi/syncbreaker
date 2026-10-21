@@ -206,3 +206,59 @@ canvas {
 .sb-brand:focus-visible .sb-brand-mark {
     filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.8));
 }
+
+/* ── "Rotate your device" (touch devices held upright, see main.js) ── */
+.sb-rotate {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    background:
+        radial-gradient(circle at 50% 40%, rgba(59, 130, 246, 0.12), transparent 60%),
+        var(--bg-dark);
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+    .sb-rotate { display: flex; }
+}
+
+.sb-rotate-icon {
+    width: 96px;
+    height: 96px;
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));
+    animation: sb-rotate-turn 2.4s ease-in-out infinite;
+}
+
+@keyframes sb-rotate-turn {
+    0%, 20%   { transform: rotate(0deg); }
+    50%, 70%  { transform: rotate(-90deg); }
+    100%      { transform: rotate(0deg); }
+}
+
+.sb-rotate-title {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    color: var(--text);
+}
+
+.sb-rotate-sub {
+    font-size: 15px;
+    color: var(--text-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sb-rotate-icon { animation: none; transform: rotate(-90deg); }
+}

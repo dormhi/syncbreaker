@@ -230,6 +230,23 @@ suite('GameLoop — fixed timestep / no slow motion', () => {
         ok('stall is bounded by maxSubSteps', state.updates <= 5, 'updates=' + state.updates);
         ok('alpha stays in [0,1)', loop.accumulator / loop.fixedDt >= 0 && loop.accumulator / loop.fixedDt < 1);
     }
+
+    // Paused (phone held upright): renders, never simulates, and does not
+    // catch up the paused time on resume.
+    {
+        const { loop, state } = makeLoop();
+        loop._frame(0);
+        loop._frame(100);
+        const before = state.updates, renders = state.renders;
+        loop.setPaused(true);
+        for (let i = 1; i <= 60; i++) loop._frame(100 + i * 16.7);
+        ok('paused loop does not simulate', state.updates === before);
+        ok('paused loop keeps rendering', state.renders > renders);
+        loop.setPaused(false);
+        loop._frame(5000);
+        loop._frame(5016.7);
+        ok('resume does not catch up the paused time', state.updates - before <= 1, 'updates=' + (state.updates - before));
+    }
 });
 
 // ─────────────────────────────────────────────
@@ -572,13 +589,17 @@ suite('PacketPurgeMechanic — two waves, infected are faster', () => {
 suite('Campaign data — acts, stages, tuning', () => {
     const { CAMPAIGN } = loadGameManager();
     const acts = CAMPAIGN.acts;
-    ok('6 acts', acts.length === 6);
+    ok('9 acts', acts.length === 9);
     ok('act names follow the story',
-        acts.map(a => a.key).join(',') === 'REMOVE_MALWARE,REBUILD_FIREWALL,CLOSE_PORTS,RESET_CREDS,TRACE_LOGS,CUT_ACCESS');
-    ok('5 gates', CAMPAIGN.gates.length === 5);
+        acts.map(a => a.key).join(',') === 'REMOVE_MALWARE,REBUILD_FIREWALL,CLOSE_PORTS,RESET_CREDS,TRACE_LOGS,CUT_ACCESS,DEFUSE_PAYLOAD,RESTORE_CORE,FINAL_AUDIT');
+    ok('final act is 9', CAMPAIGN.finalAct === 9);
+    ok('8 gates (one between every pair of acts)', CAMPAIGN.gates.length === 8);
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
-    ok('acts 5-6 are in development', acts.slice(4).every(a => !a.available && a.stages.length === 0));
+    ok('acts 6-9 are in development', acts.slice(5).every(a => !a.available && a.stages.length === 0));
+    const themes = loadLevelManager().LEVEL_THEMES;
+    ok('every act has its own theme', acts.every(a => !!themes[a.themeId]) &&
+        new Set(acts.map(a => a.themeId)).size === acts.length);
 
     const a1 = acts[0];
     ok('act 1 is the Timing Bar with 4 stages', a1.game === 'timingbar' && a1.stages.length === 4);
@@ -612,7 +633,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(5) && !P.isActAvailable(5));
+    ok('dev acts are never unlocked', !P.isActUnlocked(6) && !P.isActAvailable(6));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -635,9 +656,12 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate 3 playable once act 3 is done (act 4 exists)', P.isActComplete(3) && P.isGatePlayable(3));
     P.openGate(3);
     for (let i = 0; i < 5; i++) P.completeStage(4, i, 10);
-    ok('gate 4 not playable while act 5 is in development', P.isActComplete(4) && !P.isGatePlayable(4));
+    ok('gate 4 playable once act 4 is done (act 5 exists)', P.isActComplete(4) && P.isGatePlayable(4));
+    P.openGate(4);
+    for (let i = 0; i < 3; i++) P.completeStage(5, i, 10);
+    ok('gate 5 not playable while act 6 is in development', P.isActComplete(5) && !P.isGatePlayable(5));
     ok('endless still locked (act 6 not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 4);
+    ok('current act points at the last open act', P.currentActId() === 5);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -654,8 +678,8 @@ suite('CampaignProgress — lock rules', () => {
         if (a.id > 1) F.openGate(a.id - 1);
         let last = null;
         for (let i = 0; i < a.stages.length; i++) last = F.completeStage(a.id, i, 1);
-        if (a.id < 6) ok(`endless locked after act ${a.id}`, !F.isEndlessUnlocked() && !last.endlessUnlocked);
-        else ok('act 6 unlocks endless', F.isEndlessUnlocked() && last.endlessUnlocked === true);
+        if (a.id < fake.finalAct) ok(`endless locked after act ${a.id}`, !F.isEndlessUnlocked() && !last.endlessUnlocked);
+        else ok(`act ${fake.finalAct} (final) unlocks endless`, F.isEndlessUnlocked() && last.endlessUnlocked === true);
     }
     ok('campaign complete', F.isCampaignComplete());
 });
@@ -721,28 +745,60 @@ suite('Act map HUB + gates', () => {
     settle(gm, S.HUB);
     gm.state._handlers[S.HUB].enter();
     const btn = (id) => gm.ui.buttons.find(b => b.id === id);
-    ok('6 act cards', [1, 2, 3, 4, 5, 6].every(n => !!btn('act' + n)));
-    ok('5 gate nodes', [1, 2, 3, 4, 5].every(n => !!btn('gate' + n)));
-    ok('gate nodes are 44px tap targets', [1, 2, 3, 4, 5].every(n => btn('gate' + n).w >= 44 && btn('gate' + n).h >= 44));
-    const vis = gm.ui.buttons.filter(b => !b.hidden);
+    // Carousel: the focused act in the centre, neighbours peeking, a rail on top.
+    ok('carousel starts on the current act', gm._mapIndex === 0 && !!btn('act1') && !!btn('act2') && !btn('act3'));
+    ok('no previous chevron on act 1', !btn('map-prev') && !!btn('map-next'));
+    ok('rail has a node per act', [1, 2, 3, 4, 5, 6, 7, 8, 9].every(n => !!btn('rail' + n)));
+    ok('gate next to the focused act', !!btn('gate1') && btn('gate1').w >= 44 && btn('gate1').h >= 44);
     const overlap = (a, b) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
-    let clash = null;
-    for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) if (overlap(vis[i], vis[j])) clash = vis[i].id + '/' + vis[j].id;
-    ok('no HUB buttons overlap', clash === null, clash);
-    ok('all HUB buttons inside the canvas', vis.every(b => b.x - b.w / 2 >= 0 && b.x + b.w / 2 <= 960 && b.y - b.h / 2 >= 0 && b.y + b.h / 2 <= 640));
-    ok('snake layout: act 4 sits under act 3', btn('act4').x === btn('act3').x && btn('act4').y > btn('act3').y);
+    const noClash = () => {
+        const all = gm.ui.buttons;
+        for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+            if (overlap(all[i], all[j])) return all[i].id + '/' + all[j].id;
+        }
+        return null;
+    };
+    const inside = () => gm.ui.buttons.every(b => b.x - b.w / 2 >= 0 && b.x + b.w / 2 <= 960 && b.y - b.h / 2 >= 0 && b.y + b.h / 2 <= 640);
+    ok('no HUB tap targets overlap (act 1)', noClash() === null, noClash());
+    ok('all HUB tap targets inside the canvas (act 1)', inside());
+    gm._mapGo(4);
+    ok('no HUB tap targets overlap (middle act)', noClash() === null, noClash());
+    ok('all HUB tap targets inside the canvas (middle act)', inside());
+    ok('both chevrons in the middle', !!btn('map-prev') && !!btn('map-next') && !!btn('gate4') && !!btn('gate5'));
+    gm._mapGo(8);
+    ok('no next chevron on the last act', !btn('map-next') && !!btn('map-prev'));
     ok('endless locked for a new player', btn('endless').disabled === true && !btn('leaderboard'));
-    ok('current act is focused', gm.ui.focusId === 'act1');
 
+    // Rail node jumps; side card scrolls; chevron scrolls.
+    btn('rail1').onClick();
+    ok('rail node jumps to its act', gm._mapIndex === 0);
+    btn('act2').onClick();
+    ok('tapping the side card scrolls to it', gm._mapIndex === 1);
+    btn('map-prev').onClick();
+    ok('chevron scrolls back', gm._mapIndex === 0);
+
+    for (let i = 0; i < 30; i++) gm.update(1 / 60);
+    ok('scroll eases onto the focused act', Math.abs(gm._mapScroll - gm._mapIndex) < 0.01);
     gm.render(ctx, 0);
     ok('HUB render runs', true);
 
+    // Wheel scrolls with a cooldown.
+    gm._handleWheel(40);
+    gm._handleWheel(40);
+    ok('wheel scrolls one act per notch', gm._mapIndex === 1);
+    gm._wheelCooldown = 0;
+    gm._handleWheel(-40);
+    ok('wheel scrolls back', gm._mapIndex === 0);
+
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    btn('act5').onClick();
+    gm._mapGo(5);
+    btn('act6').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    gm._mapGo(1);
     btn('act2').onClick();
     ok('locked act shows a message', gm.state.pendingState === null && /gate 1/i.test(gm._hubMessage));
+    gm._mapGo(0);
     btn('act1').onClick();
     ok('open act goes to the ACT screen', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
 
@@ -776,9 +832,11 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 4; i++) gm.progress.completeStage(3, i, 100);
     gm.progress.openGate(3);
     for (let i = 0; i < 5; i++) gm.progress.completeStage(4, i, 100);
+    gm.progress.openGate(4);
+    for (let i = 0; i < 3; i++) gm.progress.completeStage(5, i, 100);
     settle(gm, S.HUB);
-    gm._tryStartGate(4);
-    ok('gate 4 waits for act 5', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    gm._tryStartGate(5);
+    ok('gate 5 waits for act 6', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -808,15 +866,27 @@ suite('Keyboard navigation of menus', () => {
 
     settle(gm, S.HUB);
     gm.state._handlers[S.HUB].enter();
-    ok('focus starts on act 1', gm.ui.focusId === 'act1');
+    ok('map starts on act 1', gm._mapIndex === 0);
     gm._dispatchKey({ code: 'ArrowRight' });
-    ok('ArrowRight moves to act 2', gm.ui.focusId === 'act2' || gm.ui.focusId === 'gate1');
-    while (gm.ui.focusId !== 'act1') { if (!gm.ui.moveFocus('left')) break; }
+    ok('ArrowRight scrolls to act 2', gm._mapIndex === 1);
+    gm._dispatchKey({ code: 'KeyA' });
+    ok('A scrolls back to act 1', gm._mapIndex === 0);
+    gm._dispatchKey({ code: 'ArrowLeft' });
+    ok('cannot scroll before act 1', gm._mapIndex === 0);
     gm._dispatchKey({ code: 'Enter' });
-    ok('Enter opens the focused act', gm.state.pendingState === S.ACT);
+    ok('Enter opens the focused act', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
+    settle(gm, S.HUB);
+    gm.state._handlers[S.HUB].enter();
+    gm._dispatchKey({ code: 'ArrowDown' });
+    ok('↓ moves focus to the buttons below', gm.ui.focusId !== null);
 
     gm.ui.updateMouse(10, 10);
     ok('mouse movement clears keyboard focus', gm.ui.focusId === null);
+    settle(gm, S.ACT);
+    gm.state._handlers[S.ACT].enter({ actId: 1 });
+    gm.ui.updateMouse(10, 10);
+    gm._dispatchKey({ code: 'Enter' });
+    ok('Enter without focus starts the next stage on the act screen', gm.state.pendingState === S.LEVEL);
 
     // In gameplay, arrows are NOT eaten by the menu navigation.
     settle(gm, S.LOCKPICK);
@@ -927,7 +997,9 @@ suite('Act screen + stage flow', () => {
     settle(gm, S.MINIGAME);
     host.enter(cfg);
     host.onKey({ code: 'Escape' });
-    ok('Escape opens the leave prompt, not an instant exit', !!gm._quit && gm.state.pendingState === null);
+    ok('Escape opens the pause panel, not an instant exit', !!gm._quit && gm._quit.mode === 'pause' && gm.state.pendingState === null);
+    gm.ui.buttons.find(b => b.id === 'pause-leave').onClick();
+    ok('LEAVE asks first', gm._quit && gm._quit.mode === 'leave' && gm.state.pendingState === null);
     gm.ui.buttons.find(b => b.id === 'quit-leave').onClick();
     ok('LEAVE returns to the act screen', !gm._quit && gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 2);
 
@@ -1455,33 +1527,54 @@ suite('Leave prompt in every game + first-stage hint', () => {
     ok('menu footer: birlikterutin credits kept',
         texts.indexOf('thanks for birlikterutin family') >= 0 && texts.indexOf('alpyso and ezgyso') >= 0);
 
-    // Timing Bar stage: button, Esc, pause, Space blocked, default STAY.
+    // Timing Bar stage: ⏸ button, pause panel, warnings, restart.
     gm._startStage(1, 0);
     enter(S.LEVEL);
-    ok('LEAVE button in the Timing Bar', !!btn('leave'));
+    ok('⏸ button in the Timing Bar', !!btn('pause'));
+    ok('⏸ is a comfortable tap target', btn('pause').w >= 56 && btn('pause').h >= 44);
     const t0 = gm.levels.timer;
-    gm._dispatchKey({ code: 'Escape' });
-    ok('Esc opens the prompt', !!gm._quit && !!btn('quit-stay') && !!btn('quit-leave'));
-    ok('safe default: STAY is focused', gm.ui.focusId === 'quit-stay');
+    btn('pause').onClick();
+    ok('⏸ opens the PAUSED panel', !!gm._quit && gm._quit.mode === 'pause' &&
+        !!btn('pause-resume') && !!btn('pause-restart') && !!btn('pause-leave'));
+    ok('RESUME is focused by default', gm.ui.focusId === 'pause-resume');
     for (let i = 0; i < 30; i++) gm.update(1 / 60);
-    ok('game is paused under the prompt', gm.levels.timer === t0);
+    ok('game is paused under the panel', gm.levels.timer === t0);
     const hits = gm.levels.hitCount, lives = gm.levels.lives;
     gm._dispatchKey({ code: 'Space' });
-    ok('Space does nothing while asking', gm.levels.hitCount === hits && gm.levels.lives === lives);
-    ok('taps outside the prompt are swallowed', gm._hitTestUI(5, 5) === true);
+    ok('Space does nothing while paused', gm.levels.hitCount === hits && gm.levels.lives === lives);
+    ok('taps outside the panel are swallowed', gm._hitTestUI(5, 5) === true);
     gm.render(ctx, 0.5);
-    ok('prompt renders', true);
+    ok('pause panel renders', true);
     gm._dispatchKey({ code: 'Enter' });
-    ok('Enter on the default choice stays', !gm._quit && !!btn('leave') && gm.state.pendingState === null);
+    ok('Enter on RESUME continues', !gm._quit && !!btn('pause') && gm.state.pendingState === null);
     for (let i = 0; i < 6; i++) gm.update(1 / 60);
-    ok('game resumes after STAY', gm.levels.timer < t0);
+    ok('game resumes', gm.levels.timer < t0);
+
+    // Esc walks the same panel: open -> resume; warning -> back to panel.
     gm._dispatchKey({ code: 'Escape' });
+    ok('Esc opens the panel', gm._quit && gm._quit.mode === 'pause');
     gm._dispatchKey({ code: 'Escape' });
-    ok('second Esc also stays', !gm._quit);
-    btn('leave').onClick();
+    ok('Esc again resumes', !gm._quit);
+    btn('pause').onClick();
+    btn('pause-leave').onClick();
+    ok('LEAVE shows a warning with STAY focused', gm._quit.mode === 'leave' && gm.ui.focusId === 'quit-stay');
+    gm.render(ctx, 0.5);
+    gm._dispatchKey({ code: 'Escape' });
+    ok('Esc from the warning returns to the panel', gm._quit && gm._quit.mode === 'pause');
+    btn('pause-restart').onClick();
+    ok('RESTART shows a warning too', gm._quit.mode === 'restart' && !!btn('quit-restart') && gm.ui.focusId === 'quit-stay');
+    btn('quit-stay').onClick();
+    ok('CANCEL goes back to the panel', gm._quit && gm._quit.mode === 'pause');
+    btn('pause-restart').onClick();
+    btn('quit-restart').onClick();
+    ok('confirmed RESTART starts the same stage again', !gm._quit && gm.state.pendingState === S.LEVEL &&
+        gm._stage.actId === 1 && gm._stage.index === 0);
+    enter(S.LEVEL);
+    btn('pause').onClick();
+    btn('pause-leave').onClick();
     gm._dispatchKey({ code: 'ArrowRight' });
     gm._dispatchKey({ code: 'Enter' });
-    ok('→ + Enter leaves to the act', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
+    ok('→ + Enter on the warning leaves to the act', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 1);
 
     // First-stage hint only on stage 1 of an act.
     const seen = [];
@@ -1513,8 +1606,10 @@ suite('Leave prompt in every game + first-stage hint', () => {
     settle(gm, S.HUB);
     gm._tryStartGate(1);
     enter(S.MINIGAME, gm.state.pendingContext);
-    ok('LEAVE button on the gate', !!btn('leave'));
-    btn('leave').onClick();
+    ok('⏸ button on the gate', !!btn('pause'));
+    btn('pause').onClick();
+    ok('no RESTART on a gate (each try spends an attempt)', !btn('pause-restart') && !!btn('pause-leave'));
+    btn('pause-leave').onClick();
     ok('gate prompt warns the attempt counts', /attempt will still count/.test(gm._quit.cfg.detail));
     btn('quit-leave').onClick();
     ok('leaving a gate returns to the map', gm.state.pendingState === S.HUB);
@@ -1522,10 +1617,12 @@ suite('Leave prompt in every game + first-stage hint', () => {
     // Lockpick revive: leaving goes back to the act.
     gm._stage = { actId: 1, index: 0 };
     enter(S.LOCKPICK, { reason: 'revive', difficulty: 1, score: 10 });
-    ok('LEAVE button in the code breaker', !!btn('leave'));
+    ok('⏸ button in the code breaker', !!btn('pause'));
     gm._dispatchKey({ code: 'ArrowUp' });
     ok('arrows still drive the code breaker', gm.lockpick.started === true && !gm._quit);
     gm._dispatchKey({ code: 'Escape' });
+    ok('no RESTART in the code breaker', !btn('pause-restart'));
+    btn('pause-leave').onClick();
     btn('quit-leave').onClick();
     ok('aborting recovery returns to the act', gm.state.pendingState === S.ACT);
 
@@ -1533,6 +1630,8 @@ suite('Leave prompt in every game + first-stage hint', () => {
     enter(S.ENDLESS);
     gm.levels.score = 1234;
     gm._dispatchKey({ code: 'Escape' });
+    ok('no RESTART in Endless (the run score counts)', !btn('pause-restart'));
+    btn('pause-leave').onClick();
     btn('quit-leave').onClick();
     ok('leaving Endless goes to the results with the score',
         gm.state.pendingState === S.ENDLESS_OVER && gm.state.pendingContext.score === 1234 && gm.state.pendingContext.noRevive === true);
@@ -1659,7 +1758,7 @@ suite('Orbital Shield (Act 3) — rules, fairness, controls', () => {
     spy.fillText = (t, x) => { if (t === '♥') xs.push(x); return spy; };
     win._renderHud(spy, 960, 640);
     ok('7 hearts drawn', xs.length === 7);
-    ok('hearts clear the LEAVE button and the bar', Math.min(...xs) > 66 + 52 && Math.max(...xs) + 22 < 960 / 2 - 80,
+    ok('hearts clear the ⏸ button and the bar', Math.min(...xs) > 40 + 30 + 8 && Math.max(...xs) + 22 < 960 / 2 - 80,
         xs[0] + '..' + xs[xs.length - 1]);
 });
 
@@ -1864,8 +1963,8 @@ suite('Signal Lock — hold input routing + +20 s revive', () => {
     ok('mouse release (even off-canvas) ends it', m.holdPointer === false);
     gm._hitTestUI(480, 300, 'click');
     ok('trailing click does not re-hold', m.holdPointer === false);
-    gm._handleMouseDown(btn('leave').x, btn('leave').y);
-    ok('pressing LEAVE is not a hold', m.holdPointer === false);
+    gm._handleMouseDown(btn('pause').x, btn('pause').y);
+    ok('pressing ⏸ is not a hold', m.holdPointer === false);
 
     // Touch: press anywhere holds, release ends it.
     gm._hitTestUI(300, 200, 'touch');
@@ -1879,8 +1978,8 @@ suite('Signal Lock — hold input routing + +20 s revive', () => {
     mod.fireDocument('window:blur', {});
     ok('window blur drops every hold', !m.holding);
     gm._dispatchKey({ code: 'Space' });
-    gm._openLeavePrompt();
-    ok('leave prompt drops the hold', !m.holding);
+    gm._openPause();
+    ok('pause panel drops the hold', !m.holding);
     gm._closeLeavePrompt();
 
     // Releases never reach tap-to-confirm games (Dual Ring).
@@ -1905,6 +2004,292 @@ suite('Signal Lock — hold input routing + +20 s revive', () => {
     gm.lockpick.onComplete(true);
     ok('recovery resumes the same run', gm.state.pendingState === S.MINIGAME && gm.state.pendingContext.mechanic === m);
     ok('with 20 more seconds', Math.abs(m.timeLeft - 20) < 1e-6 && m.result === null);
+});
+
+// ─────────────────────────────────────────────
+suite('Route Trace (Act 5) — puzzles, rules, flow', () => {
+    const mod = loadGameManager();
+    const { RouteTraceMechanic, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[4];
+    ok('act 5 is Route Trace with 3 stages', act.available && act.game === 'route' && act.stages.length === 3);
+    ok('grids 4/5/6', act.stages.map(x => x.params.size).join('/') === '4/5/6');
+    ok('traces 2/3/3', act.stages.map(x => x.params.traces).join('/') === '2/3/3');
+    const tl = act.stages.map(x => x.params.timeLimit);
+    ok('time-based (no lives), time grows with the grid', tl.every((v, i) => i === 0 || v > tl[i - 1]) && act.stages.every(x => !x.params.lives));
+    ok('locks only on HARD, no scrambles in the campaign',
+        act.stages.map(x => !!x.params.lockRate).join() === 'false,false,true' &&
+        act.stages.every(x => !x.params.scrambleMin));
+
+    const make = (i, seed) => {
+        const m = new RouteTraceMechanic(Object.assign({ rng: makeRng(seed) }, act.stages[i].params));
+        m.init({});
+        return m;
+    };
+
+    // Every generated puzzle: solvable, not pre-solved, path within bounds,
+    // left edge -> right edge, locked route tiles already correct.
+    let okAll = true, why = '';
+    for (let i = 0; i < act.stages.length; i++) {
+        const p = act.stages[i].params;
+        for (let seed = 1; seed <= 60; seed++) {
+            const m = make(i, seed * 7 + i);
+            const path = m.solution;
+            if (m._reach().solved) { okAll = false; why = 'pre-solved'; }
+            if (path.length < p.minPath || path.length > p.maxPath) { okAll = false; why = 'length ' + path.length; }
+            if (path[0].x !== 0 || path[path.length - 1].x !== p.size - 1) { okAll = false; why = 'edges'; }
+            for (const c of path) {
+                const t = m.grid[c.y][c.x];
+                if (t.locked && (m.mask(c.x, c.y) & t.need) !== t.need) { okAll = false; why = 'locked wrong'; }
+            }
+            for (const c of path) {
+                const t = m.grid[c.y][c.x];
+                if (!t.locked) t.rot = m._rotFor(t.type, t.need);
+            }
+            if (!m._reach().solved) { okAll = false; why = 'unsolvable'; }
+        }
+    }
+    ok('generated puzzles are always solvable and never pre-solved', okAll, why);
+    const pre = make(2, 77);
+    for (const c of pre.solution) { const t = pre.grid[c.y][c.x]; t.rot = pre._rotFor(t.type, t.need); }
+    ok('setup: forced a solved grid', pre._reach().solved);
+    pre._ensureUnsolved();
+    ok('a solved grid is broken before it is handed out', !pre._reach().solved);
+
+    // Rotation + lighting
+    const r = make(0, 3);
+    const c0 = r.solution[0];
+    const t0 = r.grid[c0.y][c0.x];
+    t0.locked = false;
+    const rot0 = t0.rot;
+    const B = r.boardRect();
+    r.handlePointer(B.x + c0.x * B.tile + 5, B.y + c0.y * B.tile + 5, 'down');
+    ok('tap rotates the tile clockwise', t0.rot === (rot0 + 1) % 4);
+    ok('tap moves the cursor there', r.cursor.x === c0.x && r.cursor.y === c0.y);
+    r.handleKey('Space');
+    ok('SPACE rotates the cursor tile', t0.rot === (rot0 + 2) % 4);
+    r.handleKey('ArrowRight');
+    ok('arrows move the cursor', r.cursor.x === Math.min(c0.x + 1, r.size - 1));
+    // A tile off the route, made a locked corner.
+    let off = null;
+    for (let y = 0; y < r.size && !off; y++) for (let x = 0; x < r.size && !off; x++) {
+        if (!r.grid[y][x].onPath) off = { x, y };
+    }
+    Object.assign(r.grid[off.y][off.x], { type: 'corner', rot: 1, locked: true });
+    ok('locked tiles do not rotate', r.rotateTile(off.x, off.y) === false && r.grid[off.y][off.x].rot === 1);
+    t0.rot = r._rotFor(t0.type, t0.need);
+    r._afterChange();
+    ok('the first route tile lights up when it faces your node', r.lit.has(c0.y * r.size + c0.x));
+
+    // Solve -> pause (timer stops) -> fresh grid -> win
+    const solve = (m) => {
+        for (const c of m.solution) {
+            const t = m.grid[c.y][c.x];
+            if (!t.locked) t.rot = m._rotFor(t.type, t.need);
+        }
+        m._afterChange();
+    };
+    const w = make(1, 9);
+    solve(w);
+    ok('a connected route counts as one trace', w.solved === 1 && w.pause > 0);
+    const tl0 = w.timeLeft;
+    const firstGrid = w.grid;
+    ok('input is ignored during the pause', w.rotateTile(0, 0) === false);
+    for (let i = 0; i < 30; i++) w.update(1 / 60);
+    ok('the timer stops while a solved trace is shown', w.timeLeft === tl0 && w.pause > 0);
+    for (let i = 0; i < 30; i++) w.update(1 / 60);
+    ok('a new grid follows', w.grid !== firstGrid && w.pause <= 0);
+    solve(w);
+    for (let i = 0; i < 60; i++) w.update(1 / 60);
+    solve(w);
+    ok('tracing every route wins', w.result === 'success' && w.solved === 3);
+    ok('score = traces*400 + time left*20', w.score === 3 * 400 + Math.floor(w.timeLeft) * 20);
+
+    // Time out + revive
+    const l = make(0, 4);
+    for (let i = 0; i < 4000 && l.result === null; i++) l.update(1 / 60);
+    ok('time out fails', l.result === 'fail' && l.timeLeft === 0);
+    l.revive();
+    ok('revive adds 20 s on the same grid', l.result === null && Math.abs(l.timeLeft - 20) < 1e-9);
+
+    // Scramble (kept for later modes): flicker first, then turn the chosen tiles.
+    const sc = new RouteTraceMechanic(Object.assign({ rng: makeRng(5) }, act.stages[2].params, { scrambleMin: 9, scrambleMax: 13 }));
+    sc.init({});
+    let steps = 0;
+    while (!sc.scrambleWarning() && steps++ < 2000) sc.update(1 / 60);
+    ok('scramble is announced', sc.scrambleWarning() && sc.scrambleTiles.length === 2);
+    ok('scrambles never pick locked tiles', sc.scrambleTiles.every(c => !sc.grid[c.y][c.x].locked));
+    const picked = sc.scrambleTiles.slice();
+    const before = picked.map(c => sc.grid[c.y][c.x].rot);
+    while (sc.scrambleWarning() && steps++ < 4000) sc.update(1 / 60);
+    ok('scrambled tiles turned', picked.every((c, k) => sc.grid[c.y][c.x].rot !== before[k]));
+    ok('next scramble scheduled', isFinite(sc.scrambleAt) && sc.scrambleAt > sc.time);
+
+    const cv = makeFakeCanvas();
+    sc.render(makeFakeCtx(cv), 960, 640);
+    w.render(makeFakeCtx(cv), 960, 640);
+    ok('render runs', true);
+
+    // Campaign flow: stage card, host tap routing, +20 s recovery.
+    const gm = new mod.GameManager(cv, makeFakeCtx(cv));
+    const S = gm.state.STATES;
+    for (let a = 1; a <= 4; a++) {
+        for (let i = 0; i < gm.progress.act(a).stages.length; i++) gm.progress.completeStage(a, i, 10);
+        gm.progress.openGate(a);
+    }
+    ok('gate 4 opened act 5', gm.progress.isActUnlocked(5));
+    ok('stage card summary', gm._stageSummary(gm.progress.act(5), gm.progress.act(5).stages[2]) === '3 TRACES · 6×6 · 85s');
+    settle(gm, S.ACT);
+    gm._startStage(5, 0);
+    const cfg = gm.state.pendingContext;
+    const m = cfg.mechanic;
+    ok('stage runs Route Trace', m instanceof RouteTraceMechanic && m.size === 4);
+    ok('first stage hint', cfg.footHint && /Tap a tile/.test(cfg.footHint.touch));
+    const host = gm.state._handlers[S.MINIGAME];
+    settle(gm, S.MINIGAME);
+    host.enter(cfg);
+    const Bm = m.boardRect();
+    const tc = m.solution[0];
+    const tt = m.grid[tc.y][tc.x];
+    const rb = tt.rot;
+    ok('click on a tile is routed to the board', gm._hitTestUI(Bm.x + tc.x * Bm.tile + 8, Bm.y + tc.y * Bm.tile + 8, 'click') === true &&
+        (tt.locked ? tt.rot === rb : tt.rot === (rb + 1) % 4));
+    m.timeLeft = 0.01;
+    for (let i = 0; i < 100 && gm.state.pendingState !== S.GAME_OVER; i++) host.update(1 / 60);
+    const go = gm.state.pendingContext;
+    ok('time out offers a +20s recovery', gm.state.pendingState === S.GAME_OVER && go.noRevive === false && go.resume === cfg);
+    settle(gm, S.GAME_OVER);
+    gm.state._handlers[S.GAME_OVER].enter(go);
+    const rv = gm.ui.buttons.find(b => b.id === 'revive');
+    ok('revive button says +20s', rv && /\+20s/.test(rv.label));
+});
+
+// ─────────────────────────────────────────────
+suite('Field guide pages scroll', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    ctx.measureText = (t) => ({ width: String(t).length * 7.5 });
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const guide = gm.state._handlers[S.GUIDE];
+    const pages = mod.GameManager.GUIDE_PAGES;
+    const games = pages.findIndex(p => p.title === 'GAMES');
+
+    settle(gm, S.GUIDE);
+    guide.enter({ returnState: S.HUB });
+    gm._setGuidePage(0);
+    guide.render(ctx, 0);
+    ok('a short page does not scroll', gm._guideMax === 0);
+
+    gm._setGuidePage(games);
+    guide.render(ctx, 0);
+    ok('the GAMES page is taller than the viewport', gm._guideMax > 0, 'max=' + gm._guideMax);
+    const settleScroll = () => { for (let i = 0; i < 60; i++) guide.update(1 / 60); guide.render(ctx, 0); };
+
+    guide.onKey({ code: 'ArrowDown' });
+    settleScroll();
+    ok('↓ scrolls down', gm._guideScroll > 0);
+    for (let i = 0; i < 50; i++) guide.onKey({ code: 'KeyS' });
+    settleScroll();
+    ok('scrolling stops at the bottom', gm._guideScroll === gm._guideMax);
+    guide.onKey({ code: 'PageUp' });
+    guide.onKey({ code: 'PageUp' });
+    guide.onKey({ code: 'PageUp' });
+    settleScroll();
+    ok('PageUp scrolls back to the top', gm._guideScroll === 0);
+
+    gm._handleWheel(120);
+    settleScroll();
+    ok('mouse wheel scrolls the guide', gm._guideScroll > 0);
+    gm._handleSwipe('down');
+    gm._handleSwipe('down');
+    settleScroll();
+    ok('swipe down (finger) scrolls back up', gm._guideScroll === 0);
+    gm._handleSwipe('up');
+    settleScroll();
+    ok('swipe up (finger) scrolls down', gm._guideScroll > 0);
+
+    gm._handleSwipe('left');
+    ok('swipe left turns the page and resets the scroll', gm._guidePage === (games + 1) % pages.length && gm._guideScroll === 0);
+    gm._handleSwipe('right');
+    ok('swipe right turns back', gm._guidePage === games);
+});
+
+// ─────────────────────────────────────────────
+suite('Back button / back swipe stays in the game', () => {
+    const mod = loadGameManager();
+    const { BackGuard } = mod;
+
+    // BackGuard against a fake window + history.
+    const listeners = {};
+    const hist = { pushes: 0, backs: 0 };
+    const win = {
+        addEventListener: (t, fn) => { (listeners[t] = listeners[t] || []).push(fn); },
+        history: { pushState: () => { hist.pushes++; }, back: () => { hist.backs++; } }
+    };
+    const fire = (t) => (listeners[t] || []).forEach(fn => fn({}));
+    let answer = true, calls = 0;
+    const guard = new BackGuard(win, () => { calls++; return answer; });
+    ok('no guard entry before the player interacts', hist.pushes === 0 && !guard.armed);
+    fire('popstate');
+    ok('an unarmed pop is ignored', calls === 0);
+    fire('pointerdown');
+    ok('first tap pushes the guard entry', hist.pushes === 1 && guard.armed);
+    fire('keydown');
+    ok('only one guard entry at a time', hist.pushes === 1);
+    fire('popstate');
+    ok('back is handed to the game', calls === 1);
+    ok('handled back re-arms the guard', hist.pushes === 2 && guard.armed && hist.backs === 0);
+    answer = false;
+    fire('popstate');
+    ok('an unhandled back really leaves the page', hist.backs === 1 && guard.leaving && !guard.armed);
+    fire('pointerdown');
+    ok('no re-arming while leaving', hist.pushes === 2);
+
+    // GameManager.handleBrowserBack per screen.
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const enter = (state, c) => { settle(gm, state); gm.state._handlers[state].enter(c); };
+
+    gm._startStage(1, 0);
+    enter(S.LEVEL);
+    ok('in play: back stays on the page', gm.handleBrowserBack() === true);
+    ok('in play: back opens the PAUSED panel (a warning, not an exit)', gm._quit && gm._quit.mode === 'pause' && gm.state.pendingState === null);
+    gm._setPauseMode('leave');
+    gm.handleBrowserBack();
+    ok('back on the leave warning returns to the panel', gm._quit && gm._quit.mode === 'pause');
+    gm.handleBrowserBack();
+    ok('back on the panel resumes', !gm._quit && gm.state.pendingState === null);
+
+    enter(S.ACT, { actId: 1 });
+    gm.handleBrowserBack();
+    ok('act screen: back goes to the map', gm.state.pendingState === S.HUB);
+    enter(S.HUB);
+    gm.handleBrowserBack();
+    ok('map: back goes to the menu', gm.state.pendingState === S.MENU);
+    enter(S.GUIDE, { returnState: S.ACT, returnContext: { actId: 1 } });
+    gm.handleBrowserBack();
+    ok('guide: back closes it', gm.state.pendingState === S.ACT);
+    gm._stage = { actId: 1, index: 0 };
+    enter(S.GAME_OVER, { stage: gm._stage, score: 0 });
+    gm.handleBrowserBack();
+    ok('game over: back goes to the act', gm.state.pendingState === S.ACT);
+
+    enter(S.MENU);
+    ok('menu: first back stays and warns', gm.handleBrowserBack() === true && gm._exitArmed > 0);
+    const texts = [];
+    const spy = makeFakeCtx(canvas);
+    spy.fillText = (t) => { texts.push(String(t)); return spy; };
+    gm.state._handlers[S.MENU].render(spy, 0);
+    ok('menu shows "press back again"', texts.some(t => /Press back again/.test(t)));
+    ok('menu: second back leaves the site', gm.handleBrowserBack() === false);
+    for (let i = 0; i < 200; i++) gm.state._handlers[S.MENU].update(1 / 60);
+    ok('the warning expires', gm.handleBrowserBack() === true);
+
+    gm.state.transitioning = true;
+    ok('back during a screen transition is swallowed', gm.handleBrowserBack() === true);
 });
 
 // ─────────────────────────────────────────────

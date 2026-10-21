@@ -105,6 +105,53 @@ const LEVEL_THEMES = {
         bgColor: '#a855f7',
     },
 
+    // Act 7: DEFUSE_PAYLOAD — Pink, unstable sparks
+    7: {
+        icon: '✱', iconSize: 26,
+        zoneColor: '#ec4899',
+        zoneBg: 'rgba(236,72,153,0.15)',
+        barGlow: '#ec4899',
+        indicatorColor: '#ec4899',
+        particleSymbols: ['✱', '·', '+', '×'],
+        hitWords: { perfect: 'DEFUSED', good: 'DISARMED', miss: 'ARMED' },
+        hitColors: { perfect: '#ec4899', good: '#f472b6', miss: '#ef4444' },
+        soundType: 'square', soundFreq: 560,
+        bgType: 'electric',
+        bgColor: '#ec4899',
+    },
+
+    // Act 8: RESTORE_CORE — Sky blue, restored data
+    8: {
+        icon: '◎', iconSize: 26,
+        zoneColor: '#38bdf8',
+        zoneBg: 'rgba(56,189,248,0.15)',
+        barGlow: '#38bdf8',
+        indicatorColor: '#38bdf8',
+        particleSymbols: ['0', '1', '◆', '▪'],
+        hitWords: { perfect: 'RESTORED', good: 'LOADED', miss: 'CORRUPT' },
+        hitColors: { perfect: '#38bdf8', good: '#7dd3fc', miss: '#ef4444' },
+        soundType: 'sine', soundFreq: 620,
+        bgType: 'binary',
+        bgColor: '#38bdf8',
+        bgChars: '10110100111001',
+    },
+
+    // Act 9: FINAL_AUDIT — Indigo, calm and analytical
+    9: {
+        icon: '✓', iconSize: 26,
+        zoneColor: '#818cf8',
+        zoneBg: 'rgba(129,140,248,0.15)',
+        barGlow: '#818cf8',
+        indicatorColor: '#818cf8',
+        particleSymbols: ['✓', '?', '∴', '='],
+        hitWords: { perfect: 'VERIFIED', good: 'CHECKED', miss: 'FLAGGED' },
+        hitColors: { perfect: '#818cf8', good: '#a5b4fc', miss: '#ef4444' },
+        soundType: 'sine', soundFreq: 440,
+        bgType: 'password',
+        bgColor: '#818cf8',
+        bgChars: 'AUDIT?∴=✓',
+    },
+
     // Endless mode — Gold
     999: {
         icon: '∞', iconSize: 28,

@@ -38,6 +38,14 @@ const GameRegistry = {
         create: (params) => new SignalLockMechanic(Object.assign({}, params))
     },
 
+    route: {
+        kind: 'mechanic',
+        revive: true,
+        reviveLabel: '+20s',
+        title: 'ROUTE TRACE',
+        create: (params) => new RouteTraceMechanic(Object.assign({}, params))
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 

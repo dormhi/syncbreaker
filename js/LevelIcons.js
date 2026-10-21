@@ -128,6 +128,44 @@ const LevelIcons = {
         ctx.beginPath(); ctx.moveTo(s * 0.28, s * 0.18); ctx.lineTo(-s * 0.34, -s * 0.36); ctx.stroke();
     },
 
+    // 7 — DEFUSE_PAYLOAD: bomb with a lit fuse
+    lvl7(ctx, s) {
+        ctx.beginPath(); ctx.arc(-s * 0.06, s * 0.08, s * 0.28, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(s * 0.13, -s * 0.13); ctx.lineTo(s * 0.22, -s * 0.24); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(s * 0.22, -s * 0.24);
+        ctx.quadraticCurveTo(s * 0.34, -s * 0.36, s * 0.28, -s * 0.44);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(s * 0.3, -s * 0.46, s * 0.05, 0, Math.PI * 2); ctx.fill();
+    },
+
+    // 8 — RESTORE_CORE: database cylinder
+    lvl8(ctx, s) {
+        const w = s * 0.3, h = s * 0.1, top = -s * 0.28, bot = s * 0.28;
+        ctx.beginPath(); ctx.ellipse(0, top, w, h, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-w, top); ctx.lineTo(-w, bot); ctx.moveTo(w, top); ctx.lineTo(w, bot); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(0, bot, w, h, 0, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(0, 0, w, h, 0, 0, Math.PI); ctx.stroke();
+    },
+
+    // 9 — FINAL_AUDIT: shield with a check mark
+    lvl9(ctx, s) {
+        ctx.beginPath();
+        ctx.moveTo(0, -s * 0.38);
+        ctx.lineTo(s * 0.3, -s * 0.26);
+        ctx.lineTo(s * 0.26, s * 0.1);
+        ctx.quadraticCurveTo(s * 0.16, s * 0.3, 0, s * 0.4);
+        ctx.quadraticCurveTo(-s * 0.16, s * 0.3, -s * 0.26, s * 0.1);
+        ctx.lineTo(-s * 0.3, -s * 0.26);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.12, 0);
+        ctx.lineTo(-s * 0.02, s * 0.1);
+        ctx.lineTo(s * 0.14, -s * 0.1);
+        ctx.stroke();
+    },
+
     // 999 — ENDLESS: infinity
     lvl999(ctx, s) {
         const h = s * 0.5, w = s * 0.5;

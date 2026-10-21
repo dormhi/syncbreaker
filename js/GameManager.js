@@ -24,6 +24,10 @@ class GameManager {
         this.progress = new CampaignProgress(CAMPAIGN);
         this._stage = null;      // { actId, index } of the stage being played
         this._actView = this.progress.currentActId();
+        // Act map carousel: focused act index and its eased scroll position.
+        this._mapIndex = this._actView - 1;
+        this._mapScroll = this._mapIndex;
+        this._wheelCooldown = 0;
 
         // Challenge attempt windows (easter egg / gates)
         this.dualRingGate = new ChallengeGate('sb_dualring');
@@ -38,6 +42,10 @@ class GameManager {
         this.tipBar = new TipBar();
         this._guidePage = 0;
         this._guideSeen = this._readFlag('sb_guide_seen');
+        // Guide page content scrolls inside a clipped viewport.
+        this._guideScroll = 0;
+        this._guideScrollTarget = 0;
+        this._guideMax = 0;
 
         // Active generic minigame (S.MINIGAME)
         this._activeMinigame = null;
@@ -170,7 +178,7 @@ class GameManager {
                     { text: '', color: '' },
                     { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
                     { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
-                    { text: 'Six acts stand between the attacker and full control of the system.', color: '#e2e8f0' },
+                    { text: `${CAMPAIGN.acts.length} acts stand between the attacker and full control of the system.`, color: '#e2e8f0' },
                     { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#e2e8f0' },
                     { text: '', color: '' },
                     { text: '> CAUTION: Energy resources are limited. Each operation costs charges.', color: '#f59e0b' },
@@ -203,10 +211,31 @@ class GameManager {
                 ctx.textAlign = 'right';
                 ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
                 ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
+
+                // Back pressed once on the menu: warn before leaving the site.
+                if (this._exitArmed > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = Math.min(1, this._exitArmed * 2);
+                    ctx.fillStyle = 'rgba(15,23,42,0.92)';
+                    ctx.strokeStyle = 'rgba(245,158,11,0.6)';
+                    Utils.roundRect(ctx, cx - 190, H - 104, 380, 34, 17);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '600 15px Rajdhani';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('Press back again to leave SyncBreaker', cx, H - 87);
+                    ctx.restore();
+                }
+            },
+            update: (dt) => {
+                if (this._exitArmed > 0) this._exitArmed -= dt;
             },
             exit: () => {
                 this.ui.clearButtons();
                 this._setBrandLink(false);
+                this._exitArmed = 0;
             },
             onKey: (e) => {
                 if (e.code === 'Space' || e.code === 'Enter') this.state.change(S.HUB);
@@ -218,12 +247,18 @@ class GameManager {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.startAmbient();
+                this._mapIndex = (this._actView || this.progress.currentActId()) - 1;
+                this._mapScroll = this._mapIndex;
                 this._buildActMapButtons();
                 this._pickEnergyEggCell();
                 this.tipBar.setTips('map', TipBar.MAP);
             },
             update: (dt) => {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
+                if (this._wheelCooldown > 0) this._wheelCooldown -= dt;
+                // Ease the carousel toward the focused act.
+                this._mapScroll += (this._mapIndex - this._mapScroll) * Math.min(1, dt * 10);
+                if (Math.abs(this._mapIndex - this._mapScroll) < 0.001) this._mapScroll = this._mapIndex;
                 // Catch-up: a finished campaign shows the celebration once.
                 if (this.progress.isCampaignComplete() && !this.progress.congratsSeen) {
                     this.progress.markCongratsSeen();
@@ -311,11 +346,20 @@ class GameManager {
                 }
                 this._buildGuideButtons();
             },
+            update: (dt) => {
+                // Ease the content toward its scroll target.
+                const d = this._guideScrollTarget - this._guideScroll;
+                this._guideScroll = Math.abs(d) < 0.5 ? this._guideScrollTarget : this._guideScroll + d * Math.min(1, dt * 14);
+            },
             render: (ctx) => this._renderGuide(ctx),
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'ArrowRight' || e.code === 'KeyD') this._setGuidePage(this._guidePage + 1);
                 if (e.code === 'ArrowLeft' || e.code === 'KeyA') this._setGuidePage(this._guidePage - 1);
+                if (e.code === 'ArrowDown' || e.code === 'KeyS') this._guideScrollBy(48);
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') this._guideScrollBy(-48);
+                if (e.code === 'PageDown') this._guideScrollBy(240);
+                if (e.code === 'PageUp') this._guideScrollBy(-240);
                 if (e.code === 'Escape' || e.code === 'KeyH' || e.code === 'Enter') this._closeGuide();
             }
         });
@@ -326,9 +370,11 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
                 this._addLeaveButton({
+                    label: this.levels.currentLevel ? this.levels.currentLevel.name : '',
                     title: 'LEAVE THIS STAGE?',
                     detail: 'Your progress in this stage will be lost.',
-                    onLeave: () => this._backToAct()
+                    onLeave: () => this._backToAct(),
+                    onRestart: () => this._restartStage()
                 });
             },
             update: (dt) => {
@@ -375,7 +421,7 @@ class GameManager {
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Space') this.levels.hit(this._pendingInputOffset || 0);
-                if (e.code === 'Escape') this._openLeavePrompt();
+                if (e.code === 'Escape') this._pauseBack();
             }
         });
 
@@ -387,6 +433,7 @@ class GameManager {
                 const lCtx = context || {};
                 const endlessRevive = lCtx.reason === 'endless_revive';
                 this._addLeaveButton({
+                    label: 'RECOVERY PROTOCOL',
                     title: 'ABORT RECOVERY?',
                     detail: endlessRevive
                         ? 'The run ends here — your score still counts.'
@@ -487,7 +534,7 @@ class GameManager {
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
-                if (e.code === 'Escape') { this._openLeavePrompt(); return; }
+                if (e.code === 'Escape') { this._pauseBack(); return; }
                 this.lockpick.handleKey(e.code);
             }
         });
@@ -501,8 +548,11 @@ class GameManager {
                 this._mgConfig = c;
                 this._activeMinigame = c.mechanic || null;
                 this._addLeaveButton({
+                    label: c.title || '',
                     title: c.stage ? 'LEAVE THIS STAGE?' : 'LEAVE THIS CHALLENGE?',
                     detail: c.stage ? 'Your progress in this stage will be lost.' : 'This attempt will still count.',
+                    // Gates / Dual Ring spend an attempt per try: no restart.
+                    onRestart: c.stage ? () => this._restartStage() : null,
                     onLeave: () => {
                         if (c.stage) this._backToAct();
                         else this.state.change(S.HUB);
@@ -576,7 +626,7 @@ class GameManager {
                 this._activeMinigame = null;
             },
             onKey: (e) => {
-                if (e.code === 'Escape') { this._openLeavePrompt(); return; }
+                if (e.code === 'Escape') { this._pauseBack(); return; }
                 const m = this._activeMinigame;
                 if (!m) return;
                 const offset = this._pendingInputOffset || 0;
@@ -696,6 +746,7 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
                 this._addLeaveButton({
+                    label: 'ENDLESS MODE',
                     title: 'END THIS RUN?',
                     detail: 'Your score so far still counts.',
                     onLeave: () => this.state.change(S.ENDLESS_OVER, {
@@ -740,7 +791,7 @@ class GameManager {
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
                 if (e.code === 'Space') this.levels.hitEndless(this._pendingInputOffset || 0);
-                if (e.code === 'Escape') this._openLeavePrompt();
+                if (e.code === 'Escape') this._pauseBack();
             }
         });
 
@@ -1139,7 +1190,7 @@ class GameManager {
 
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '600 14px Rajdhani';
-        ctx.fillText('ALL 6 ACTS COMPLETE — THE CYBER ATTACK IS REPELLED', cx, py + 86);
+        ctx.fillText(`ALL ${CAMPAIGN.acts.length} ACTS COMPLETE — THE CYBER ATTACK IS REPELLED`, cx, py + 86);
 
         // Story body
         const lines = [
@@ -1189,25 +1240,59 @@ class GameManager {
 
     // ── Act map (HUB) ──
 
-    /** Single source of truth for the act map geometry (snake layout). */
+    /**
+     * Single source of truth for the act map carousel geometry.
+     * The focused act sits in the centre; its neighbours peek in, smaller,
+     * at ±spacing; gates sit halfway between.
+     */
     _actMapLayout() {
         const W = this.canvas.width;
-        const cardW = 250, cardH = 128, gapX = 64;
-        const totalW = 3 * cardW + 2 * gapX;
-        const left = (W - totalW) / 2;
-        const colX = [0, 1, 2].map(c => left + cardW / 2 + c * (cardW + gapX));
-        const rowY = [160, 352];
-        // Row 1 runs 1 -> 3, row 2 runs back 4 -> 6 so the gates form a path.
-        const slots = [
-            [colX[0], rowY[0]], [colX[1], rowY[0]], [colX[2], rowY[0]],
-            [colX[2], rowY[1]], [colX[1], rowY[1]], [colX[0], rowY[1]]
-        ];
-        const gates = [];
-        for (let i = 0; i < 5; i++) {
-            const [ax, ay] = slots[i], [bx, by] = slots[i + 1];
-            gates.push([(ax + bx) / 2, (ay + by) / 2]);
+        return {
+            W, cx: W / 2, cy: 300,
+            cardW: 360, cardH: 230,
+            spacing: 410, sideScale: 0.78,
+            railY: 92, railStep: 64,
+            chevronW: 44, chevronH: 70,
+            endlessY: 470
+        };
+    }
+
+    /** Centre x of act index i (0-based) for a given scroll position. */
+    _mapX(i, scroll) {
+        const L = this._actMapLayout();
+        return L.cx + (i - scroll) * L.spacing;
+    }
+
+    _mapRailX(i) {
+        const L = this._actMapLayout();
+        const n = this.progress.acts.length;
+        return L.cx + (i - (n - 1) / 2) * L.railStep;
+    }
+
+    /** Focus act index i (clamped) and rebuild the map buttons. */
+    _mapGo(i) {
+        const n = this.progress.acts.length;
+        const next = Math.max(0, Math.min(n - 1, i));
+        if (next === this._mapIndex) return false;
+        this._mapIndex = next;
+        this._actView = next + 1;
+        this.ui.clearButtons();
+        this._buildActMapButtons();
+        return true;
+    }
+
+    /** Open the focused act (or explain why it is closed). */
+    _openMapAct(act) {
+        const status = this._actStatus(act.id);
+        if (status === 'dev') {
+            this._hubMessage = `ACT ${act.id} is in development`;
+            this._hubMessageTimer = 2.5;
+        } else if (status === 'locked') {
+            this._hubMessage = `Breach gate ${act.id - 1} to reach ACT ${act.id}`;
+            this._hubMessageTimer = 2.5;
+        } else {
+            this.state.change(this.state.STATES.ACT, { actId: act.id });
         }
-        return { W, cardW, cardH, slots, gates, endlessY: 462 };
     }
 
     /** 'complete' | 'active' | 'locked' | 'dev' */
@@ -1222,34 +1307,55 @@ class GameManager {
         const W = this.canvas.width;
         const H = this.canvas.height;
         const L = this._actMapLayout();
+        const acts = this.progress.acts;
+        const i = this._mapIndex;
 
-        this.progress.acts.forEach((act, i) => {
-            const [x, y] = L.slots[i];
-            const status = this._actStatus(act.id);
-            this.ui.addButton(`act${act.id}`, act.key, x, y, L.cardW, L.cardH,
-                () => {
-                    if (status === 'dev') {
-                        this._hubMessage = `ACT ${act.id} is in development`;
-                        this._hubMessageTimer = 2.5;
-                    } else if (status === 'locked') {
-                        this._hubMessage = `Breach gate ${act.id - 1} to reach ACT ${act.id}`;
-                        this._hubMessageTimer = 2.5;
-                    } else {
-                        this.state.change(this.state.STATES.ACT, { actId: act.id });
-                    }
-                },
-                { draw: (ctx, btn, hovered) => this._drawActCard(ctx, btn, hovered, act, status) });
+        // Chevrons first so they win over the peeking side cards.
+        if (i > 0) {
+            this.ui.addButton('map-prev', '‹', L.chevronW / 2 + 4, L.cy, L.chevronW, L.chevronH,
+                () => this._mapGo(this._mapIndex - 1),
+                { draw: (ctx, btn, hovered) => this._drawChevron(ctx, btn, hovered, -1) });
+        }
+        if (i < acts.length - 1) {
+            this.ui.addButton('map-next', '›', W - L.chevronW / 2 - 4, L.cy, L.chevronW, L.chevronH,
+                () => this._mapGo(this._mapIndex + 1),
+                { draw: (ctx, btn, hovered) => this._drawChevron(ctx, btn, hovered, 1) });
+        }
+
+        // Focused card (opens the act). Drawn by _renderActMap, so hidden here.
+        const act = acts[i];
+        this.ui.addButton(`act${act.id}`, act.key, L.cx, L.cy, L.cardW, L.cardH,
+            () => this._openMapAct(act), { hidden: true });
+
+        // Side cards: tapping the visible part scrolls to them.
+        const sideW = L.cardW * L.sideScale, sideH = L.cardH * L.sideScale;
+        const inner = L.chevronW + 12;
+        if (i > 0) {
+            const right = L.cx - L.spacing + sideW / 2, left = inner;
+            this.ui.addButton(`act${acts[i - 1].id}`, acts[i - 1].key, (left + right) / 2, L.cy, right - left, sideH,
+                () => this._mapGo(this._mapIndex - 1), { hidden: true });
+        }
+        if (i < acts.length - 1) {
+            const left = L.cx + L.spacing - sideW / 2, right = W - inner;
+            this.ui.addButton(`act${acts[i + 1].id}`, acts[i + 1].key, (left + right) / 2, L.cy, right - left, sideH,
+                () => this._mapGo(this._mapIndex + 1), { hidden: true });
+        }
+
+        // Gates on either side of the focused act (44 px tap targets).
+        [i, i + 1].forEach(n => {
+            if (n < 1 || n > acts.length - 1) return;
+            this.ui.addButton(`gate${n}`, '', this._mapX(n - 0.5, i), L.cy, 44, 44,
+                () => this._tryStartGate(n), { hidden: true });
         });
 
-        // Gate nodes between acts (44 px tap targets).
-        L.gates.forEach(([x, y], i) => {
-            const n = i + 1;
-            this.ui.addButton(`gate${n}`, '', x, y, 44, 44,
-                () => this._tryStartGate(n),
-                { draw: (ctx, btn, hovered) => this._drawGateNode(ctx, btn, hovered, n) });
+        // Progress rail: one node per act, tap to jump there.
+        acts.forEach((a, k) => {
+            this.ui.addButton(`rail${a.id}`, '', this._mapRailX(k), L.railY, 32, 32,
+                () => this._mapGo(k),
+                { draw: (ctx, btn, hovered) => this._drawRailNode(ctx, btn, hovered, a, k) });
         });
 
-        // Endless Mode (after ACT 6; kept for players who already had it)
+        // Endless Mode (after the final act; kept for players who already had it)
         if (this.progress.isEndlessUnlocked()) {
             const bestScore = this.levels._loadEndlessBest();
             const endlessSubtitle = bestScore > 0 ? `Best: ${bestScore}` : 'Unlimited challenge, unlimited fun';
@@ -1266,7 +1372,6 @@ class GameManager {
         }
 
         this._addHubChrome(W, H);
-        this.ui.focus(`act${this.progress.currentActId()}`);
     }
 
     /** Menu, sound and reset buttons shared by the map. */
@@ -1291,7 +1396,7 @@ class GameManager {
                 if (window.confirm('Are you sure you want to delete all data and start fresh?')) {
                     ['sb_progress', 'sb_energy', 'sb_congrats_seen', 'sb_group2_unlocked',
                         'sb_dualring', 'sb_packetpurge', CampaignProgress.KEY, 'sb_guide_seen',
-                        'sb_gate_2', 'sb_gate_3', 'sb_gate_4', 'sb_gate_5']
+                        ...CAMPAIGN.gates.map(g => `sb_gate_${g.id}`)]
                         .forEach(k => localStorage.removeItem(k));
                     window.location.href = window.location.href;
                 }
@@ -1299,80 +1404,160 @@ class GameManager {
             { color: '#ef4444' });
     }
 
-    _drawActCard(ctx, btn, hovered, act, status) {
+    /** Sum of best scores over an act's stages. */
+    _actBest(act) {
+        let sum = 0;
+        for (let k = 0; k < act.stages.length; k++) sum += this.progress.stage(act.id, k).best;
+        return sum;
+    }
+
+    /** Big act card centred on (0, 0) of the current transform. */
+    _drawActCard(ctx, act, status, highlighted) {
         const theme = getLevelTheme(act.themeId);
-        const left = btn.x - btn.w / 2;
-        const top = btn.y - btn.h / 2;
-        const w = btn.w, h = btn.h;
+        const L = this._actMapLayout();
+        const w = L.cardW, h = L.cardH;
+        const left = -w / 2, top = -h / 2;
         const dim = status === 'locked' || status === 'dev';
         const color = status === 'complete' ? '#22c55e' : dim ? '#475569' : theme.zoneColor;
+        const game = GameRegistry.get(act.game);
 
         ctx.save();
-        ctx.globalAlpha = dim ? 0.7 : 1;
-        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
+        ctx.fillStyle = highlighted ? 'rgba(30,41,59,0.97)' : 'rgba(15,23,42,0.94)';
         ctx.strokeStyle = color;
-        ctx.lineWidth = hovered ? 2 : 1.2;
-        if (status === 'dev') ctx.setLineDash([6, 6]);
-        if (hovered && !dim) { ctx.shadowColor = color; ctx.shadowBlur = 14; }
-        Utils.roundRect(ctx, left, top, w, h, 10);
+        ctx.lineWidth = highlighted ? 2.2 : 1.4;
+        if (status === 'dev') ctx.setLineDash([8, 7]);
+        if (!dim) { ctx.shadowColor = color; ctx.shadowBlur = highlighted ? 22 : 10; }
+        Utils.roundRect(ctx, left, top, w, h, 14);
         ctx.fill();
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.shadowBlur = 0;
 
         // Icon badge
-        const ix = left + 34, iy = top + 36;
+        const ix = left + 46, iy = top + 48;
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(ix, iy, 19, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ix, iy, 26, 0, Math.PI * 2); ctx.stroke();
         ctx.save();
         ctx.translate(ix, iy);
-        LevelIcons.draw(ctx, act.themeId, 20, color);
+        LevelIcons.draw(ctx, act.themeId, 30, color);
         ctx.restore();
 
-        // Text
         ctx.save();
         ctx.beginPath();
-        ctx.rect(left + 4, top + 2, w - 8, h - 4);
+        ctx.rect(left + 6, top + 4, w - 12, h - 8);
         ctx.clip();
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = color;
-        ctx.font = '700 11px Orbitron';
-        ctx.fillText(`ACT ${act.id}`, left + 62, top + 28);
+        ctx.font = '700 12px Orbitron';
+        ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, left + 86, top + 38);
         ctx.fillStyle = dim ? '#64748b' : '#e2e8f0';
-        ctx.font = '600 14px Orbitron';
-        ctx.fillText(this.ui._fitText(act.key, w - 74), left + 62, top + 48);
+        ctx.font = '700 21px Orbitron';
+        ctx.fillText(this.ui._fitText(act.key, w - 100), left + 86, top + 66);
 
-        // Story: wrapped to at most two lines
-        ctx.fillStyle = '#64748b';
-        ctx.font = '400 12px Rajdhani';
-        const lines = this._wrapText(ctx, act.story, w - 28, 2);
-        lines.forEach((line, k) => ctx.fillText(line, left + 14, top + 72 + k * 15));
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '400 15px Rajdhani';
+        this._wrapText(ctx, act.story, w - 48, 2)
+            .forEach((line, k) => ctx.fillText(line, left + 24, top + 108 + k * 19));
 
-        // Footer: stage pips or development note
-        const fy = top + h - 20;
+        // Stage pips + status
+        const py = top + 168;
         if (status === 'dev') {
             ctx.fillStyle = '#94a3b8';
-            ctx.font = '600 12px Rajdhani';
-            ctx.fillText('⚙ IN DEVELOPMENT', left + 14, fy + 4);
+            ctx.font = '700 14px Rajdhani';
+            ctx.fillText('⚙ IN DEVELOPMENT', left + 24, py + 5);
         } else {
             const n = act.stages.length;
             const done = this.progress.stagesDone(act.id);
-            for (let i = 0; i < n; i++) {
+            for (let k = 0; k < n; k++) {
                 ctx.beginPath();
-                ctx.arc(left + 20 + i * 16, fy, 5, 0, Math.PI * 2);
-                ctx.fillStyle = i < done ? color : 'rgba(71,85,105,0.45)';
+                ctx.arc(left + 32 + k * 24, py, 7, 0, Math.PI * 2);
+                ctx.fillStyle = k < done ? color : 'rgba(71,85,105,0.45)';
                 ctx.fill();
             }
             const label = status === 'complete' ? 'COMPLETE'
                 : status === 'locked' ? 'LOCKED' : `${done}/${n} STAGES`;
             ctx.textAlign = 'right';
             ctx.fillStyle = status === 'complete' ? '#22c55e' : status === 'locked' ? '#94a3b8' : '#3b82f6';
-            ctx.font = '600 12px Rajdhani';
-            ctx.fillText(label, left + w - 14, fy + 4);
+            ctx.font = '700 14px Rajdhani';
+            ctx.fillText(label, left + w - 24, py + 5);
+        }
+
+        // Footer: best score + open hint
+        const fy = top + h - 22;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#475569';
+        ctx.font = '600 13px Rajdhani';
+        const best = this._actBest(act);
+        if (best > 0) ctx.fillText(`BEST ${best}`, left + 24, fy);
+        if (status === 'active' || status === 'complete') {
+            ctx.textAlign = 'right';
+            ctx.fillStyle = highlighted ? color : '#64748b';
+            ctx.font = '700 13px Orbitron';
+            ctx.fillText('OPEN ▸', left + w - 24, fy);
         }
         ctx.restore();
+        ctx.restore();
+    }
+
+    _drawChevron(ctx, btn, hovered, dir) {
+        ctx.save();
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.9)' : 'rgba(15,23,42,0.7)';
+        ctx.strokeStyle = hovered ? 'rgba(148,163,184,0.7)' : 'rgba(71,85,105,0.5)';
+        ctx.lineWidth = 1;
+        Utils.roundRect(ctx, btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = hovered ? '#e2e8f0' : '#94a3b8';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(btn.x - 5 * dir, btn.y - 12);
+        ctx.lineTo(btn.x + 5 * dir, btn.y);
+        ctx.lineTo(btn.x - 5 * dir, btn.y + 12);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    /** One node of the progress rail (act k, 0-based). */
+    _drawRailNode(ctx, btn, hovered, act, k) {
+        const status = this._actStatus(act.id);
+        const theme = getLevelTheme(act.themeId);
+        const focused = k === this._mapIndex;
+        const color = status === 'complete' ? '#22c55e' : status === 'active' ? theme.zoneColor : '#475569';
+        const r = focused ? 10 : 8;
+        ctx.save();
+        if (status === 'complete') {
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(btn.x, btn.y, r, 0, Math.PI * 2); ctx.fill();
+        } else {
+            ctx.fillStyle = 'rgba(15,23,42,0.95)';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            if (status === 'dev') ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.arc(btn.x, btn.y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        if (status === 'active') {
+            const pulse = 0.5 + 0.5 * Math.sin((this.bgTime || 0) * 3);
+            ctx.globalAlpha = 0.15 + 0.3 * (1 - pulse);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(btn.x, btn.y, r + 3 + pulse * 5, 0, Math.PI * 2); ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+        if (focused || hovered) {
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(btn.x, btn.y, r + 4, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.fillStyle = focused ? '#e2e8f0' : '#64748b';
+        ctx.font = '600 11px Rajdhani';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(act.id), btn.x, btn.y + 22);
         ctx.restore();
     }
 
@@ -1434,55 +1619,72 @@ class GameManager {
         ctx.restore();
     }
 
-    /** Connectors behind the cards and gates. */
+    /** The carousel: track line, peeking side cards, focused card, gates. */
     _renderActMap(ctx) {
         const L = this._actMapLayout();
+        const acts = this.progress.acts;
+        const scroll = this._mapScroll;
+
         ctx.save();
-        for (let i = 0; i < 5; i++) {
-            const [ax, ay] = L.slots[i], [bx, by] = L.slots[i + 1];
-            ctx.strokeStyle = this.progress.isGateOpen(i + 1) ? 'rgba(34,197,94,0.45)' : 'rgba(71,85,105,0.45)';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([5, 6]);
-            ctx.beginPath();
-            ctx.moveTo(ax, ay);
-            ctx.lineTo(bx, by);
-            ctx.stroke();
-        }
+        ctx.strokeStyle = 'rgba(71,85,105,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 8]);
+        ctx.beginPath(); ctx.moveTo(0, L.cy); ctx.lineTo(L.W, L.cy); ctx.stroke();
         ctx.setLineDash([]);
+
+        // Far cards first, the focused one last (on top).
+        const order = acts.map((a, k) => k)
+            .filter(k => Math.abs(k - scroll) < 1.7)
+            .sort((a, b) => Math.abs(b - scroll) - Math.abs(a - scroll));
+        const focusBtn = this.ui.buttons.find(b => b.id === `act${acts[this._mapIndex].id}`);
+        for (const k of order) {
+            const d = Math.min(1, Math.abs(k - scroll));
+            const scale = 1 - (1 - L.sideScale) * d;
+            ctx.save();
+            ctx.globalAlpha = 1 - 0.5 * d;
+            ctx.translate(this._mapX(k, scroll), L.cy);
+            ctx.scale(scale, scale);
+            const hl = k === this._mapIndex && d < 0.05 && focusBtn && this.ui.isHovered(focusBtn);
+            this._drawActCard(ctx, acts[k], this._actStatus(acts[k].id), hl);
+            ctx.restore();
+        }
+
+        // Gates between neighbouring acts, moving with the track.
+        for (let n = 1; n < acts.length; n++) {
+            const x = this._mapX(n - 0.5, scroll);
+            if (x < -30 || x > L.W + 30) continue;
+            const btn = this.ui.buttons.find(b => b.id === `gate${n}`);
+            this._drawGateNode(ctx, { x, y: L.cy, w: 44, h: 44 }, !!btn && this.ui.isHovered(btn), n);
+        }
         ctx.restore();
     }
 
-    /** Header: one segment per act + divider. */
+    /** Header: progress rail (nodes drawn as buttons) + totals. */
     _renderHubHeader(ctx, W) {
+        const L = this._actMapLayout();
         const acts = this.progress.acts;
         const n = acts.length;
-        const done = acts.filter(a => this.progress.isActComplete(a.id)).length;
 
-        const segW = 26, gap = 4, barH = 6, y = 58;
-        const totalW = n * segW + (n - 1) * gap;
-        let x = W / 2 - totalW / 2;
-
-        for (let i = 0; i < n; i++) {
-            ctx.fillStyle = i < done ? '#22c55e' : 'rgba(71,85,105,0.35)';
-            Utils.roundRect(ctx, x, y, segW, barH, 2);
-            ctx.fill();
-            x += segW + gap;
+        // Rail segments; open gates glow green.
+        ctx.save();
+        for (let k = 0; k < n - 1; k++) {
+            const x1 = this._mapRailX(k), x2 = this._mapRailX(k + 1);
+            ctx.strokeStyle = this.progress.isGateOpen(k + 1) ? 'rgba(34,197,94,0.7)' : 'rgba(71,85,105,0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(x1 + 11, L.railY); ctx.lineTo(x2 - 11, L.railY); ctx.stroke();
         }
 
+        // Stages of acts still in development are unknown, so count cleared
+        // stages instead of showing a misleading "x/x".
+        const actsDone = acts.filter(a => this.progress.isActComplete(a.id)).length;
+        let stagesDone = 0;
+        for (const a of acts) stagesDone += this.progress.stagesDone(a.id);
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 12px Rajdhani';
-        ctx.textAlign = 'left';
+        ctx.font = '600 13px Rajdhani';
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`${done}/${n} ACTS`, W / 2 + totalW / 2 + 10, y + barH / 2);
-
-        ctx.strokeStyle = 'rgba(71,85,105,0.25)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(40, 72);
-        ctx.lineTo(W - 40, 72);
-        ctx.stroke();
-
-        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(`${actsDone}/${n} ACTS  ·  ${stagesDone} STAGES CLEARED`, W / 2, L.railY + 46);
+        ctx.restore();
     }
 
     _renderHubMessage(ctx, W, H) {
@@ -1538,34 +1740,102 @@ class GameManager {
         }
     }
 
-    // ── Leave a game (with confirmation) ──
+    // ── Pause (⏸) + leave / restart with confirmation ──
 
-    /** Small "← LEAVE" button for in-game screens; Esc opens the same prompt. */
+    /**
+     * In-game ⏸ button. cfg: { label, title, detail, onLeave, onRestart? }.
+     * The pause panel offers RESUME / RESTART (stages only) / LEAVE; leaving
+     * or restarting always asks first. Esc and the browser/phone back
+     * gesture step through the same panel (see _pauseBack).
+     */
     _addLeaveButton(cfg) {
         this._leaveCfg = cfg;
-        this.ui.addButton('leave', '← LEAVE', 66, this.canvas.height - 30, 104, 36,
-            () => this._openLeavePrompt(),
-            { color: '#475569', focusable: false });
+        this.ui.addButton('pause', '', 40, this.canvas.height - 34, 60, 48,
+            () => this._openPause(),
+            { focusable: false, draw: (ctx, btn, hovered) => this._drawPauseButton(ctx, btn, hovered) });
     }
 
-    /** Pause the game and ask before leaving. */
-    _openLeavePrompt() {
+    _drawPauseButton(ctx, btn, hovered) {
+        ctx.save();
+        ctx.fillStyle = hovered ? 'rgba(30,41,59,0.9)' : 'rgba(15,23,42,0.7)';
+        ctx.strokeStyle = hovered ? 'rgba(148,163,184,0.7)' : 'rgba(71,85,105,0.55)';
+        ctx.lineWidth = 1;
+        Utils.roundRect(ctx, btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h, 10);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = hovered ? '#e2e8f0' : '#94a3b8';
+        Utils.roundRect(ctx, btn.x - 9, btn.y - 10, 6, 20, 2); ctx.fill();
+        Utils.roundRect(ctx, btn.x + 3, btn.y - 10, 6, 20, 2); ctx.fill();
+        ctx.restore();
+    }
+
+    /** Pause the game and show the panel. */
+    _openPause() {
         if (this._quit || !this._leaveCfg || this.state.transitioning) return;
         this._releaseHold('all');
+        this._quit = { cfg: this._leaveCfg, buttons: this.ui.buttons, mode: 'pause' };
+        this._buildPauseButtons();
+    }
+
+    /** Open the panel straight on the leave warning. */
+    _openLeavePrompt() {
+        this._openPause();
+        if (this._quit) this._setPauseMode('leave');
+    }
+
+    _setPauseMode(mode) {
+        if (!this._quit) return;
+        this._quit.mode = mode;
+        this._buildPauseButtons();
+    }
+
+    /** Esc / back: open the panel, step back from a warning, or resume. */
+    _pauseBack() {
+        if (!this._quit) { this._openPause(); return; }
+        if (this._quit.mode !== 'pause') this._setPauseMode('pause');
+        else this._closeLeavePrompt();
+    }
+
+    _pausePanel() {
+        const W = this.canvas.width, H = this.canvas.height;
+        const pause = this._quit && this._quit.mode === 'pause';
+        const rows = pause ? (this._quit.cfg.onRestart ? 3 : 2) : 0;
+        const h = pause ? 120 + rows * 56 : 190;
+        return { x: W / 2 - 220, y: H / 2 - h / 2, w: 440, h };
+    }
+
+    _buildPauseButtons() {
+        const q = this._quit;
         const W = this.canvas.width;
-        const H = this.canvas.height;
-        this._quit = { cfg: this._leaveCfg, buttons: this.ui.buttons };
+        const P = this._pausePanel();
         this.ui.buttons = [];
         this.ui.focusId = null;
-        this.ui.addButton('quit-stay', 'STAY', W / 2 - 100, H / 2 + 46, 170, 44,
-            () => this._closeLeavePrompt(), { color: '#3b82f6' });
-        this.ui.addButton('quit-leave', 'LEAVE', W / 2 + 100, H / 2 + 46, 170, 44,
+        if (q.mode === 'pause') {
+            let y = P.y + 104;
+            this.ui.addButton('pause-resume', '▶  RESUME', W / 2, y, 260, 44,
+                () => this._closeLeavePrompt(), { color: '#3b82f6' });
+            if (q.cfg.onRestart) {
+                y += 56;
+                this.ui.addButton('pause-restart', '↻  RESTART', W / 2, y, 260, 44,
+                    () => this._setPauseMode('restart'), { color: '#f59e0b' });
+            }
+            y += 56;
+            this.ui.addButton('pause-leave', '←  LEAVE', W / 2, y, 260, 44,
+                () => this._setPauseMode('leave'), { color: '#ef4444' });
+            this.ui.focus('pause-resume');
+            return;
+        }
+        const by = P.y + P.h - 54;
+        const isRestart = q.mode === 'restart';
+        this.ui.addButton('quit-stay', isRestart ? 'CANCEL' : 'STAY', W / 2 - 100, by, 170, 44,
+            () => this._setPauseMode('pause'), { color: '#3b82f6' });
+        this.ui.addButton(isRestart ? 'quit-restart' : 'quit-leave', isRestart ? 'RESTART' : 'LEAVE', W / 2 + 100, by, 170, 44,
             () => {
-                const onLeave = this._quit.cfg.onLeave;
+                const fn = isRestart ? q.cfg.onRestart : q.cfg.onLeave;
                 this._closeLeavePrompt();
-                onLeave();
+                fn();
             },
-            { color: '#ef4444' });
+            { color: isRestart ? '#f59e0b' : '#ef4444' });
         // Default to the safe choice so a stray Enter never quits.
         this.ui.focus('quit-stay');
     }
@@ -1578,28 +1848,72 @@ class GameManager {
     }
 
     _renderQuitConfirm(ctx, W, H) {
-        const q = this._quit.cfg;
-        const pw = 440, ph = 190;
-        const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
+        const q = this._quit;
+        const P = this._pausePanel();
+        const accent = q.mode === 'pause' ? 'rgba(59,130,246,0.5)'
+            : q.mode === 'restart' ? 'rgba(245,158,11,0.55)' : 'rgba(239,68,68,0.5)';
         ctx.save();
         ctx.fillStyle = 'rgba(6,10,18,0.72)';
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = 'rgba(12,18,30,0.97)';
-        ctx.strokeStyle = 'rgba(239,68,68,0.5)';
+        ctx.strokeStyle = accent;
         ctx.lineWidth = 1.5;
-        Utils.roundRect(ctx, px, py, pw, ph, 12);
+        Utils.roundRect(ctx, P.x, P.y, P.w, P.h, 12);
         ctx.fill();
         ctx.stroke();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
+        let title, detail;
+        if (q.mode === 'pause') {
+            title = 'PAUSED';
+            detail = q.cfg.label || '';
+        } else if (q.mode === 'restart') {
+            title = 'RESTART THIS STAGE?';
+            detail = 'Your progress in this stage will be lost.';
+        } else {
+            title = q.cfg.title;
+            detail = q.cfg.detail;
+        }
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '700 20px Orbitron';
-        ctx.fillText(q.title, W / 2, py + 50);
+        ctx.fillText(title, W / 2, P.y + 46);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '400 16px Rajdhani';
-        ctx.fillText(q.detail, W / 2, py + 80);
+        ctx.fillText(detail, W / 2, P.y + 72);
         ctx.restore();
         this.ui.renderButtons();
+    }
+
+    /**
+     * Browser / phone back (Android back, iOS edge swipe, desktop back,
+     * Safari two-finger swipe) — routed here by BackGuard. Steps back inside
+     * the game, warning first during play.
+     * @returns {boolean} true to stay on the page, false to let it leave.
+     */
+    handleBrowserBack() {
+        const S = this.state.STATES;
+        const st = this.state.currentState;
+        if (this.state.transitioning) return true;
+        if (this.profileForm && this.profileForm.isOpen && st !== S.PROFILE_SETUP) this.profileForm.close();
+        switch (st) {
+            case S.LEVEL: case S.MINIGAME: case S.LOCKPICK: case S.ENDLESS:
+                this._pauseBack();
+                return true;
+            case S.GUIDE: this._closeGuide(); return true;
+            case S.ACT: this.state.change(S.HUB); return true;
+            case S.HUB: this.state.change(S.MENU); return true;
+            case S.GAME_OVER: this._backToAct(); return true;
+            case S.ENDLESS_OVER: case S.LEADERBOARD: this.state.change(S.HUB); return true;
+            case S.PROFILE_SETUP: this.state.change(this._profileReturnState || S.HUB); return true;
+            case S.CONGRATS: this._finishCongrats(); return true;
+            case S.MENU:
+                // First back on the menu warns; a second one within 2.5 s leaves.
+                if (this._exitArmed > 0) return false;
+                this._exitArmed = 2.5;
+                return true;
+            default:
+                return true;
+        }
     }
 
     /** Faint controls line on the first stage of an act (Timing Bar). */
@@ -1715,13 +2029,24 @@ class GameManager {
     _setGuidePage(i) {
         const n = GameManager.GUIDE_PAGES.length;
         this._guidePage = (i + n) % n;
+        this._guideScroll = 0;
+        this._guideScrollTarget = 0;
+        this._guideMax = 0;
         this.ui.clearButtons();
         this._buildGuideButtons();
     }
 
     _guideLayout() {
         const W = this.canvas.width;
-        return { x: W / 2 - 380, y: 62, w: 760, h: 530 };
+        const L = { x: W / 2 - 380, y: 62, w: 760, h: 530 };
+        // Scrollable viewport between the tabs and the page counter.
+        L.viewTop = L.y + 108;
+        L.viewBottom = L.y + L.h - 80;
+        return L;
+    }
+
+    _guideScrollBy(dy) {
+        this._guideScrollTarget = Math.max(0, Math.min(this._guideMax, this._guideScrollTarget + dy));
     }
 
     _buildGuideButtons() {
@@ -1768,8 +2093,14 @@ class GameManager {
         ctx.font = '700 22px Orbitron';
         ctx.fillText('FIELD GUIDE', W / 2, L.y + 42);
 
-        const left = L.x + 48, maxW = L.w - 96;
-        let y = L.y + 138;
+        const left = L.x + 48, maxW = L.w - 104;
+        const startY = L.viewTop + 26;
+        let y = startY;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(L.x + 4, L.viewTop, L.w - 8, L.viewBottom - L.viewTop);
+        ctx.clip();
+        ctx.translate(0, -Math.round(this._guideScroll));
         if (page.table) {
             // Controls: one row per action, desktop vs touch side by side.
             const colA = left + 210, colB = left + 470;
@@ -1808,6 +2139,14 @@ class GameManager {
                 y += 14;
             }
         }
+        ctx.restore();
+
+        // Content height -> how far the page can scroll.
+        const viewH = L.viewBottom - L.viewTop;
+        const contentH = (y - startY) + 30;
+        this._guideMax = Math.max(0, contentH - viewH);
+        if (this._guideScrollTarget > this._guideMax) this._guideScrollTarget = this._guideMax;
+        if (this._guideMax > 0) this._renderGuideScrollHints(ctx, L, viewH);
 
         ctx.textAlign = 'center';
         ctx.fillStyle = '#475569';
@@ -1816,6 +2155,32 @@ class GameManager {
         ctx.restore();
 
         this.ui.renderButtons();
+    }
+
+    /** Edge fades + a slim scrollbar when the page does not fit. */
+    _renderGuideScrollHints(ctx, L, viewH) {
+        const bg = 'rgba(12,18,30,';
+        const fade = (y0, y1, fromTop) => {
+            const g = ctx.createLinearGradient(0, y0, 0, y1);
+            g.addColorStop(0, bg + (fromTop ? '0.97)' : '0)'));
+            g.addColorStop(1, bg + (fromTop ? '0)' : '0.97)'));
+            ctx.fillStyle = g;
+            ctx.fillRect(L.x + 4, y0, L.w - 8, y1 - y0);
+        };
+        ctx.save();
+        if (this._guideScroll > 1) fade(L.viewTop, L.viewTop + 22, true);
+        if (this._guideScroll < this._guideMax - 1) fade(L.viewBottom - 26, L.viewBottom, false);
+
+        const tx = L.x + L.w - 16;
+        const thumbH = Math.max(28, viewH * viewH / (viewH + this._guideMax));
+        const thumbY = L.viewTop + (viewH - thumbH) * (this._guideScroll / this._guideMax);
+        ctx.fillStyle = 'rgba(71,85,105,0.35)';
+        Utils.roundRect(ctx, tx - 2, L.viewTop, 4, viewH, 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(148,163,184,0.75)';
+        Utils.roundRect(ctx, tx - 2, thumbY, 4, thumbH, 2);
+        ctx.fill();
+        ctx.restore();
     }
 
     // ── Act screen ──
@@ -1835,6 +2200,7 @@ class GameManager {
         if (act.game === 'stack') return `${p.targetBlocks} BLOCKS HIGH`;
         if (act.game === 'orbital') return `${p.blocksNeeded} PACKETS · ${p.ports} PORTS`;
         if (act.game === 'signal') return `${p.keys} KEYS · ${p.timeLimit}s`;
+        if (act.game === 'route') return `${p.traces} TRACES · ${p.size}×${p.size} · ${p.timeLimit}s`;
         return '';
     }
 
@@ -2138,6 +2504,12 @@ class GameManager {
         this.state.change(this.state.STATES.GAME_OVER, Object.assign({ stage: this._stage }, ctx));
     }
 
+    /** Start the current stage again from scratch (pause → RESTART). */
+    _restartStage() {
+        const st = this._stage;
+        if (st) this._startStage(st.actId, st.index);
+    }
+
     _backToAct() {
         const actId = (this._stage && this._stage.actId) || this._actView;
         this.state.change(this.state.STATES.ACT, { actId });
@@ -2214,7 +2586,8 @@ class GameManager {
             onKeyUp: (action) => this._handleKeyUp(action),
             onMouseDown: (x, y) => this._handleMouseDown(x, y),
             onPointerUp: () => this._releaseHold('pointer'),
-            onBlur: () => this._releaseHold('all')
+            onBlur: () => this._releaseHold('all'),
+            onWheel: (delta) => this._handleWheel(delta)
         });
     }
 
@@ -2238,19 +2611,60 @@ class GameManager {
             ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
             KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
         };
+        const enter = code === 'Enter' || code === 'NumpadEnter';
+        if (this.state.currentState === S.HUB) {
+            // Act map: ←/→ scroll the carousel, Enter opens the focused act
+            // unless another button (↑/↓) holds the keyboard focus.
+            if (dirs[code] === 'left' || dirs[code] === 'right') {
+                this.ui.focusId = null;
+                this._mapGo(this._mapIndex + (dirs[code] === 'left' ? -1 : 1));
+                return true;
+            }
+            if (enter) {
+                if (this.ui.activateFocus()) return true;
+                this._openMapAct(this.progress.acts[this._mapIndex]);
+                return true;
+            }
+        }
+        // Act screen: with no keyboard focus (e.g. the mouse moved), Enter
+        // starts the next stage that still needs clearing.
+        if (this.state.currentState === S.ACT && enter && !this.ui.focused) {
+            const act = this.progress.act(this._actView);
+            if (act && act.stages.length) {
+                let next = act.stages.findIndex((st, k) => this.progress.isStageUnlocked(act.id, k) && !this.progress.isStageCompleted(act.id, k));
+                if (next < 0) next = 0;
+                this._startStage(act.id, next);
+                return true;
+            }
+        }
         if (dirs[code]) { this.ui.moveFocus(dirs[code]); return true; }
-        if (code === 'Enter' || code === 'NumpadEnter') return this.ui.activateFocus();
+        if (enter) return this.ui.activateFocus();
         return false;
+    }
+
+    /** Mouse wheel / trackpad on the act map scrolls the carousel. */
+    _handleWheel(delta) {
+        if (this.state.currentState === this.state.STATES.GUIDE && !this.state.transitioning) {
+            this._guideScrollBy(delta * 0.8);
+            return;
+        }
+        if (this.state.currentState !== this.state.STATES.HUB || this.state.transitioning) return;
+        if (this._wheelCooldown > 0 || Math.abs(delta) < 4) return;
+        this._wheelCooldown = 0.25;
+        this._mapGo(this._mapIndex + (delta > 0 ? 1 : -1));
     }
 
     _dispatchKey(action) {
         if (this._quit) {
-            // Only the prompt reacts: Esc = stay, arrows/Enter = buttons.
+            // Only the panel reacts: Esc steps back, arrows/Enter = buttons.
             const code = action.code;
-            if (code === 'Escape') this._closeLeavePrompt();
+            const dirs = {
+                ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+                KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right'
+            };
+            if (code === 'Escape') this._pauseBack();
             else if (code === 'Enter' || code === 'NumpadEnter') this.ui.activateFocus();
-            else if (code === 'ArrowLeft' || code === 'KeyA') this.ui.moveFocus('left');
-            else if (code === 'ArrowRight' || code === 'KeyD') this.ui.moveFocus('right');
+            else if (dirs[code]) this.ui.moveFocus(dirs[code]);
             return;
         }
         if (this._handleUiNavKey(action.code)) return;
@@ -2277,6 +2691,14 @@ class GameManager {
     }
 
     _handleSwipe(dir, timestamp) {
+        // Field guide on touch: swipe up/down scrolls, left/right turns pages.
+        if (this.state.currentState === this.state.STATES.GUIDE) {
+            if (dir === 'up') this._guideScrollBy(180);
+            if (dir === 'down') this._guideScrollBy(-180);
+            if (dir === 'left') this._setGuidePage(this._guidePage + 1);
+            if (dir === 'right') this._setGuidePage(this._guidePage - 1);
+            return;
+        }
         if (this.state.currentState !== this.state.STATES.LOCKPICK) return;
         const map = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
         this._dispatchKey({ code: map[dir], timestamp });
@@ -2409,7 +2831,7 @@ GameManager.GUIDE_PAGES = [
     {
         title: 'MISSION',
         items: [
-            { text: 'An attacker is inside the system. Six acts stand between them and full control.' },
+            { text: `An attacker is inside the system. ${CAMPAIGN.acts.length} acts stand between them and full control.` },
             { head: 'ACTS & STAGES', text: 'Each act is one game. Its stages are that game\'s difficulty tiers — clear them in order to complete the act.' },
             { head: 'GATES', text: 'A cleared act opens its gate. Breach the gate (Packet Purge) to reach the next act. Acts marked IN DEVELOPMENT are on their way.' }
         ]
@@ -2423,6 +2845,7 @@ GameManager.GUIDE_PAGES = [
             ['Stack Overflow', 'SPACE or click', 'Tap anywhere'],
             ['Orbital Shield', '← / →  or  A / D', 'Tap a port'],
             ['Signal Lock', 'Hold SPACE or mouse', 'Hold anywhere'],
+            ['Route Trace', 'Click a tile · arrows + SPACE', 'Tap a tile'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -2435,6 +2858,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'STACK OVERFLOW', text: 'Drop blocks to build a tower past the limit line. Blocks keep the crane\'s sideways momentum, so release a little early.' },
             { head: 'ORBITAL SHIELD', text: 'A port blinks, then a packet flies at it. Snap the shield to that port to block it. Pink packets hop to a neighbouring port.' },
             { head: 'SIGNAL LOCK', text: 'Hold to raise your signal, release to lower it. Keep it on the target until SYNC fills to lock a key, before time runs out.' },
+            { head: 'ROUTE TRACE', text: 'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },
@@ -2442,8 +2866,8 @@ GameManager.GUIDE_PAGES = [
         title: 'ENERGY',
         items: [
             { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
-            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock you get 20 more seconds. Twice per stage.' },
-            { head: 'ENDLESS MODE', text: 'Unlocks after ACT 6. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.' }
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock and Route Trace you get 20 more seconds. Twice per stage.' },
+            { head: 'ENDLESS MODE', text: `Unlocks after ACT ${CAMPAIGN.finalAct}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.` }
         ]
     }
 ];

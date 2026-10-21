@@ -33,20 +33,24 @@ A cyberpunk-themed browser game built as a Computer Graphics final project. Plai
 ## Campaign (current direction)
 Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progression, the HUB or difficulty.
 
-- There are 6 acts. Each act is one game, and its 3–5 stages are that game's rising difficulty tiers.
+- There are **9 acts** (raised from 6 on 2026-10-21). Each act is one game, and its 3–5 stages are that game's rising difficulty tiers.
 - Finishing all stages of an act completes the act. A gate (Packet Purge, getting harder each time) sits between consecutive acts.
 - Acts:
   1. REMOVE_MALWARE: Timing Bar, 4 stages, 8/10/14/18 hits
   2. REBUILD_FIREWALL: Stack Overflow, 3 stages, height 5/7/9 blocks, crane speed 1.30/1.36/1.42
   3. CLOSE_PORTS: Orbital Shield, 4 stages, 12/16/20/20 packets on 4/6/8/8 ports, lives 4/5/6/7 (`js/mechanics/OrbitalShieldMechanic.js`)
   4. RESET_CREDS: Signal Lock, 5 stages (EASY…EXPERT), 3/3/4/4/5 keys against a timer; revive = +20 s (`js/mechanics/SignalLockMechanic.js`)
-  5. TRACE_LOGS: in development
+  5. TRACE_LOGS: Route Trace, 3 stages (4×4 / 5×5 / 6×6 grids, 2/3/3 traces against a timer); revive = +20 s (`js/mechanics/RouteTraceMechanic.js`)
   6. CUT_ACCESS: in development
-- The mechanics of acts 5–6 are **not decided yet**. They are designed together with the user, one phase at a time. Do not invent and ship them.
-- The lockpick is used only for revives (Timing Bar, Orbital Shield, Signal Lock and Endless). A revivable mechanic game implements `revive()`; the run resumes in the MINIGAME host with `resume: true`. Endless unlocks after Act 6, and players who already unlocked it keep it.
+  7. DEFUSE_PAYLOAD: in development
+  8. RESTORE_CORE: in development
+  9. FINAL_AUDIT: in development. Decided: the final act tests **knowledge and reasoning only**, with no timer and no lives
+- The mechanics of acts 6–9 are **not decided yet** (beyond the notes above). They are designed together with the user, one phase at a time. Do not invent and ship them.
+- The lockpick is used only for revives (Timing Bar, Orbital Shield, Signal Lock, Route Trace and Endless). A revivable mechanic game implements `revive()`; the run resumes in the MINIGAME host with `resume: true`. Endless unlocks after the final act (`CAMPAIGN.finalAct`, now 9), and players who already unlocked it keep it.
 - **Endless Mode will change.** Today it is Timing Bar only. The goal is an endless mode that supports **all** campaign games. It is not planned yet and will be planned with the user later (plan section 8b). Meanwhile, design new games so their difficulty can keep ramping and they produce a score.
 - Data lives in `js/data/Campaign.js`. Progress, lock rules and the migration from the old save format live in `js/CampaignProgress.js` (save key `sb_campaign_v1`).
-- Phase status: Phase 1 (campaign + Acts 1–2 + Gate 1), Phase 2 (Act 3 Orbital Shield + Gate 2) and Phase 3 (Act 4 Signal Lock + Gate 3) are implemented. Phases 4–5 add acts 5–6.
+- Phase status: Phase 1 (campaign + Acts 1–2 + Gate 1), Phase 2 (Act 3 Orbital Shield + Gate 2) and Phase 3 (Act 4 Signal Lock + Gate 3) are implemented. The campaign was then extended to 9 acts (gates 1–8). Phase 4 (Act 5 Route Trace + Gate 4) is implemented. Next: Act 6.
+- HUB act map = a carousel (`_mapIndex` / `_mapScroll`): progress rail on top, the focused act as a big card, neighbours peeking. Cards and gates are drawn by `_renderActMap`; their tap targets are hidden buttons rebuilt by `_mapGo`.
 - Hold-to-play games set `wantsHold = true` and implement `handleKeyUp`, `handlePointer(…, 'up')` and `releaseAll()`. `InputManager` delivers key-up, mouse-down, pointer-up (also off-canvas) and window blur. The host never turns the click that follows a mouse hold into a new press.
 
 ## Leaderboard / Supabase
@@ -58,6 +62,16 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
 ## UI helpers
 - `js/TipBar.js`: one dim rotating hint line on the HUB and act screens. Tips have desktop and touch variants, chosen by `InputManager.mode`.
 - Field guide: the `GUIDE` state in `GameManager` (`GameManager.GUIDE_PAGES`). Opened with the `?` button or the H key.
+
+## Pause & back navigation
+- Every in-game screen (LEVEL, MINIGAME, LOCKPICK, ENDLESS) has a ⏸ button (`_addLeaveButton(cfg)`, bottom-left). It opens the PAUSED panel: RESUME / RESTART (campaign stages only) / LEAVE. RESTART and LEAVE always ask first, and the safe choice is focused. The game is frozen while the panel is open.
+- Esc and the browser/phone back gesture walk the same panel (`_pauseBack`): open the panel → step back from a warning → resume.
+- `js/core/BackGuard.js` keeps one guard entry in the browser history. This covers Android back, iOS edge swipe, the desktop back button and Safari's two-finger swipe: they pop the guard, and `GameManager.handleBrowserBack()` steps back one screen. On the menu, the first back shows "Press back again to leave"; only a second back within 2.5 s leaves the site.
+- Chrome skips history entries pushed without user interaction, so the guard is first armed on the player's first tap or key press.
+
+## Orientation
+- The game is landscape-only for now (960×640 canvas). On touch devices held upright a CSS overlay (`.sb-rotate`) asks the player to rotate, and `main.js` pauses the loop (`GameLoop.setPaused`).
+- A real portrait layout is planned as a separate phase (plan section 8a). Until then, new screens only need to work in landscape (phone ~844×390 and desktop).
 
 ## Conventions
 - Match the surrounding code: comment density, naming, idioms.

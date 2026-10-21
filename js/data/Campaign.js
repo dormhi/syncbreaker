@@ -98,8 +98,32 @@ const CAMPAIGN = {
                 { tier: 'EXPERT',    params: { keys: 5, timeLimit: 50, tol: 0.22, drain: 1.0, driftAmp: 0.55, driftSpeed: 1.05, syncTime: 1.4, glitchMin: 5, glitchMax: 8 } }
             ]
         },
-        { id: 5, key: 'TRACE_LOGS',   story: 'Follow the log stream back to the attacker',         game: null, themeId: 1, available: false, stages: [] },
-        { id: 6, key: 'CUT_ACCESS',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] }
+        {
+            id: 5,
+            key: 'TRACE_LOGS',
+            story: 'Follow the log stream back to the attacker',
+            game: 'route',
+            themeId: 1,
+            available: true,
+            controls: 'Tap a tile to rotate it · or arrows to move, SPACE to rotate',
+            hint: {
+                desktop: 'Click a tile to rotate it (or arrows + SPACE) · connect YOU to the ATTACKER',
+                touch: 'Tap a tile to rotate it · connect YOU to the ATTACKER'
+            },
+            // Time-based, no lives. Path lengths are capped per tier; time
+            // limits are ~2-3x a simple solve-time model (docs/ACT_PLAN.md).
+            // Playtest: 3 stages are enough (the 7x7 VERY HARD was dropped).
+            stages: [
+                { tier: 'EASY',      params: { size: 4, traces: 2, timeLimit: 45,  decoyRate: 0.45, teeRate: 0.15, minPath: 4,  maxPath: 7 } },
+                { tier: 'NORMAL',    params: { size: 5, traces: 3, timeLimit: 70,  decoyRate: 0.6,  teeRate: 0.2,  minPath: 6,  maxPath: 11 } },
+                { tier: 'HARD',      params: { size: 6, traces: 3, timeLimit: 85,  decoyRate: 0.7,  teeRate: 0.25, minPath: 9,  maxPath: 16, lockRate: 0.12 } }
+            ]
+        },
+        { id: 6, key: 'CUT_ACCESS',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] },
+        { id: 7, key: 'DEFUSE_PAYLOAD', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },
+        { id: 8, key: 'RESTORE_CORE',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
+        // Final act: a test of knowledge and reasoning — no timer, no lives.
+        { id: 9, key: 'FINAL_AUDIT',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] }
     ],
 
     // gates[n - 1] opens act n + 1. Packet Purge tuning; gate 1 = original.
@@ -108,12 +132,15 @@ const CAMPAIGN = {
         { id: 2, waves: 2, speedScale: 1.08 },
         { id: 3, waves: 3, speedScale: 1.12 },
         { id: 4, waves: 3, speedScale: 1.18 },
-        { id: 5, waves: 3, speedScale: 1.25 }
+        { id: 5, waves: 3, speedScale: 1.25 },
+        { id: 6, waves: 3, speedScale: 1.30 },
+        { id: 7, waves: 3, speedScale: 1.35 },
+        { id: 8, waves: 3, speedScale: 1.40 }
     ],
 
     // Lockpick revive difficulty is the act number (1-6).
     maxStages: 5,
-    finalAct: 6
+    finalAct: 9
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = CAMPAIGN;

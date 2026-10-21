@@ -1,13 +1,13 @@
 # SyncBreaker: Act Yapısı Planı
 
-> Durum: **Faz 1 uygulandı** (2026-10-19), henüz commit edilmedi.
-> Act 3–6'nın oyun mekanikleri henüz kesin değil, sırası gelince birlikte karar verilecek.
+> Durum: Act 1–4 oynanabilir (Faz 1–3 uygulandı). Kampanya **9 act**'e çıktı (2026-10-21).
+> Act 5–9'un oyun mekanikleri sırası gelince birlikte kararlaştırılacak.
 
 ## 1. Hedef
 
 Oyun 6 düğümlük düz bir listeden **act tabanlı bir kampanyaya** geçiyor:
 
-- Toplam **6 act** var, her birinin hikayeye uygun bir adı var.
+- Toplam **9 act** var, her birinin hikayeye uygun bir adı var. İlk planda 6 act vardı, 2026-10-21'de 9'a çıkarıldı.
 - **Her act tek bir oyundur.** Act'in aşamaları o oyunun artan zorluk kademeleridir.
 - **Aşama sayısı oyuna göre 3 ile 5 arasında değişir.** Bazı oyunların doğal olarak daha fazla zorluk kademesi oluyor.
 - Bir act'in bütün aşamalarını bitiren oyuncu o act'in görevini tamamlamış olur.
@@ -17,7 +17,7 @@ Oyun 6 düğümlük düz bir listeden **act tabanlı bir kampanyaya** geçiyor:
 
 ## 2. Hikaye ve act'ler
 
-Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizliyor, sonra savunmayı yeniden kuruyor, sonra saldırganın izini sürüp bağlantısını kesiyor.
+Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizliyor, sonra savunmayı yeniden kuruyor, sonra saldırganın izini sürüp bağlantısını kesiyor. Ardından saldırganın geride bıraktığı bombayı etkisiz hale getiriyor, sistemi temiz yedeklerden geri yüklüyor ve son bir denetimle sistemin temiz olduğunu kanıtlıyor.
 
 | Act | Ad | Hikaye | Oyun | Durum |
 |---|---|---|---|---|
@@ -25,8 +25,11 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 2 | REBUILD_FIREWALL | Firewall'u blok blok yeniden ör | **Stack Overflow** | ✅ Kesin, 3 aşama |
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
-| 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | Öneri: Log Router / Patch Launcher | 🛠 Geliştiriliyor |
+| 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | Öneri: Cable Cut | 🛠 Geliştiriliyor |
+| 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
+| 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
+| 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
 
 Notlar:
 - Ad değişiklikleri: CLEAR_LOGS → TRACE_LOGS ve FIREWALL → REBUILD_FIREWALL. Diğer isimler aynı kaldı.
@@ -188,19 +191,61 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Pencere odağını kaybedince (blur) basılı durum sıfırlanmalı, yoksa tuş takılı kalır.
 - "← LEAVE" butonuna basmak basılı tutma sayılmamalı.
 
-### Act 5–6: Geliştiriliyor 🛠
+### Act 5: Route Trace, 3 aşama ✅ (2026-10-21)
+
+**Sahne:** bir ızgarada boru ve kablo parçaları (düz, köşe, T) var. Solda oyuncunun düğümü (YOU), sağda saldırganın düğümü (ATTACKER) duruyor.
+
+**Akış:**
+- Karoları döndürerek iki düğüm arasında kesintisiz bir hat kuruluyor.
+- Oyuncunun düğümüne bağlı her karo yeşil yanıyor, böylece hattın nereye kadar ulaştığı her an görülüyor.
+- Hat saldırgana ulaşınca bir iz bulunmuş oluyor. 0.7 saniyelik kısa bir duraklamadan sonra (süre de durur) yeni bir ızgara geliyor.
+- **Kazanma:** aşamanın iz sayısını tamamlamak.
+- **Kaybetme:** süre biterse. Can yok.
+
+**Kontrol:**
+- Telefon ve fare: karoya dokunmak ya da tıklamak, saat yönünde 90° döndürüyor.
+- Klavye: ok tuşları ya da WASD ile imleç gezdiriliyor, Space ya da Enter ile döndürülüyor.
+
+**Revive:** +20 saniye, Signal Lock gibi. Aynı ızgara kaldığı yerden devam ediyor.
+
+**Bulmaca garantisi:**
+- Önce rastgele, kendini kesmeyen bir yol açılıyor. Yolun karolarına doğru parçalar konuyor, geri kalan yerleri şaşırtmaca parçalar dolduruyor, sonra kilitli olmayan her karo rastgele döndürülüyor.
+- Böylece her ızgara çözülebilir. Hiçbir ızgara çözülmüş halde gelmiyor.
+- Yol üzerindeki kilitli karolar zaten doğru yönde duruyor, yani oyuncuya dayanak oluyorlar.
+
+| | Kolay | Orta | Zor |
+|---|---|---|---|
+| Izgara | 4×4 | 5×5 | 6×6 |
+| İz | 2 | 3 | 3 |
+| Süre | 45 sn | 70 sn | 85 sn |
+| Yol uzunluğu | 4–7 | 6–11 | 9–16 |
+| Şaşırtmaca yoğunluğu | %45 | %60 | %70 |
+| Kilitli karo | – | – | %12 |
+
+- İlk oyun testinden sonra 4. aşama (7×7, Çok zor) kaldırıldı (2026-10-21: "oyun sağlam beyin istiyor, 3 aşama yeterli").
+- Kendiliğinden dönen karo özelliği (`scrambleMin` / `scrambleMax`) kodda duruyor, ama kampanyada kullanılmıyor. Sonsuz mod için saklandı.
+
+**Süreler nasıl belirlendi:** her aşamada 300 bulmaca üretildi ve çözüm için gereken döndürme sayısı ölçüldü. Basit bir çözme süresi modelinin (bakma süresi, karo başına süre, döndürme başına süre) yaklaşık 2–3 katı süre verildi. Gerçek oyuncunun hangi karonun yola ait olduğunu da düşünmesi gerektiği için bu pay bırakıldı. Oyun testine göre ayarlanacak.
+
+### Act 6–8: Geliştiriliyor 🛠
 
 Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir:
 
-- **Log Router / Patch Launcher (Act 5):** akışı yönlendirmek ya da çek-bırak fırlatma.
 - **Cable Cut (Act 6):** Matter.js ile kablo kesme bulmacası. Fare, parmakla kaydırma ya da 1–3 tuşları.
+- Act 7 (DEFUSE_PAYLOAD) ve Act 8 (RESTORE_CORE) için henüz fikir yok.
+
+### Act 9: FINAL_AUDIT, son act 🛠
+
+**Kesin olan (2026-10-21):** Son act **süre ya da can üzerine değil, tamamen bilgi ve zihin becerisi** üzerine kurulu olacak.
+- Refleks, zamanlama ya da el becerisi istemez. Oyuncunun bilgisini ve akıl yürütmesini sınar: mantık, çıkarım, örüntü ya da bilgi soruları gibi.
+- Süre sınırı yok, can yok. Kesin format birlikte belirlenecek.
 
 ## 4. İlerleme kuralları
 
 - Act içindeki aşamalar sıralı açılır.
 - Bütün aşamalar bitince **act tamamlanmış** olur ve sonraki kapı oynanabilir hale gelir.
 - Bir act'e girilebilmesi için **önceki kapının açık olması** yeterlidir. Kapı bir kez açıldıysa açık kalır.
-- **Kapılar:** 6 act arasında 5 kapı var.
+- **Kapılar:** 9 act arasında 8 kapı var.
   - Kapı 1 (Act 1→2): Packet Purge, bugünkü haliyle.
   - Kapı 2–5: Packet Purge'ün giderek zorlaşan ayarları (daha çok dalga, daha hızlı paket).
   - Deneme sınırı: her kapı için 3 dakikada 2 deneme (`ChallengeGate`).
@@ -215,8 +260,8 @@ Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir
     | Düğüm | 4→3 | 5→4 | 5→4 | 6→5 | 6→5 | 7→6 |
     | İmleç hızı (°/s) | 70→60 | 90→75 | 110→90 | 130→105 | 160→125 | 200→150 |
     | Tolerans (°) | 28→30 | 24→27 | 20→24 | 16→21 | 13→18 | 10→16 |
-- **Endless Mode:** Act 6 bitince açılır. Bugün Endless'ı açmış olan oyuncularda açık kalır, Leaderboard da onlar için görünür kalır.
-- **Final ekranı:** "SYSTEM SECURED" ve "Endless unlocked" ekranı Act 6 bitince gösterilir. Diğer act'ler bitince kısa bir "ACT COMPLETE" bildirimi çıkar.
+- **Endless Mode:** son act bitince açılır. Kampanya 9 act'e çıktığı için bu artık **Act 9**. Bugün Endless'ı açmış olan oyuncularda açık kalır, Leaderboard da onlar için görünür kalır.
+- **Final ekranı:** "SYSTEM SECURED" ve "Endless unlocked" ekranı son act (Act 9) bitince gösterilir. Diğer act'ler bitince kısa bir "ACT COMPLETE" bildirimi çıkar.
 
 ## 5. Kayıt göçü
 
@@ -236,10 +281,13 @@ Göç tekrar çalıştırılsa sonuç değişmez. Reset butonu yeni anahtarı da
 
 HUB iki ekrandan oluşur:
 
-1. **Act haritası:** 6 act kartı 3×2 dizilir, "yılan" düzeninde: üst satır 1→2→3, alt satır 4←5←6.
-   - Kapı düğümleri kartların arasında durur. Kapı 3, Act 3 ile Act 4 arasında dikey olarak yer alır.
-   - Her kartta ikon, ACT numarası, ad, aşama göstergesi (●●○○) ve durum yazar: COMPLETE, IN PROGRESS, LOCKED ya da IN DEVELOPMENT.
-   - Haritanın altında Endless ve Leaderboard butonları var. Endless kilitliyse "Complete ACT 6" yazar.
+1. **Act haritası: kayan kampanya şeridi** (2026-10-21; 9 act tek ekrana sığmayınca 3×3 ızgaradan buna geçildi).
+   - **Üstte ilerleme rayı:** her act için bir nokta. Biten act yeşil dolu, oynanan act parlıyor, kilitli act gri, geliştirilen act kesik çizgili. Açık kapılar rayda yeşil çizgi oluyor. Bir noktaya dokununca o act'e kayılıyor. Altında "x/9 ACTS · N STAGES CLEARED" yazıyor.
+   - **Ortada büyük kart:** seçili act. İkon, oyun adı, act adı, hikaye, aşama noktaları, durum, en iyi toplam skor ve "OPEN ▸".
+   - **Yanlarda komşular:** komşu act'ler küçük ve soluk görünüyor, aradaki kapı düğümleri yolun üstünde. Komşu karta dokununca ona kayılıyor.
+   - **Gezinme:** ‹ › okları, klavyede ← / → (ya da A / D), fare tekerleği. Enter seçili act'i açar, ↑ / ↓ alttaki butonlara geçer.
+   - **Parmak kaydırma yok:** kartlara dokununca anında açılıyor, kaydırmaya başlarken yanlışlıkla act açılabilirdi.
+   - Haritanın altında Endless ve Leaderboard butonları var. Endless kilitliyse "Complete ACT 9" yazar.
 2. **Act ekranı:**
    - Act başlığı ve hikaye metni, oyunun kontrol ipucu.
    - 3–5 aşama kartı: durumları ve en iyi skorlarıyla.
@@ -275,8 +323,35 @@ Her fazın kabul şartları:
 | **1** | Kampanya altyapısı ve kayıt göçü. Act haritası ve act ekranı. Act 1 Timing Bar (4 aşama), Act 2 Stack Overflow (3 aşama), Kapı 1. Act 3–6 "IN DEVELOPMENT". Lockpick sadece revive. Klavye ile HUB. | ✅ Uygulandı |
 | 2 | Act 3 Orbital Shield (4 aşama, bölüm 3). Kapı 2 (Act 2 → 3). Kalkan portlara kilitlendiği için InputManager'a sürükleme gerekmiyor, dokunma ve tıklama yeterli. | ✅ Uygulandı |
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
-| 4 | Act 5 ve Kapı 4 | Bekliyor |
-| 5 | Act 6, Kapı 5 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
+| 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
+| 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
+| 5 | Act 6 ve Kapı 5 | Bekliyor |
+| 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
+| 8 | Act 9 (bilgi ve zihin oyunu), Kapı 8 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
+
+## 7b. Duraklatma ve geri gitme (2026-10-21)
+
+- **⏸ butonu:** her oyun ekranının sol alt köşesinde. Basınca oyun durur ve PAUSED paneli açılır:
+  - **RESUME**
+  - **RESTART:** sadece kampanya aşamalarında. Kapılarda ve Dual Ring'de olmaz, çünkü her deneme bir hak harcar. Endless'ta da olmaz, çünkü koşu skoru sayılır.
+  - **LEAVE**
+- RESTART ve LEAVE önce uyarı gösterir, varsayılan seçim her zaman güvenli olandır.
+- **Esc ve tarayıcı / telefon "geri" hareketi** aynı paneli adım adım yönetir: önce paneli açar, uyarıdaysa panele döner, paneldeyse oyunu devam ettirir. Bu kapsamda Android geri tuşu, iOS kenardan kaydırma, masaüstü geri butonu ve Safari'de iki parmakla kaydırma var.
+- **Menülerde geri** bir ekran geri götürür: act ekranından haritaya, haritadan girişe, kılavuzdan kapanış, kaybetme ekranından act ekranına.
+- **Giriş ekranında** ilk geri basış "Press back again to leave SyncBreaker" uyarısı gösterir. Siteden sadece ikinci basışta çıkılır.
+
+## 8a. Dik (portre) ekran tasarımı (henüz planlanmadı)
+
+Oyun şu an **yatay** bir canvas'ta çalışıyor (960×640, 3:2). Telefon dik tutulunca canvas genişliğe sığdırılıyor ve ekranın ortasında küçük bir şerit olarak kalıyordu.
+
+- **Şimdilik (2026-10-21):** dokunmatik bir cihaz dik tutulunca temaya uygun bir **"ROTATE YOUR DEVICE"** ekranı çıkıyor ve oyun duraklıyor. Yatay çevrilince oyun kaldığı yerden devam ediyor.
+  - Ekran `index.html` ve CSS'te tanımlı (`.sb-rotate`).
+  - Duraklatma `main.js` ve `GameLoop.setPaused` ile yapılıyor. Basılı tutulan girdiler de bırakılıyor.
+  - Masaüstünde dar ya da dik bir pencere bu ekranı tetiklemiyor, çünkü koşul hem dik yön hem dokunmatik işaretçi istiyor (`pointer: coarse`).
+- **Sonra:** gerçek bir dik tasarım. Canvas dik ekranda dik oranda çalışacak ve her ekranın ikinci bir yerleşimi olacak. Sıra:
+  1. Menü, harita, act ekranı ve kılavuz
+  2. Oyunlar (her biri ayrı ayrı)
+  3. Detaylar ayrıca planlanacak.
 
 ## 8b. Endless Mode değişecek (henüz planlanmadı)
 
@@ -295,8 +370,14 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 4. Act 2: Stack Overflow, 3 aşama. Zorluk kule yüksekliği ve mikro artan vinç hızıyla belirleniyor.
 5. Kapı 2–5: giderek zorlaşan Packet Purge.
 6. Lockpick sadece revive için ve biraz kolaylaştırıldı.
-7. Endless Act 6 bitince açılır, zaten açmış olanlarda açık kalır.
+7. Endless son act bitince açılır, zaten açmış olanlarda açık kalır. (Son act o zaman 6'ydı, 2026-10-21'den itibaren 9.)
 8. Act 3–6 "IN DEVELOPMENT" olarak gösterilir. Mekanikleri birlikte kararlaştırılacak.
 10. **Endless Mode değişecek:** bütün oyunları destekleyen bir sonsuz mod olacak. Henüz planlanmadı, sonra ayrıca planlanacak (bölüm 8b).
 11. **Act 4 (Faz 3):** Signal Lock. Basılı tut / bırak ile frekans ayarlanıyor. Kaybetme koşulu süre sınırı, can yok. 5 aşama: Kolay, Orta, Zor, Çok zor, Uzman. **Revive +20 saniye** veriyor ve oyun aynı yerden devam ediyor. Uzman zor ama oynanabilir olmalı.
 9. **Act 3 (Faz 2):** Orbital Shield, portlara kilitlenen kalkan. Kazanma koşulu N paket engellemek. 4 aşama: port sayısı 4 / 6 / 8 / 8, engellenecek paket 12 / 16 / 20 / 20. Zor ve Çok zor aynı ayarlarda oynanıyor, Çok zor'a rastgele çıkan ve yolda hedef değiştiren paketler ekleniyor.
+12. **Kampanya 9 act** (2026-10-21). Act 7–9: DEFUSE_PAYLOAD, RESTORE_CORE, FINAL_AUDIT. Düğümleri haritada "IN DEVELOPMENT" olarak duruyor. 9 act arasında 8 kapı var.
+13. **Son act (Act 9)** süre ya da can değil, tamamen bilgi ve zihin becerisi üzerine kurulu olacak.
+14. **Act 5** bir süre oyunu olacak (can yok) ve yeni bir minigame olarak yapılacak.
+15. **Act 5:** Route Trace (2026-10-21). Karoları döndürerek YOU ile ATTACKER düğümlerini bağlamak. Süre oyunu, can yok, revive +20 saniye. İlk planda 4 aşamaydı, oyun testinden sonra 3 aşamaya indi: 4×4, 5×5, 6×6.
+16. **Act haritası** kayan bir kampanya şeridine geçti: üstte ilerleme rayı, ortada büyük kart. Amaç ilerlemeyi görünür kılmak.
+17. **Dik ekran** (2026-10-21): önce "telefonu çevir" ekranı eklendi (oyun duraklar), dik tasarım sonra ayrı bir faz olarak yapılacak (bölüm 8a).

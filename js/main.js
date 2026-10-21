@@ -49,4 +49,24 @@
 
     if (typeof window !== 'undefined') window.syncbreakerLoop = loop;
     loop.start();
+
+    // Phones held upright: the game is landscape-only for now, so show the
+    // "rotate your device" overlay (CSS, same media query) and pause.
+    const portrait = window.matchMedia
+        ? window.matchMedia('(orientation: portrait) and (pointer: coarse)')
+        : null;
+    function applyOrientation() {
+        const upright = !!(portrait && portrait.matches);
+        if (upright) game._releaseHold('all');
+        loop.setPaused(upright);
+    }
+    if (portrait) {
+        if (portrait.addEventListener) portrait.addEventListener('change', applyOrientation);
+        else if (portrait.addListener) portrait.addListener(applyOrientation);
+    }
+    applyOrientation();
+
+    // Back button / back swipe steps back inside the game instead of
+    // leaving the site (warns first during play; see handleBrowserBack).
+    new BackGuard(window, () => game.handleBrowserBack());
 })();

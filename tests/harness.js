@@ -136,6 +136,7 @@ const FULL_FILES = [
     'js/core/GameLoop.js',
     'js/core/ChallengeGate.js',
     'js/core/InputManager.js',
+    'js/core/BackGuard.js',
     'js/data/Campaign.js',
     'js/core/PhysicsWorld.js',
     'js/mechanics/Mechanic.js',
@@ -146,6 +147,7 @@ const FULL_FILES = [
     'js/mechanics/StackOverflowMechanic.js',
     'js/mechanics/OrbitalShieldMechanic.js',
     'js/mechanics/SignalLockMechanic.js',
+    'js/mechanics/RouteTraceMechanic.js',
     'js/core/GameRegistry.js',
     'js/CampaignProgress.js',
     'vendor/matter.min.js',
@@ -165,7 +167,7 @@ const FULL_FILES = [
 
 const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
-    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic'];
+    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'BackGuard'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {

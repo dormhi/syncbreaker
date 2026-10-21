@@ -19,6 +19,7 @@
      onMouseDown(x, y)             -> mouse press on the canvas (hold start)
      onPointerUp()                 -> any mouse / touch release (hold end)
      onBlur()                      -> window lost focus: drop every hold
+     onWheel(delta)                -> wheel / trackpad scroll (act map)
    ========================================= */
 
 class InputManager {
@@ -58,6 +59,13 @@ class InputManager {
 
         // Kill scroll / pinch-zoom gestures over the game surface.
         canvas.style.touchAction = 'none';
+
+        canvas.addEventListener('wheel', (e) => {
+            if (!H.onWheel) return;
+            e.preventDefault();
+            const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            H.onWheel(d);
+        }, { passive: false });
 
         canvas.addEventListener('mousemove', (e) => {
             const { x, y } = this._coords(e.clientX, e.clientY);

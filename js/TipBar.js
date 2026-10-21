@@ -90,7 +90,7 @@ TipBar.MAP = [
     'Clear every stage of an act, then breach its gate to open the next one',
     { desktop: 'Press H for the field guide', touch: 'Tap ? for the field guide' },
     'Energy refills over time — keep a cell for the recovery protocol',
-    'Endless Mode unlocks after ACT 6'
+    `Endless Mode unlocks after ACT ${typeof CAMPAIGN !== 'undefined' ? CAMPAIGN.finalAct : 9}`
 ];
 
 TipBar.ACT = {
@@ -108,6 +108,12 @@ TipBar.ACT = {
         'Short taps hold the signal steady — long holds overshoot',
         'Watch the gauge on the right: keep the arrow inside the band',
         'The target flickers just before it jumps',
+        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+    ],
+    route: [
+        'Green tiles are already connected to you — extend the green line',
+        'Work from your node outward; ignore tiles that cannot reach the line',
+        'Tiles with a padlock cannot be rotated',
         'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
     ],
     stack: [
