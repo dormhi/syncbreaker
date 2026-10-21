@@ -4,6 +4,9 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    /* Mobile browsers flash a blue box over whatever is tapped; on a
+       full-screen canvas that flashes the whole game on every tap. */
+    -webkit-tap-highlight-color: transparent;
 }
 
 :root {
@@ -36,6 +39,11 @@ body {
 canvas {
     display: block;
     background: var(--bg-dark);
+    /* No text selection / long-press callout while holding (Signal Lock). */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    outline: none;
 }
 
 /* ── Operator profile overlay (ProfileForm.js) ── */
