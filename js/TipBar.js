@@ -57,28 +57,28 @@ class TipBar {
         ctx.globalAlpha = 0.85 * this.alpha;
         ctx.textBaseline = 'middle';
 
-        ctx.font = '700 9px Orbitron';
+        ctx.font = '700 14px Orbitron';
         const tag = 'TIP';
         const m = ctx.measureText(tag);
         const tagW = ((m && isFinite(m.width)) ? m.width : 18) + 12;
 
-        ctx.font = '500 13px Rajdhani';
+        ctx.font = '500 16px Rajdhani';
         const tm = ctx.measureText(text);
-        const textW = Math.min((tm && isFinite(tm.width)) ? tm.width : text.length * 6, maxW - tagW - 8);
+        const textW = Math.min((tm && isFinite(tm.width)) ? tm.width : text.length * 7, maxW - tagW - 8);
         const total = tagW + 8 + textW;
         const left = x - total / 2;
 
         ctx.strokeStyle = 'rgba(59,130,246,0.55)';
         ctx.lineWidth = 1;
-        Utils.roundRect(ctx, left, y - 8, tagW, 16, 8);
+        Utils.roundRect(ctx, left, y - 11, tagW, 22, 11);
         ctx.stroke();
         ctx.fillStyle = '#3b82f6';
-        ctx.font = '700 9px Orbitron';
+        ctx.font = '700 14px Orbitron';
         ctx.textAlign = 'center';
         ctx.fillText(tag, left + tagW / 2, y + 1);
 
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '500 13px Rajdhani';
+        ctx.font = '500 16px Rajdhani';
         ctx.textAlign = 'left';
         ctx.fillText(text, left + tagW + 8, y + 1, textW);
         ctx.restore();

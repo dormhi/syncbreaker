@@ -59,3 +59,8 @@ const Utils = {
         return `${m}:${s.toString().padStart(2, '0')}`;
     }
 };
+
+// Logical canvas size. All layout, drawing and input use these units; the
+// backing store is scaled up for sharp rendering on high-DPI screens
+// (see main.js), so never read canvas.width / canvas.height for layout.
+const VIEW = { W: 960, H: 640 };

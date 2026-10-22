@@ -8,8 +8,12 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    const GAME_WIDTH = 960;
-    const GAME_HEIGHT = 640;
+    const GAME_WIDTH = VIEW.W;
+    const GAME_HEIGHT = VIEW.H;
+
+    // Backing-store pixels per logical pixel: matches the screen's real
+    // pixel density so text and lines stay sharp, capped at 2 for speed.
+    let renderScale = 1;
 
     function resizeCanvas() {
         const wW = window.innerWidth;
@@ -26,8 +30,10 @@
             dH = dW / aspect;
         }
 
-        canvas.width = GAME_WIDTH;
-        canvas.height = GAME_HEIGHT;
+        const dpr = window.devicePixelRatio || 1;
+        renderScale = Math.round(Math.min(2, Math.max(1, dW * dpr / GAME_WIDTH)) * 100) / 100;
+        canvas.width = Math.round(GAME_WIDTH * renderScale);
+        canvas.height = Math.round(GAME_HEIGHT * renderScale);
         canvas.style.width = dW + 'px';
         canvas.style.height = dH + 'px';
     }
@@ -44,7 +50,11 @@
         fixedDt: 1 / 60,
         maxSubSteps: 5,
         update: (dt) => game.update(dt),
-        render: (alpha) => game.render(ctx, alpha)
+        render: (alpha) => {
+            // Resizing resets the context, so set the scale every frame.
+            ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+            game.render(ctx, alpha);
+        }
     });
 
     if (typeof window !== 'undefined') window.syncbreakerLoop = loop;

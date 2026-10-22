@@ -2293,6 +2293,38 @@ suite('Back button / back swipe stays in the game', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('UITheme + tap targets', () => {
+    const mod = loadGameManager();
+    const T = mod.UITheme;
+    ok('tier by name', T.tier('VERY HARD').numeral === 'IV' && T.tier('very hard').numeral === 'IV');
+    ok('tier by index', T.tier(4).key === 'EXPERT' && T.tier(0).key === 'EASY');
+    ok('unknown tier falls back to EASY', T.tier('NOPE').key === 'EASY' && T.tier(9).key === 'EASY');
+    ok('every campaign tier has a badge', mod.CAMPAIGN.acts.every(a => a.stages.every(st => T.tier(st.tier).key === st.tier)));
+    ok('layers cover acts 1-9', [1, 2, 3].every(n => T.layerOf(n).key === 'PERIMETER') &&
+        [4, 5, 6].every(n => T.layerOf(n).key === 'INTERNAL') && [7, 8, 9].every(n => T.layerOf(n).key === 'CORE'));
+    ok('font roles', T.font('label') === '600 14px Rajdhani' && T.font('nope', 700, 'Orbitron') === '700 16px Orbitron');
+
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    const ui = gm.ui;
+    const hits = [];
+    ui.clearButtons();
+    ui.addButton('small', '', 100, 100, 32, 32, () => hits.push('small'));
+    ui.addButton('big', '', 300, 100, 200, 60, () => hits.push('big'));
+    ui.addButton('exact', '', 100, 300, 32, 32, () => hits.push('exact'), { exact: true });
+    ok('exact hit still works', ui.handleClick(110, 110) && hits.pop() === 'small');
+    ok('near miss hits a small button', ui.handleClick(130, 100) && hits.pop() === 'small');
+    ok('exact hit beats a nearer near miss', ui.handleClick(201, 100) && hits.pop() === 'big');
+    ok('far tap hits nothing', !ui.handleClick(100, 180) && hits.length === 0);
+    ok('exact buttons get no tap padding', !ui.handleClick(130, 300) && hits.length === 0);
+
+    // The in-game pause button must not steal taps meant for the game.
+    gm._addLeaveButton({});
+    const pause = ui.buttons.find(b => b.id === 'pause');
+    ok('pause button is exact-hit only', !!pause && pause.exact === true);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

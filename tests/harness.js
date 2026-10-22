@@ -132,6 +132,7 @@ function makeRng(seed = 1) {
 
 const FULL_FILES = [
     'js/utils.js',
+    'js/UITheme.js',
     'js/core/Collision.js',
     'js/core/GameLoop.js',
     'js/core/ChallengeGate.js',
@@ -165,7 +166,7 @@ const FULL_FILES = [
     'js/GameManager.js'
 ];
 
-const FULL_EXPORTS = ['GameManager', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
+const FULL_EXPORTS = ['GameManager', 'UITheme', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
     'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'BackGuard'];
 

@@ -31,6 +31,8 @@ class UIManager {
             score: style.score || 0,
             hidden: style.hidden || false,
             focusable: style.focusable !== false,
+            // Exact hit area only (in-game buttons, so near taps reach the game)
+            exact: style.exact || false,
             // Custom painter: draw(ctx, btn, highlighted)
             draw: style.draw || null
         });
@@ -38,7 +40,7 @@ class UIManager {
 
     /** Energy cell geometry — must match renderEnergyBar() exactly. */
     getEnergyCellRect(index, max) {
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const x = W - 170;
         const y = 12;
         const cellW = 22;
@@ -118,6 +120,22 @@ class UIManager {
                 return true;
             }
         }
+        // Near miss: small buttons get a tap area of at least minTap, and
+        // the closest one wins. Exact hits above always take priority.
+        const min = UITheme.size.minTap;
+        let best = null, bestD = Infinity;
+        for (const btn of this.buttons) {
+            if (btn.disabled || btn.exact) continue;
+            const hw = Math.max(btn.w, min) / 2, hh = Math.max(btn.h, min) / 2;
+            const dx = Math.abs(x - btn.x), dy = Math.abs(y - btn.y);
+            if (dx > hw || dy > hh) continue;
+            const d = dx * dx + dy * dy;
+            if (d < bestD) { bestD = d; best = btn; }
+        }
+        if (best) {
+            best.onClick();
+            return true;
+        }
         return false;
     }
 
@@ -137,37 +155,7 @@ class UIManager {
             if (btn.draw) { btn.draw(ctx, btn, !btn.disabled && this.isHovered(btn)); continue; }
             if (btn.card) { this._renderCard(btn); continue; }
             if (btn.custom === 'sound') { this._renderSoundButton(btn); continue; }
-            const hovered = !btn.disabled && this.isHovered(btn);
-            const alpha = btn.disabled ? 0.3 : 1;
-
-            ctx.save();
-            ctx.globalAlpha = alpha;
-
-            // Background — CG: Shape rendering
-            const bgAlpha = hovered ? 0.2 : 0.08;
-            ctx.fillStyle = btn.disabled ? 'rgba(100,100,100,0.1)' : `rgba(59,130,246,${bgAlpha})`;
-            ctx.strokeStyle = btn.color;
-            ctx.lineWidth = hovered ? 2 : 1;
-            Utils.roundRect(ctx, btn.x - btn.w / 2, btn.y - btn.h / 2, btn.w, btn.h, 6);
-            ctx.fill();
-            ctx.stroke();
-
-            // Label
-            const hasSubtitle = btn.subtitle && btn.h >= 50;
-            ctx.fillStyle = btn.color;
-            ctx.font = '600 16px Rajdhani';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(btn.label, btn.x, hasSubtitle ? btn.y - 7 : btn.y + 1);
-
-            // Subtitle (if any)
-            if (hasSubtitle) {
-                ctx.fillStyle = '#64748b';
-                ctx.font = '400 11px Rajdhani';
-                ctx.fillText(btn.subtitle, btn.x, btn.y + 14);
-            }
-
-            ctx.restore();
+            UITheme.button(ctx, btn, !btn.disabled && this.isHovered(btn));
         }
     }
 
@@ -230,30 +218,30 @@ class UIManager {
 
         // Name
         ctx.fillStyle = locked ? '#64748b' : '#e2e8f0';
-        ctx.font = '600 14px Orbitron';
+        ctx.font = '600 16px Orbitron';
         ctx.fillText(this._fitText(btn.label, textMaxW), textX, top + 30);
 
         // Description
         if (btn.subtitle) {
             ctx.fillStyle = '#64748b';
-            ctx.font = '400 11px Rajdhani';
+            ctx.font = '400 14px Rajdhani';
             ctx.fillText(this._fitText(btn.subtitle, textMaxW), textX, top + 48);
         }
 
         // Status line
         if (btn.status === 'completed') {
             ctx.fillStyle = '#22c55e';
-            ctx.font = '500 11px Rajdhani';
+            ctx.font = '500 14px Rajdhani';
             ctx.fillText('CLEARED', textX, top + h - 13);
         } else if (locked) {
             // Site-coloured vector lock (no emoji)
             this._drawLockGlyph(ctx, textX, top + h - 22, 10, '#94a3b8');
             ctx.fillStyle = '#94a3b8';
-            ctx.font = '600 11px Rajdhani';
+            ctx.font = '600 14px Rajdhani';
             ctx.fillText('LOCKED', textX + 15, top + h - 13);
         } else {
             ctx.fillStyle = '#3b82f6';
-            ctx.font = '500 11px Rajdhani';
+            ctx.font = '500 14px Rajdhani';
             ctx.fillText('READY', textX, top + h - 13);
         }
 
@@ -261,7 +249,7 @@ class UIManager {
         if (btn.score > 0) {
             ctx.textAlign = 'right';
             ctx.fillStyle = '#475569';
-            ctx.font = '400 11px Rajdhani';
+            ctx.font = '400 14px Rajdhani';
             ctx.fillText('BEST ' + btn.score, left + w - 12, top + h - 13);
         }
 
@@ -366,7 +354,7 @@ class UIManager {
 
     renderEnergyBar(energy) {
         const ctx = this.ctx;
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const x = W - 170;
         const y = 12;
         const cellW = 22;
@@ -377,7 +365,7 @@ class UIManager {
 
         // Label
         ctx.fillStyle = '#64748b';
-        ctx.font = '500 12px Rajdhani';
+        ctx.font = '500 14px Rajdhani';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
         ctx.fillText('ENERGY', x - 8, y + cellH / 2);
@@ -399,7 +387,7 @@ class UIManager {
         if (energy.current < energy.max) {
             const timeStr = Utils.formatTime(energy.nextRegenIn);
             ctx.fillStyle = '#64748b';
-            ctx.font = '400 11px Rajdhani';
+            ctx.font = '400 14px Rajdhani';
             ctx.textAlign = 'center';
             ctx.fillText(`+1 ${timeStr}`, x + (energy.max * (cellW + gap)) / 2, y + cellH + 14);
         }

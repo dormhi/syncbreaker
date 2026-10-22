@@ -44,8 +44,8 @@ class InputManager {
     _coords(clientX, clientY) {
         const rect = this.canvas.getBoundingClientRect();
         return {
-            x: (clientX - rect.left) * (this.canvas.width / rect.width),
-            y: (clientY - rect.top) * (this.canvas.height / rect.height)
+            x: (clientX - rect.left) * (VIEW.W / rect.width),
+            y: (clientY - rect.top) * (VIEW.H / rect.height)
         };
     }
 

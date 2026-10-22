@@ -15,6 +15,7 @@ A cyberpunk-themed browser game built as a Computer Graphics final project. Plai
 
 ## Architecture (essentials)
 - Every file is a global class or object. They are loaded in order by `index.html`. `js/main.js` is the entry point.
+- Logical canvas size is `VIEW` (960×640, `js/utils.js`). The backing store is scaled by the screen's pixel density (max 2×) in `main.js`, so layout, drawing and input always use `VIEW.W` / `VIEW.H`, never `canvas.width` / `canvas.height`.
 - `js/core/GameLoop.js`: fixed 60 Hz simulation steps, accumulator, render interpolation via `alpha`.
   - Simulation state may only change in `update(fixedDt)`.
   - `render` is pure: it must not change state.
@@ -60,6 +61,7 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
 - Operator name + password UI: `js/ProfileForm.js`, a DOM overlay with real inputs (works with mobile keyboards and password managers).
 
 ## UI helpers
+- **Interface redesign:** plan and decisions in **`docs/UI_PLAN.md`** (tier theme, improved HUB carousel, rising stage ladder, phases UI-1…UI-6). Read it before changing the menu, HUB or act screen.
 - `js/TipBar.js`: one dim rotating hint line on the HUB and act screens. Tips have desktop and touch variants, chosen by `InputManager.mode`.
 - Field guide: the `GUIDE` state in `GameManager` (`GameManager.GUIDE_PAGES`). Opened with the `?` button or the H key.
 

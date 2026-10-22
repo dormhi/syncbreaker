@@ -86,8 +86,8 @@ class GameManager {
     }
 
     render(ctx, alpha = 0) {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
 
         // Clear
         ctx.clearRect(0, 0, W, H);
@@ -112,14 +112,14 @@ class GameManager {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.startAmbient();
-                const cx = this.canvas.width / 2;
+                const cx = VIEW.W / 2;
                 this.ui.addButton('start', '▶  START MISSION', cx, 520, 240, 48,
                     () => this.state.change(S.HUB));
                 this._setBrandLink(true);
             },
             render: (ctx) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
                 const cx = W / 2;
 
                 // Title + version badge
@@ -138,7 +138,7 @@ class GameManager {
 
                 // Subtitle
                 ctx.fillStyle = '#ef4444';
-                ctx.font = '600 15px Rajdhani';
+                ctx.font = '600 16px Rajdhani';
                 ctx.fillText('⚠ CYBER DEFENSE PROTOCOL ⚠', cx, 100);
 
                 // Story panel
@@ -157,7 +157,7 @@ class GameManager {
 
                 // Terminal header
                 ctx.fillStyle = '#ef4444';
-                ctx.font = '700 14px Orbitron';
+                ctx.font = '700 16px Orbitron';
                 ctx.textAlign = 'left';
                 ctx.fillText('> STATUS REPORT', panelX + 20, panelY + 30);
 
@@ -201,13 +201,13 @@ class GameManager {
 
                 // Version + author
                 ctx.fillStyle = 'rgba(100,116,139,0.6)';
-                ctx.font = '400 12px Rajdhani';
+                ctx.font = '400 14px Rajdhani';
                 ctx.textAlign = 'center';
                 ctx.fillText('v3.0 · Written by dormhi', cx, H - 16);
 
                 // Credits
                 ctx.fillStyle = 'rgba(148,163,184,0.55)';
-                ctx.font = '300 12px Rajdhani';
+                ctx.font = '300 14px Rajdhani';
                 ctx.textAlign = 'right';
                 ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
                 ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
@@ -222,7 +222,7 @@ class GameManager {
                     ctx.fill();
                     ctx.stroke();
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '600 15px Rajdhani';
+                    ctx.font = '600 16px Rajdhani';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText('Press back again to leave SyncBreaker', cx, H - 87);
@@ -266,8 +266,8 @@ class GameManager {
                 }
             },
             render: (ctx) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
 
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '700 22px Orbitron';
@@ -276,7 +276,7 @@ class GameManager {
                 ctx.fillText('OPERATION MAP', W / 2, 30);
 
                 ctx.fillStyle = '#64748b';
-                ctx.font = '400 13px Rajdhani';
+                ctx.font = '400 14px Rajdhani';
                 ctx.fillText('Clear every stage of an act, then breach the gate', W / 2, 48);
 
                 this._renderHubHeader(ctx, W);
@@ -314,8 +314,8 @@ class GameManager {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
             },
             render: (ctx) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
                 this.ui.renderEnergyBar({
                     current: this.energy.currentEnergy,
                     max: this.energy.maxEnergy,
@@ -394,8 +394,8 @@ class GameManager {
                 }
             },
             render: (ctx, alpha) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
 
                 this.ui.renderScore(this.levels.score, this.levels.combo);
                 this.ui.renderEnergyBar({
@@ -498,8 +498,8 @@ class GameManager {
                 this.lockpick.update(dt);
             },
             render: (ctx) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
 
                 // Title
                 const isRevive = this._lockpickReason === 'revive' || this._lockpickReason === 'endless_revive';
@@ -510,12 +510,12 @@ class GameManager {
                 ctx.textAlign = 'center';
                 ctx.fillText(title, W / 2, 40);
                 ctx.fillStyle = '#64748b';
-                ctx.font = '400 13px Rajdhani';
+                ctx.font = '400 14px Rajdhani';
                 ctx.fillText(subtitle, W / 2, 60);
 
                 // Instructions
                 ctx.fillStyle = '#64748b';
-                ctx.font = '400 14px Rajdhani';
+                ctx.font = '400 16px Rajdhani';
                 const hint = this.lockpick.started
                     ? 'Press the correct arrow key when cursor reaches a node!'
                     : 'Press any arrow key (↑↓←→) or WASD to start';
@@ -562,8 +562,8 @@ class GameManager {
                 this._mgEndTimer = 0;
                 if (this._activeMinigame && this._activeMinigame.init && !c.resume) {
                     this._activeMinigame.init(Object.assign({
-                        width: this.canvas.width,
-                        height: this.canvas.height
+                        width: VIEW.W,
+                        height: VIEW.H
                     }, c));
                 }
             },
@@ -587,8 +587,8 @@ class GameManager {
                 }
             },
             render: (ctx, alpha) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
                 const cfg = this._mgConfig || {};
 
                 ctx.fillStyle = '#f59e0b';
@@ -599,12 +599,12 @@ class GameManager {
 
                 if (cfg.subtitle) {
                     ctx.fillStyle = '#64748b';
-                    ctx.font = '400 13px Rajdhani';
+                    ctx.font = '400 14px Rajdhani';
                     ctx.fillText(cfg.subtitle, W / 2, 64);
                 }
                 if (cfg.hint) {
                     ctx.fillStyle = '#64748b';
-                    ctx.font = '400 14px Rajdhani';
+                    ctx.font = '400 16px Rajdhani';
                     ctx.fillText(cfg.hint, W / 2, 84);
                 }
 
@@ -641,8 +641,8 @@ class GameManager {
         this.state.register(S.GAME_OVER, {
             enter: (context) => {
                 this.ui.clearButtons();
-                const cx = this.canvas.width / 2;
-                const cy = this.canvas.height / 2;
+                const cx = VIEW.W / 2;
+                const cy = VIEW.H / 2;
                 const lCtx = context || {};
 
                 this._goScore = lCtx.score || 0;
@@ -697,8 +697,8 @@ class GameManager {
                 }
             },
             render: (ctx) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
                 const cx = W / 2;
                 const cy = H / 2;
 
@@ -713,21 +713,21 @@ class GameManager {
 
                 if (this._goMessage) {
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '400 14px Rajdhani';
+                    ctx.font = '400 16px Rajdhani';
                     ctx.fillText(this._goMessage, cx, cy);
                 } else if (this._noRevive) {
                     ctx.fillStyle = '#ef4444';
-                    ctx.font = '400 14px Rajdhani';
+                    ctx.font = '400 16px Rajdhani';
                     ctx.fillText('Recovery protocol failed', cx, cy);
                 } else if (this._revivesUsed >= (this.levels.maxRevives || 2)) {
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '400 14px Rajdhani';
+                    ctx.font = '400 16px Rajdhani';
                     ctx.fillText('No recovery charges left for this node', cx, cy);
                 }
 
                 if (this._goCooldown > 0) {
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '600 15px Rajdhani';
+                    ctx.font = '600 16px Rajdhani';
                     ctx.fillText(`Restart unlocks in ${this._goCooldown.toFixed(1)}s`, cx, cy + 175);
                 }
 
@@ -776,8 +776,8 @@ class GameManager {
                 }
             },
             render: (ctx, alpha) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
 
                 this.ui.renderScore(this.levels.score, this.levels.combo);
                 this.ui.renderEnergyBar({
@@ -799,8 +799,8 @@ class GameManager {
         this.state.register(S.ENDLESS_OVER, {
             enter: (context) => {
                 this.ui.clearButtons();
-                const cx = this.canvas.width / 2;
-                const cy = this.canvas.height / 2;
+                const cx = VIEW.W / 2;
+                const cy = VIEW.H / 2;
                 const lCtx = context || {};
 
                 this._eoScore = lCtx.score || 0;
@@ -863,8 +863,8 @@ class GameManager {
                 );
             },
             render: (ctx) => {
-                const W = this.canvas.width;
-                const H = this.canvas.height;
+                const W = VIEW.W;
+                const H = VIEW.H;
                 const cx = W / 2;
                 const cy = H / 2;
 
@@ -878,30 +878,30 @@ class GameManager {
                 ctx.fillText(this._eoScore.toString(), cx, cy - 40);
 
                 ctx.fillStyle = '#64748b';
-                ctx.font = '500 15px Rajdhani';
+                ctx.font = '500 16px Rajdhani';
                 ctx.fillText(`Wave: ${this._eoWave} | Hit: ${this._eoHitCount} | Max Combo: x${this._eoMaxCombo}`, cx, cy - 10);
 
                 // Best
                 const best = this.levels._loadEndlessBest();
                 if (this._eoScore >= best && best > 0) {
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '600 14px Rajdhani';
+                    ctx.font = '600 16px Rajdhani';
                     ctx.fillText('🏆 NEW RECORD!', cx, cy + 15);
                 } else if (best > 0) {
                     ctx.fillStyle = '#475569';
-                    ctx.font = '400 13px Rajdhani';
+                    ctx.font = '400 14px Rajdhani';
                     ctx.fillText(`Best: ${best}`, cx, cy + 15);
                 }
 
                 if (this._eoNoRevive) {
                     ctx.fillStyle = '#ef4444';
-                    ctx.font = '400 13px Rajdhani';
+                    ctx.font = '400 14px Rajdhani';
                     ctx.fillText('Recovery protocol failed', cx, cy + 32);
                 }
 
                 if (this._endlessUploadStatus) {
                     ctx.fillStyle = '#64748b';
-                    ctx.font = '400 12px Rajdhani';
+                    ctx.font = '400 14px Rajdhani';
                     ctx.fillText(this._endlessUploadStatus, cx, cy + 50);
                 }
 
@@ -919,8 +919,8 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
                 this.progress.markCongratsSeen();
-                const cx = this.canvas.width / 2;
-                const cy = this.canvas.height / 2;
+                const cx = VIEW.W / 2;
+                const cy = VIEW.H / 2;
                 this.ui.addButton('congrats-continue', '▶  CONTINUE', cx, cy + 240, 260, 46,
                     () => this._finishCongrats(),
                     { color: '#22c55e' });
@@ -974,8 +974,8 @@ class GameManager {
         this.state.register(S.LEADERBOARD, {
             enter: () => {
                 this.ui.clearButtons();
-                const cx = this.canvas.width / 2;
-                const H = this.canvas.height;
+                const cx = VIEW.W / 2;
+                const H = VIEW.H;
                 this._leaderboardEntries = [];
                 this._leaderboardMe = null;
                 this._leaderboardStatus = 'Connecting...';
@@ -1007,8 +1007,8 @@ class GameManager {
     }
 
     _addProfileBackButton() {
-        const cx = this.canvas.width / 2;
-        const cy = this.canvas.height / 2;
+        const cx = VIEW.W / 2;
+        const cy = VIEW.H / 2;
         this.ui.addButton('profile-back', '← BACK', cx, cy + 60, 160, 40,
             () => this.state.change(this._profileReturnState), { color: '#64748b' });
     }
@@ -1046,8 +1046,8 @@ class GameManager {
     }
 
     _renderProfileSetup(ctx) {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
         const cx = W / 2;
         ctx.save();
         ctx.fillStyle = '#f59e0b';
@@ -1056,7 +1056,7 @@ class GameManager {
         ctx.fillText('OPERATOR PROFILE', cx, H / 2 - 40);
         if (this._profileStatus) {
             ctx.fillStyle = /not configured|Offline/.test(this._profileStatus) ? '#ef4444' : '#94a3b8';
-            ctx.font = '400 15px Rajdhani';
+            ctx.font = '400 16px Rajdhani';
             ctx.fillText(this._profileStatus, cx, H / 2);
         }
         ctx.restore();
@@ -1078,8 +1078,8 @@ class GameManager {
     }
 
     _renderLeaderboard(ctx) {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
         const cx = W / 2;
         ctx.save();
         ctx.fillStyle = '#f59e0b';
@@ -1087,7 +1087,7 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.fillText('∞ ENDLESS LEADERBOARD', cx, 60);
         ctx.fillStyle = '#64748b';
-        ctx.font = '400 14px Rajdhani';
+        ctx.font = '400 16px Rajdhani';
         ctx.fillText('Top 10 operators by best score', cx, 82);
 
         const x = cx - 300;
@@ -1099,7 +1099,7 @@ class GameManager {
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = '#64748b';
-        ctx.font = '600 13px Rajdhani';
+        ctx.font = '600 14px Rajdhani';
         ctx.textAlign = 'left';
         ctx.fillText('RANK', x + 20, y + 22);
         ctx.fillText('OPERATOR', x + 100, y + 22);
@@ -1113,7 +1113,7 @@ class GameManager {
             ctx.fillStyle = mine ? 'rgba(245,158,11,0.12)' : 'rgba(30,41,59,0.28)';
             ctx.fillRect(x + 1, rowY, 598, rowH - 1);
             ctx.fillStyle = index < 3 ? '#f59e0b' : '#cbd5e1';
-            ctx.font = '600 15px Rajdhani';
+            ctx.font = '600 16px Rajdhani';
             ctx.textAlign = 'left';
             ctx.fillText(`#${index + 1}`, x + 20, rowY + 22);
             ctx.fillText(entry.display_name, x + 100, rowY + 22);
@@ -1129,13 +1129,13 @@ class GameManager {
             ctx.fillText(`YOUR RANK  #${this._leaderboardMe.rank}  •  ${Number(this._leaderboardMe.best_score).toLocaleString()} points`, cx, 515);
         } else if (!this._leaderboardMe && !this._leaderboardStatus) {
             ctx.fillStyle = '#64748b';
-            ctx.font = '400 14px Rajdhani';
+            ctx.font = '400 16px Rajdhani';
             ctx.textAlign = 'center';
             ctx.fillText('Finish an Endless run to claim your place.', cx, 515);
         }
         if (this._leaderboardStatus) {
             ctx.fillStyle = '#94a3b8';
-            ctx.font = '400 14px Rajdhani';
+            ctx.font = '400 16px Rajdhani';
             ctx.textAlign = 'center';
             ctx.fillText(this._leaderboardStatus, cx, 515);
         }
@@ -1155,8 +1155,8 @@ class GameManager {
     }
 
     _renderCongrats(ctx) {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
         const cx = W / 2;
         const cy = H / 2;
 
@@ -1189,7 +1189,7 @@ class GameManager {
         ctx.fillText('SYSTEM SECURED', cx, py + 60);
 
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = '600 14px Rajdhani';
+        ctx.font = '600 16px Rajdhani';
         ctx.fillText(`ALL ${CAMPAIGN.acts.length} ACTS COMPLETE — THE CYBER ATTACK IS REPELLED`, cx, py + 86);
 
         // Story body
@@ -1223,14 +1223,14 @@ class GameManager {
         ctx.fillText('∞  ENDLESS MODE UNLOCKED', cx, by + 28);
 
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '400 13px Rajdhani';
+        ctx.font = '400 14px Rajdhani';
         ctx.fillText('Survive unlimited waves and compete against other operators', cx, by + 52);
         ctx.fillText('on the online leaderboard — play as long as you like.', cx, by + 70);
 
         // Total best score
         const totalBest = this._totalBest();
         ctx.fillStyle = '#64748b';
-        ctx.font = '500 13px Rajdhani';
+        ctx.font = '500 14px Rajdhani';
         ctx.fillText(`TOTAL BEST SCORE  ${totalBest}`, cx, py + ph - 24);
 
         ctx.restore();
@@ -1246,7 +1246,7 @@ class GameManager {
      * at ±spacing; gates sit halfway between.
      */
     _actMapLayout() {
-        const W = this.canvas.width;
+        const W = VIEW.W;
         return {
             W, cx: W / 2, cy: 300,
             cardW: 360, cardH: 230,
@@ -1304,8 +1304,8 @@ class GameManager {
     }
 
     _buildActMapButtons() {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
         const L = this._actMapLayout();
         const acts = this.progress.acts;
         const i = this._mapIndex;
@@ -1450,14 +1450,14 @@ class GameManager {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = color;
-        ctx.font = '700 12px Orbitron';
+        ctx.font = '700 14px Orbitron';
         ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, left + 86, top + 38);
         ctx.fillStyle = dim ? '#64748b' : '#e2e8f0';
         ctx.font = '700 21px Orbitron';
         ctx.fillText(this.ui._fitText(act.key, w - 100), left + 86, top + 66);
 
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '400 15px Rajdhani';
+        ctx.font = '400 16px Rajdhani';
         this._wrapText(ctx, act.story, w - 48, 2)
             .forEach((line, k) => ctx.fillText(line, left + 24, top + 108 + k * 19));
 
@@ -1465,7 +1465,7 @@ class GameManager {
         const py = top + 168;
         if (status === 'dev') {
             ctx.fillStyle = '#94a3b8';
-            ctx.font = '700 14px Rajdhani';
+            ctx.font = '700 16px Rajdhani';
             ctx.fillText('⚙ IN DEVELOPMENT', left + 24, py + 5);
         } else {
             const n = act.stages.length;
@@ -1480,7 +1480,7 @@ class GameManager {
                 : status === 'locked' ? 'LOCKED' : `${done}/${n} STAGES`;
             ctx.textAlign = 'right';
             ctx.fillStyle = status === 'complete' ? '#22c55e' : status === 'locked' ? '#94a3b8' : '#3b82f6';
-            ctx.font = '700 14px Rajdhani';
+            ctx.font = '700 16px Rajdhani';
             ctx.fillText(label, left + w - 24, py + 5);
         }
 
@@ -1488,13 +1488,13 @@ class GameManager {
         const fy = top + h - 22;
         ctx.textAlign = 'left';
         ctx.fillStyle = '#475569';
-        ctx.font = '600 13px Rajdhani';
+        ctx.font = '600 14px Rajdhani';
         const best = this._actBest(act);
         if (best > 0) ctx.fillText(`BEST ${best}`, left + 24, fy);
         if (status === 'active' || status === 'complete') {
             ctx.textAlign = 'right';
             ctx.fillStyle = highlighted ? color : '#64748b';
-            ctx.font = '700 13px Orbitron';
+            ctx.font = '700 14px Orbitron';
             ctx.fillText('OPEN ▸', left + w - 24, fy);
         }
         ctx.restore();
@@ -1554,7 +1554,7 @@ class GameManager {
             ctx.beginPath(); ctx.arc(btn.x, btn.y, r + 4, 0, Math.PI * 2); ctx.stroke();
         }
         ctx.fillStyle = focused ? '#e2e8f0' : '#64748b';
-        ctx.font = '600 11px Rajdhani';
+        ctx.font = '600 14px Rajdhani';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(String(act.id), btn.x, btn.y + 22);
@@ -1680,7 +1680,7 @@ class GameManager {
         let stagesDone = 0;
         for (const a of acts) stagesDone += this.progress.stagesDone(a.id);
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 13px Rajdhani';
+        ctx.font = '600 14px Rajdhani';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${actsDone}/${n} ACTS  ·  ${stagesDone} STAGES CLEARED`, W / 2, L.railY + 46);
@@ -1692,7 +1692,7 @@ class GameManager {
         ctx.save();
         ctx.globalAlpha = Math.min(1, this._hubMessageTimer);
         ctx.fillStyle = '#f59e0b';
-        ctx.font = '600 15px Rajdhani';
+        ctx.font = '600 16px Rajdhani';
         ctx.textAlign = 'center';
         ctx.fillText(this._hubMessage, W / 2, H - 52);
         ctx.restore();
@@ -1723,12 +1723,12 @@ class GameManager {
             this._brand = a;
             this._placeBrand = () => {
                 const r = this.canvas.getBoundingClientRect();
-                const k = r.width / this.canvas.width;      // CSS px per canvas px
+                const k = r.width / VIEW.W;      // CSS px per canvas px
                 const fs = Math.max(10, 12 * k);
                 a.style.fontSize = fs + 'px';
                 a.style.left = (r.left + 16 * k) + 'px';
                 // Centre the badge on the footer line (canvas y = H - 24).
-                a.style.top = (r.top + (this.canvas.height - 24) * k - 1.2 * fs) + 'px';
+                a.style.top = (r.top + (VIEW.H - 24) * k - 1.2 * fs) + 'px';
             };
             window.addEventListener('resize', this._placeBrand);
         }
@@ -1750,9 +1750,9 @@ class GameManager {
      */
     _addLeaveButton(cfg) {
         this._leaveCfg = cfg;
-        this.ui.addButton('pause', '', 40, this.canvas.height - 34, 60, 48,
+        this.ui.addButton('pause', '', 40, VIEW.H - 34, 60, 48,
             () => this._openPause(),
-            { focusable: false, draw: (ctx, btn, hovered) => this._drawPauseButton(ctx, btn, hovered) });
+            { focusable: false, exact: true, draw: (ctx, btn, hovered) => this._drawPauseButton(ctx, btn, hovered) });
     }
 
     _drawPauseButton(ctx, btn, hovered) {
@@ -1797,7 +1797,7 @@ class GameManager {
     }
 
     _pausePanel() {
-        const W = this.canvas.width, H = this.canvas.height;
+        const W = VIEW.W, H = VIEW.H;
         const pause = this._quit && this._quit.mode === 'pause';
         const rows = pause ? (this._quit.cfg.onRestart ? 3 : 2) : 0;
         const h = pause ? 120 + rows * 56 : 190;
@@ -1806,7 +1806,7 @@ class GameManager {
 
     _buildPauseButtons() {
         const q = this._quit;
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const P = this._pausePanel();
         this.ui.buttons = [];
         this.ui.focusId = null;
@@ -1930,7 +1930,7 @@ class GameManager {
         ctx.save();
         ctx.globalAlpha = 0.55;
         ctx.fillStyle = '#64748b';
-        ctx.font = '500 14px Rajdhani';
+        ctx.font = '500 16px Rajdhani';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, x, y);
@@ -1997,7 +1997,7 @@ class GameManager {
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '700 15px Orbitron';
+        ctx.font = '700 16px Orbitron';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('?', btn.x, btn.y + 1);
@@ -2037,7 +2037,7 @@ class GameManager {
     }
 
     _guideLayout() {
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const L = { x: W / 2 - 380, y: 62, w: 760, h: 530 };
         // Scrollable viewport between the tabs and the page counter.
         L.viewTop = L.y + 108;
@@ -2050,7 +2050,7 @@ class GameManager {
     }
 
     _buildGuideButtons() {
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const L = this._guideLayout();
         const pages = GameManager.GUIDE_PAGES;
         const tabW = 160, gap = 10;
@@ -2071,8 +2071,8 @@ class GameManager {
     }
 
     _renderGuide(ctx) {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
         const L = this._guideLayout();
         const page = GameManager.GUIDE_PAGES[this._guidePage];
         const touch = this._inputMode() === 'touch';
@@ -2105,7 +2105,7 @@ class GameManager {
             // Controls: one row per action, desktop vs touch side by side.
             const colA = left + 210, colB = left + 470;
             ctx.textAlign = 'left';
-            ctx.font = '700 11px Orbitron';
+            ctx.font = '700 14px Orbitron';
             ctx.fillStyle = touch ? '#64748b' : '#3b82f6';
             ctx.fillText('KEYBOARD / MOUSE', colA, y);
             ctx.fillStyle = touch ? '#3b82f6' : '#64748b';
@@ -2126,7 +2126,7 @@ class GameManager {
             for (const item of page.items) {
                 if (item.head) {
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '700 13px Orbitron';
+                    ctx.font = '700 14px Orbitron';
                     ctx.fillText(item.head, left, y);
                     y += 22;
                 }
@@ -2150,7 +2150,7 @@ class GameManager {
 
         ctx.textAlign = 'center';
         ctx.fillStyle = '#475569';
-        ctx.font = '500 12px Rajdhani';
+        ctx.font = '500 14px Rajdhani';
         ctx.fillText(`${this._guidePage + 1} / ${GameManager.GUIDE_PAGES.length}`, W / 2, L.y + L.h - 64);
         ctx.restore();
 
@@ -2186,7 +2186,7 @@ class GameManager {
     // ── Act screen ──
 
     _actScreenLayout(n) {
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const cardW = 170, cardH = 150, gap = 18;
         const totalW = n * cardW + (n - 1) * gap;
         const x0 = (W - totalW) / 2 + cardW / 2;
@@ -2205,8 +2205,8 @@ class GameManager {
     }
 
     _buildActButtons() {
-        const W = this.canvas.width;
-        const H = this.canvas.height;
+        const W = VIEW.W;
+        const H = VIEW.H;
         const act = this.progress.act(this._actView);
         if (!act) return;
         const L = this._actScreenLayout(act.stages.length);
@@ -2267,31 +2267,31 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#64748b';
-        ctx.font = '600 12px Rajdhani';
+        ctx.font = '600 14px Rajdhani';
         ctx.fillText(`STAGE ${i + 1}`, btn.x, top + 26);
         ctx.fillStyle = color;
         ctx.font = '700 17px Orbitron';
         ctx.fillText(stage.tier, btn.x, top + 56);
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 14px Rajdhani';
+        ctx.font = '600 16px Rajdhani';
         ctx.fillText(this._stageSummary(act, stage), btn.x, top + 84);
 
         const status = done ? 'CLEARED' : unlocked ? 'READY' : 'LOCKED';
         ctx.fillStyle = done ? '#22c55e' : unlocked ? '#3b82f6' : '#94a3b8';
-        ctx.font = '700 13px Rajdhani';
+        ctx.font = '700 14px Rajdhani';
         ctx.fillText(status, btn.x, top + 116);
 
         const best = this.progress.stage(act.id, i).best;
         if (best > 0) {
             ctx.fillStyle = '#475569';
-            ctx.font = '400 12px Rajdhani';
+            ctx.font = '400 14px Rajdhani';
             ctx.fillText('BEST ' + best, btn.x, top + 136);
         }
         ctx.restore();
     }
 
     _renderActScreen(ctx) {
-        const W = this.canvas.width;
+        const W = VIEW.W;
         const act = this.progress.act(this._actView);
         if (!act) return;
         const theme = getLevelTheme(act.themeId);
@@ -2301,7 +2301,7 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = theme.zoneColor;
-        ctx.font = '700 13px Orbitron';
+        ctx.font = '700 14px Orbitron';
         ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, W / 2, 34);
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '700 26px Orbitron';
@@ -2311,7 +2311,7 @@ class GameManager {
         ctx.fillText(act.story, W / 2, 98);
         if (act.controls) {
             ctx.fillStyle = '#64748b';
-            ctx.font = '500 14px Rajdhani';
+            ctx.font = '500 16px Rajdhani';
             ctx.fillText(act.controls, W / 2, 124);
         }
 
@@ -2328,7 +2328,7 @@ class GameManager {
 
         const done = this.progress.stagesDone(act.id);
         ctx.fillStyle = done === act.stages.length ? '#22c55e' : '#64748b';
-        ctx.font = '600 14px Rajdhani';
+        ctx.font = '600 16px Rajdhani';
         ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, 372);
         ctx.restore();
     }

@@ -87,7 +87,7 @@ class StateManager {
                 : (1 - this.transitionProgress) * 2;
             ctx.save();
             ctx.fillStyle = `rgba(10, 14, 23, ${alpha})`;
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.fillRect(0, 0, VIEW.W, VIEW.H);
             ctx.restore();
         }
     }
