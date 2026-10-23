@@ -2696,12 +2696,20 @@ suite('Polish: transitions, stamps, sounds, reduced motion (UI-6)', () => {
         return c;
     };
 
-    // Transition: shutter bands + scan line normally, a single fade with reduced motion.
+    // Transition: a cheap eased fade (at most two fills) with a thin line near full dark.
     gm.state.transitioning = true;
-    gm.state.transitionProgress = 0.4;
+    let most = 0;
+    for (let p = 0; p <= 1.0001; p += 0.05) {
+        gm.state.transitionProgress = p;
+        const c = counting();
+        gm.state._renderTransition(c);
+        most = Math.max(most, c.rects);
+    }
+    ok('transition stays cheap (at most two fills a frame)', most === 2, String(most));
+    gm.state.transitionProgress = 0.5;
     const a = counting();
     gm.state._renderTransition(a);
-    ok('transition draws shutter bands', a.rects >= 9, String(a.rects));
+    ok('fully dark mid-way, with the centre line', a.rects === 2);
     T.reducedMotion = true;
     const b = counting();
     gm.state._renderTransition(b);

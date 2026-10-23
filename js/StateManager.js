@@ -86,32 +86,25 @@ class StateManager {
     }
 
     /**
-     * Screen change: shutters close in from alternating sides with a scan
-     * line and a short glitch, then open on the new screen. With reduced
-     * motion it is a plain fade.
+     * Screen change: a soft, eased fade through dark. While the screen is
+     * nearly dark a thin line opens from the centre (a quiet CRT touch).
+     * Two fills per frame: easy on the eyes and on phones. Reduced motion
+     * keeps only the fade.
      */
     _renderTransition(ctx) {
         const p = this.transitionProgress;
-        const cover = p < 0.5 ? p * 2 : (1 - p) * 2;
+        const linear = p < 0.5 ? p * 2 : (1 - p) * 2;
+        const cover = linear * linear * (3 - 2 * linear);   // smoothstep
         const W = VIEW.W, H = VIEW.H;
         ctx.save();
-        if (typeof UITheme === 'undefined' || UITheme.reducedMotion) {
-            ctx.fillStyle = `rgba(10, 14, 23, ${cover})`;
-            ctx.fillRect(0, 0, W, H);
-            ctx.restore();
-            return;
+        ctx.fillStyle = `rgba(10, 14, 23, ${cover})`;
+        ctx.fillRect(0, 0, W, H);
+        if (cover > 0.6 && typeof UITheme !== 'undefined' && !UITheme.reducedMotion) {
+            const k = (cover - 0.6) / 0.4;
+            ctx.globalAlpha = 0.35 * k;
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillRect(W / 2 - W * 0.3 * k, H / 2, W * 0.6 * k, 1);
         }
-        const bands = 8, bh = H / bands;
-        ctx.fillStyle = '#0a0e17';
-        for (let k = 0; k < bands; k++) {
-            // Staggered bands: all closed exactly at the midpoint.
-            const w = W * Utils.clamp(cover * 1.25 - (k % 3) * 0.08, 0, 1);
-            if (k % 2) ctx.fillRect(W - w, k * bh, w, bh + 1);
-            else ctx.fillRect(0, k * bh, w, bh + 1);
-        }
-        ctx.fillStyle = 'rgba(56,189,248,0.55)';
-        ctx.fillRect(0, p * H, W, 2);
-        UITheme.glitch(ctx, W, H, Math.sin(p * Math.PI) * 0.7, p * 3);
         ctx.restore();
     }
 

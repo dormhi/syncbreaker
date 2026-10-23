@@ -282,6 +282,22 @@ const UITheme = {
         ctx.restore();
     },
 
+    /** Cached 1-in-4 scanline pattern (null outside a browser). */
+    _scanlines(ctx) {
+        if (UITheme._scanPattern !== undefined) return UITheme._scanPattern;
+        UITheme._scanPattern = null;
+        if (typeof document !== 'undefined' && document.createElement && ctx.createPattern) {
+            const c = document.createElement('canvas');
+            c.width = 1;
+            c.height = 4;
+            const g = c.getContext('2d');
+            g.fillStyle = 'rgba(0,0,0,0.12)';
+            g.fillRect(0, 0, 1, 1);
+            UITheme._scanPattern = ctx.createPattern(c, 'repeat');
+        }
+        return UITheme._scanPattern;
+    },
+
     /** Screen-wide corruption overlay (tear bars, scanlines); strength 0..1. */
     glitch(ctx, W, H, strength, time) {
         if (!(strength > 0) || UITheme.reducedMotion) return;
@@ -295,8 +311,14 @@ const UITheme = {
             ctx.fillRect((h(k + 23) - 0.5) * 40 * strength, h(k) * H, W, 2 + h(k + 11) * 10);
         }
         ctx.globalAlpha = strength;
-        ctx.fillStyle = 'rgba(0,0,0,0.12)';
-        for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1);
+        const lines = UITheme._scanlines(ctx);
+        if (lines) {
+            ctx.fillStyle = lines;          // one fill instead of a line per 4 px
+            ctx.fillRect(0, 0, W, H);
+        } else {
+            ctx.fillStyle = 'rgba(0,0,0,0.12)';
+            for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1);
+        }
         if (h(99) < 0.25 * strength) {
             ctx.globalAlpha = 1;
             ctx.fillStyle = 'rgba(239,68,68,0.35)';

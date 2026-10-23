@@ -171,6 +171,10 @@ Yeni bir `js/UITheme.js` dosyası (global nesne) bütün ekranların ortak değe
 - Her faz ayrı bir commit ve sürüm. Her sürümde `?v=` önbellek etiketi artırılıyor.
 - Oyunların kendi ekranları (Act 1–5 mekanikleri) bu planın dışında. Sadece ortak HUD parçaları (can, süre, skor) UI-1'de ortaklaştırılabilir.
 
+## 8b. Oyun testinden sonra
+
+- **2026-10-23:** Kepenk + bozulma efektli ekran geçişi göz yordu ve telefonda kasıyordu. Yerine karanlığa yumuşak bir solma ve ortadan açılan ince bir çizgi kondu. Her karede en fazla iki dolgu çiziliyor.
+
 ## 9. Kararlar
 
 **2026-10-21**
