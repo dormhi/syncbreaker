@@ -9,6 +9,12 @@
    First tap / click selects a cable, a second one on the same cable cuts
    it (no accidental cuts). Arrows move the selection, SPACE / ENTER cuts.
 
+   The cables at ATK and at the CORE are shielded trunks: they cannot be
+   cut, so the cut always has to be found inside the network. A network is
+   also thrown away when a blind recipe would solve it within the scissors
+   (cut everything around the relays next to ATK, or next to the CORE).
+   Layouts vary: 3 or 4 rows, ATK and CORE swap sides, relays shift.
+
    Harder tiers add:
    - owner lines (blue): the owner's own link to the core. Cutting one
      costs a life (the line is repaired, the scissors are spent).
@@ -33,7 +39,7 @@
 
 const _MechanicBaseNC = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
 
-const NC_INF = 1000;   // "cannot be cut" capacity (owner lines, untouchable triggers)
+const NC_INF = 1000;   // "cannot be cut" capacity (shielded trunks, owner lines, untouchable triggers)
 
 class NetworkCutMechanic extends _MechanicBaseNC {
     constructor(options = {}) {
@@ -41,7 +47,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         this.rng = options.rng || Math.random;
 
         this.networks = options.networks || 3;
-        this.relays = options.relays || 6;
+        this.cols = Math.max(5, options.cols || 5);   // relay columns (3 rows each)
         this.minCutMin = options.minCutMin || 2;        // cheapest solution, in scissors
         this.minCutMax = options.minCutMax || this.minCutMin;
         this.slack = options.slack !== undefined ? options.slack : 2;   // spare scissors
@@ -138,7 +144,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             { kind: 'core', x: B.x + B.w - 34, y: mid },
             at(0.36, 0.44), at(0.64, 0.44), at(0.36, 0.84), at(0.64, 0.84)
         ];
-        const link = (a, b) => ({ a, b, hp: 1, armor: 1, owner: false, dormant: false, trigger: -1 });
+        const link = (a, b) => ({ a, b, hp: 1, armor: 1, owner: false, dormant: false, trigger: -1, shielded: a <= 1 || b <= 1 });
         this.start = [link(0, 2), link(2, 3), link(3, 1), link(0, 4), link(4, 5), link(5, 1)];
         this.minCost = 2;
         this.budget = 2 + Math.max(1, this.slack);
@@ -146,6 +152,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         this.coachQueue = [
             { kind: 'info', top: true, nodes: [0, 1], text: 'This is the ATTACKER (left). It wants to reach your CORE (right).' },
             { kind: 'info', top: true, red: true, text: 'RED cables are the paths it can use. Cut cables until no red line reaches the CORE.' },
+            { kind: 'info', top: true, shielded: true, text: 'The STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Cut the cables in between.' },
             { kind: 'select', top: true, edges: [1], text: 'Tap this cable to select it.' },
             { kind: 'cut', top: true, edges: [1], text: 'Tap it again to cut it. Every cut uses one ✂ — you have a few.' },
             { kind: 'solve', top: true, red: true, text: 'The attacker still gets through along the other route. Select a red cable there and cut it.' }
@@ -158,6 +165,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         const store = this.coachStore;
         if (!store) return;
         const topics = [
+            ['shielded', e => e.shielded, 'STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Find the cut inside the network.'],
             ['owner', e => e.owner, 'BLUE cables are the OWNER\'S LINE: they keep the owner connected to the core. Never cut them — it costs a life.'],
             ['armored', e => e.armor > 1, 'THICK cables are ARMORED. They need two cuts: the first one only cracks them.'],
             ['failover', e => e.dormant, 'A dashed purple cable is a BACKUP line. It switches on when you cut the cable with the same orange letter.']
@@ -195,31 +203,37 @@ class NetworkCutMechanic extends _MechanicBaseNC {
     _tryNetwork(anyCost) {
         const B = this.boardRect();
         const owner = this.ownerMax > 0;
+        // Three rows of relays in `cols` columns. The two columns at each end
+        // stay full, so every gap near ATK or the CORE has 5 cables: a blind
+        // cut there costs more than the scissors. Middle columns (wide
+        // networks only) may lose a relay, never below two, so layouts vary.
         const rows = 3;
-        const cols = Math.max(1, Math.ceil(this.relays / rows));
-
-        // Relay cells: a cols x rows grid, a few left empty to hit the count.
+        const cols = this.cols;
         const cells = [];
         for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) cells.push({ c, r });
-        while (cells.length > this.relays) {
+        const middle = (c) => c >= 2 && c <= cols - 3;
+        let drop = cols >= 5 ? this._int(cols - 3) : 0;
+        while (drop > 0) {
             const k = this._int(cells.length);
             const col = cells[k].c;
-            if (cells.filter(x => x.c === col).length > 1) cells.splice(k, 1);
+            if (middle(col) && cells.filter(x => x.c === col).length > 2) { cells.splice(k, 1); drop--; }
         }
 
-        const rowY = (r) => B.y + (owner ? [0.14, 0.42, 0.70][r] : [0.2, 0.5, 0.8][r]) * B.h;
+        const top = owner ? 0.12 : 0.16, bottom = owner ? 0.74 : 0.84;
+        const rowY = (r) => B.y + B.h * (rows === 1 ? 0.5 : top + (bottom - top) * r / (rows - 1));
         // Relay columns spread evenly between the attacker and the core.
         const ax = B.x + 34, cx = B.x + B.w - 34;
         const colX = (c) => ax + (cx - ax) * (c + 1) / (cols + 1);
+        const midY = B.y + B.h * (top + bottom) / 2;
         const nodes = [
-            { kind: 'atk', x: ax, y: B.y + B.h * (owner ? 0.42 : 0.5) },
-            { kind: 'core', x: cx, y: B.y + B.h * (owner ? 0.42 : 0.5) }
+            { kind: 'atk', x: ax, y: midY + (this.rng() - 0.5) * B.h * 0.3 },
+            { kind: 'core', x: cx, y: midY + (this.rng() - 0.5) * B.h * 0.3 }
         ];
         const at = {};
         for (const cell of cells) {
             at[cell.c + ',' + cell.r] = nodes.length;
             nodes.push({ kind: 'relay', c: cell.c, r: cell.r,
-                x: colX(cell.c) + (this.rng() - 0.5) * 30, y: rowY(cell.r) + (this.rng() - 0.5) * 24 });
+                x: colX(cell.c) + (this.rng() - 0.5) * 44, y: rowY(cell.r) + (this.rng() - 0.5) * 30 });
         }
         if (owner) nodes.push({ kind: 'owner', x: colX(Math.max(0, cols - 2)) + 40, y: B.y + B.h * 0.93 });
         const OWNER = owner ? nodes.length - 1 : -1;
@@ -242,19 +256,34 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             add(1, at[(cols - 1) + ',' + r]);
         }
 
-        // Thin out at random while everything stays connected to the attacker.
-        // The attacker's and the core's own cables stay: they set how wide the
-        // cut is. No relay drops below two cables (dead ends are pointless).
+        // A bottleneck along a zig-zag border: each row splits at its own
+        // column, so the narrow place is never one straight gap. Only `width`
+        // cables cross the border; the rest of the network stays dense.
+        // The border stays off the end gaps (columns 1 .. cols-3).
+        const lo = 1, hi = cols - 3;
+        const border = [lo + this._int(hi - lo + 1)];
+        for (let r = 1; r < rows; r++) {
+            border.push(Math.max(lo, Math.min(hi, border[r - 1] + this._int(3) - 1)));
+        }
+        if (hi > lo && border.every(b => b === border[0])) return null;   // keep it bent
+        const atkSide = (v) => v === 0 || (v > 1 && nodes[v].kind === 'relay' && nodes[v].c <= border[nodes[v].r]);
+        const crosses = (e) => e[0] !== 1 && e[1] !== 1 && atkSide(e[0]) !== atkSide(e[1]);
+        const width = this._between(this.minCutMin, this.minCutMax);
         let active = cand.slice();
-        const degree = (v, list) => list.filter(([a, b]) => a === v || b === v).length;
-        for (const e of cand.slice().sort(() => this.rng() - 0.5)) {
-            if (e[0] <= 1 || e[1] <= 1 || this.rng() > 0.3) continue;
-            if (degree(e[0], active) <= 2 || degree(e[1], active) <= 2) continue;
+        const neckEdges = cand.filter(crosses).sort(() => this.rng() - 0.5);
+        for (const e of neckEdges.slice(width)) {
             const without = active.filter(x => x !== e);
             if (this._connected(nodes.length, without, owner ? [OWNER] : [])) active = without;
         }
-        const edges = active.map(([a, b]) => ({ a, b, hp: 1, armor: 1, owner: false, dormant: false, trigger: -1 }));
+
+        // Everywhere else the network stays dense: the bottleneck is the only
+        // narrow place, and blind cuts at the full end columns cost a lot.
+        // Trunk cables at ATK and CORE are shielded (no blind cuts at the ends).
+        const edges = active.map(([a, b]) => ({ a, b, hp: 1, armor: 1, owner: false, dormant: false, trigger: -1, shielded: a <= 1 || b <= 1 }));
         const spare = cand.filter(e => active.indexOf(e) < 0);
+
+        // Mirror half of the networks: ATK on the right, CORE on the left.
+        if (this.rng() < 0.5) for (const n of nodes) n.x = B.x + B.w - (n.x - B.x);
 
         // Owner line: the owner's terminal to the core along existing relays.
         if (owner) {
@@ -265,12 +294,12 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             if (!route) return null;
             const ownerLen = route.length + 1;
             if (ownerLen < this.ownerMin || ownerLen > this.ownerMax) return null;
-            edges.push({ a: OWNER, b: near, hp: 1, armor: 1, owner: true, dormant: false, trigger: -1 });
+            edges.push({ a: OWNER, b: near, hp: 1, armor: 1, owner: true, dormant: false, trigger: -1, shielded: false });
             for (const k of route) edges[k].owner = true;
         }
 
         // Armored cables
-        const plain = () => edges.map((e, i) => i).filter(i => !edges[i].owner && edges[i].armor === 1 && !edges[i].dormant);
+        const plain = () => edges.map((e, i) => i).filter(i => !edges[i].owner && !edges[i].shielded && edges[i].armor === 1 && !edges[i].dormant);
         const armored = this._between(this.armoredMin, this.armoredMax);
         for (let k = 0; k < armored; k++) {
             const pool = plain();
@@ -287,7 +316,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             const cut = NetworkCutMechanic.cheapestCut(nodes.length, edges).filter(i => !edges[i].owner && edges[i].trigger < 0);
             const triggers = cut.filter(i => !edges.some(d => d.dormant && d.trigger === i));
             if (!triggers.length) return null;
-            edges.push({ a, b, hp: 1, armor: 1, owner: false, dormant: true, awake: false,
+            edges.push({ a, b, hp: 1, armor: 1, owner: false, dormant: true, awake: false, shielded: false,
                 trigger: triggers[this._int(triggers.length)], tag: 'AB'[k] });
         }
 
@@ -297,7 +326,59 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         net.minCost = NetworkCutMechanic.minCost(nodes.length, edges);
         if (net.minCost >= NC_INF) return null;
         if (!anyCost && (net.minCost < this.minCutMin || net.minCost > this.minCutMax)) return null;
+        if (!anyCost && this._blindSolves(nodes, edges, net.minCost, net.minCost + this.slack)) return null;
         return net;
+    }
+
+    /**
+     * Would a recipe that ignores the layout do (nearly) as well as thinking?
+     * - Cutting everything next to ATK or the CORE (the end gaps, and around
+     *   the relays next to the ends) must not fit the scissors at all.
+     * - Cutting one straight column gap in the middle is a real cut, but it
+     *   must cost more than the cheapest one (the bent bottleneck wins).
+     * Owner lines are left alone; backups woken on the way are cut too.
+     */
+    _blindSolves(nodes, edges, minCost, budget) {
+        // Recipe set 1: cut every cable across one straight column gap.
+        const colOf = (v) => v === 0 ? -1 : v === 1 ? Infinity : (nodes[v].kind === 'relay' ? nodes[v].c : null);
+        const cols = Math.max(...nodes.filter(n => n.kind === 'relay').map(n => n.c)) + 1;
+        for (let g = 0; g < cols - 1; g++) {
+            const cut = new Set();
+            edges.forEach((e, i) => {
+                if (e.dormant || e.owner || e.shielded) return;
+                const ca = colOf(e.a), cb = colOf(e.b);
+                if (ca === null || cb === null) return;
+                if (Math.min(ca, cb) <= g && Math.max(ca, cb) > g) cut.add(i);
+            });
+            const end = g === 0 || g === cols - 2;
+            if (this._cutSolves(nodes, edges, cut, end ? budget : minCost)) return true;
+        }
+        // Recipe set 2: cut everything around the relays next to ATK / the CORE.
+        for (const end of [0, 1]) {
+            const layer = new Set();
+            edges.forEach(e => {
+                if (e.dormant) return;
+                if (e.a === end && e.b > 1) layer.add(e.b);
+                if (e.b === end && e.a > 1) layer.add(e.a);
+            });
+            const cut = new Set();
+            edges.forEach((e, i) => {
+                if (e.dormant || e.owner || e.shielded) return;
+                if (layer.has(e.a) !== layer.has(e.b)) cut.add(i);
+            });
+            if (this._cutSolves(nodes, edges, cut, budget)) return true;
+        }
+        return false;
+    }
+
+    /** Does this set of cuts (plus any backups it wakes) win within the budget? */
+    _cutSolves(nodes, edges, cut, budget) {
+        edges.forEach((d, i) => { if (d.dormant && cut.has(d.trigger)) cut.add(i); });
+        let cost = 0;
+        for (const i of cut) cost += edges[i].hp;
+        if (cost > budget) return false;
+        const live = edges.filter((e, i) => !cut.has(i) && (!e.dormant || cut.has(e.trigger)));
+        return !NetworkCutMechanic.reach(nodes.length, live, 0).has(1);
     }
 
     _connected(n, pairs, extra) {
@@ -406,7 +487,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
                 if (e.cut) return;
                 if (e.dormant && !e.awake && !woken.has(e)) return;
                 if (cutTriggers.has(i)) { cost += e.hp; return; }
-                const c = (e.owner || keepTriggers.has(i)) ? NC_INF : e.hp;
+                const c = (e.owner || e.shielded || keepTriggers.has(i)) ? NC_INF : e.hp;
                 caps[e.a][e.b] += c;
                 caps[e.b][e.a] += c;
             });
@@ -421,7 +502,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         const caps = Array.from({ length: n }, () => new Array(n).fill(0));
         edges.forEach(e => {
             if (e.cut || (e.dormant && !e.awake)) return;
-            const c = e.owner ? NC_INF : e.hp;
+            const c = (e.owner || e.shielded) ? NC_INF : e.hp;
             caps[e.a][e.b] += c;
             caps[e.b][e.a] += c;
         });
@@ -449,7 +530,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
     /** Can cable i be selected / cut? (Not cut yet, and awake.) */
     cuttable(i) {
         const e = this.edges[i];
-        return !!e && !e.cut && (!e.dormant || e.awake);
+        return !!e && !e.cut && !e.shielded && (!e.dormant || e.awake);
     }
 
     /** First tap selects, a second tap on the same cable cuts it. */
@@ -506,6 +587,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
 
     _solvedNetwork() {
         if (this.tutorial && this.solved === 0) {
+            if (this.coachStore) this.coachStore.mark('shielded');
             this.coachQueue = [{ kind: 'info', top: true, key: 'tutorial', text: 'No red line reaches the CORE: access cut! Solve every network to clear the stage.' }];
             this.coach = null;
             this._nextCoach();
@@ -665,6 +747,16 @@ class NetworkCutMechanic extends _MechanicBaseNC {
                 ctx.setLineDash([]);
                 return;
             }
+            if (e.shielded && !e.owner) {
+                // Steel trunk: a light casing with the traffic colour inside
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 9;
+                ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(N.x, N.y); ctx.stroke();
+                ctx.strokeStyle = hot ? red : '#1e293b';
+                ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(N.x, N.y); ctx.stroke();
+                return;
+            }
             const color = e.owner ? blue : hot ? red : '#64748b';
             const width = e.armor > 1 ? 9 : e.owner ? 5 : 4;
             if (hot || e.owner) { ctx.shadowColor = color; ctx.shadowBlur = hot ? 10 : 6; }
@@ -801,6 +893,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
     _renderLegend(ctx, W) {
         const B = this.boardRect();
         const items = [['#ef4444', 4, null, 'Red: the attacker\'s path']];
+        if (this.edges.some(e => e.shielded)) items.push(['#94a3b8', 8, null, 'Steel: shielded — can\'t be cut']);
         if (this.edges.some(e => e.owner)) items.push(['#3b82f6', 5, null, 'Blue: owner line — don\'t cut']);
         if (this.edges.some(e => e.armor > 1)) items.push(['#64748b', 9, null, 'Thick: armored — 2 cuts']);
         if (this.edges.some(e => e.dormant)) items.push(['rgba(192,132,252,0.8)', 2, [5, 6], 'Dashed: backup — wakes when its orange letter is cut']);
@@ -837,6 +930,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         if (!c || this.result !== null) return;
         const edges = c.red
             ? this.edges.map((e, i) => i).filter(i => this.cuttable(i) && this.reached.has(this.edges[i].a) && this.reached.has(this.edges[i].b) && !this.edges[i].owner)
+            : c.shielded ? this.edges.map((e, i) => i).filter(i => this.edges[i].shielded)
             : (c.edges || []);
         const nodes = c.nodes || [];
         const info = c.kind === 'info';

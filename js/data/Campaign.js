@@ -132,16 +132,18 @@ const CAMPAIGN = {
                 desktop: 'Click a cable to select it, click again to cut · cut every red path to the CORE',
                 touch: 'Tap a cable to select it, tap again to cut · cut every red path to the CORE'
             },
-            // Lives + logic, no timer (docs/ACT_PLAN.md). Draft numbers from
-            // the plan; `minCut` is the cheapest solution in scissors and
-            // `slack` the spare scissors on top. Owner lines (blue) cost a
+            // Lives + logic, no timer (docs/ACT_PLAN.md). Tuned with a bot
+            // sweep, approved 2026-10-24 (L2: lives 3/4/5/5, VERY HARD +1 scissor);
+            // `cols` relay columns (3 rows), `minCut` is the cheapest solution
+            // in scissors (a hidden bottleneck) and `slack` the spare scissors.
+            // Cables at ATK and the CORE are shielded. Owner lines (blue) cost a
             // life when cut, armored cables need two cuts, failover lines
             // wake when their tagged cable is cut.
             stages: [
-                { tier: 'EASY',      params: { networks: 3, relays: 6,  minCutMin: 2, minCutMax: 2, slack: 2, lives: 3 } },
-                { tier: 'NORMAL',    params: { networks: 3, relays: 8,  minCutMin: 2, minCutMax: 3, slack: 1, ownerMin: 2, ownerMax: 3, lives: 3 } },
-                { tier: 'HARD',      params: { networks: 4, relays: 10, minCutMin: 3, minCutMax: 3, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 1, armoredMax: 2, lives: 3 } },
-                { tier: 'VERY HARD', params: { networks: 4, relays: 12, minCutMin: 3, minCutMax: 4, slack: 0, ownerMin: 3, ownerMax: 4, armoredMin: 2, armoredMax: 2, failoverMin: 1, failoverMax: 2, lives: 3 } }
+                { tier: 'EASY',      params: { networks: 3, cols: 5, minCutMin: 2, minCutMax: 2, slack: 2, lives: 3 } },
+                { tier: 'NORMAL',    params: { networks: 3, cols: 5, minCutMin: 2, minCutMax: 3, slack: 1, ownerMin: 2, ownerMax: 3, lives: 4 } },
+                { tier: 'HARD',      params: { networks: 4, cols: 6, minCutMin: 3, minCutMax: 3, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 1, armoredMax: 2, lives: 5 } },
+                { tier: 'VERY HARD', params: { networks: 4, cols: 6, minCutMin: 3, minCutMax: 4, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 2, armoredMax: 2, failoverMin: 1, failoverMax: 2, lives: 5 } }
             ]
         },
         { id: 7, key: 'DEFUSE_PAYLOAD', done: 'payload defused', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },

@@ -42,7 +42,7 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
   3. CLOSE_PORTS: Orbital Shield, 4 stages, 12/16/20/20 packets on 4/6/8/8 ports, lives 4/5/6/7 (`js/mechanics/OrbitalShieldMechanic.js`)
   4. RESET_CREDS: Signal Lock, 5 stages (EASY…EXPERT), 3/3/4/4/5 keys against a timer; revive = +20 s (`js/mechanics/SignalLockMechanic.js`)
   5. TRACE_LOGS: Route Trace, 3 stages (4×4 / 5×5 / 6×6 grids, 2/3/3 traces against a timer); revive = +20 s (`js/mechanics/RouteTraceMechanic.js`)
-  6. CUT_ACCESS: **Network Cut** (`js/mechanics/NetworkCutMechanic.js`, released early on 2026-10-24 with draft tier numbers; the tuning, its star rules and the progress reset are still pending): cut every attacker path to the CORE with a limited number of scissors; lives + logic, no timer; tiers add owner lines (cutting one costs a life), armored cables (two cuts) and failover lines
+  6. CUT_ACCESS: **Network Cut** (`js/mechanics/NetworkCutMechanic.js`, released 2026-10-24; tiers approved (lives 3/4/5/5, scissors slack +2/+1/+1/+1, 5/5/6/6 columns); its star rules and the progress reset are still pending): cut every attacker path to the CORE with a limited number of scissors; cables at ATK and the CORE are shielded, the cheapest cut is a hidden zig-zag bottleneck and the generator rejects any network a blind recipe solves (`_blindSolves`); lives + logic, no timer; tiers add owner lines (cutting one costs a life), armored cables (two cuts) and failover lines
   7. DEFUSE_PAYLOAD: in development
   8. RESTORE_CORE: in development
   9. FINAL_AUDIT: in development. Decided: it tests **knowledge and reasoning only**, with no timer and no lives

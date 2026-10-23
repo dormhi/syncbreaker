@@ -2956,7 +2956,7 @@ suite('Network Cut (Act 6) — puzzles, rules, flow', () => {
     // Independent brute force: the cheapest set of cuts (failovers included).
     const brute = (m) => {
         const E = m.edges, n = m.nodes.length;
-        const cuttable = E.map((e, i) => i).filter(i => !E[i].owner);
+        const cuttable = E.map((e, i) => i).filter(i => !E[i].owner && !E[i].shielded);
         let best = Infinity;
         const check = (set) => {
             for (const i of set) if (E[i].dormant && !set.has(E[i].trigger)) return;   // asleep: cannot be cut
@@ -2999,6 +2999,25 @@ suite('Network Cut (Act 6) — puzzles, rules, flow', () => {
         ok(`${tag}: solver agrees with brute force`, matches);
         ok(`${tag}: owner lines, armor and failovers as configured`, features);
     });
+
+    // No blind recipe beats thinking: ends are shielded, cutting everything
+    // next to ATK / the CORE never fits the scissors, a straight middle cut
+    // always costs more than the best cut.
+    let shieldedEnds = true, endsTooDear = true, layoutsVary = new Set();
+    tiers.forEach((p, t) => {
+        for (let seed = 1; seed <= 10; seed++) {
+            const g = make(p, seed * 17 + t);
+            g.edges.forEach(e => { if ((e.a <= 1 || e.b <= 1) && !e.owner && !e.shielded) shieldedEnds = false; });
+            if (g._blindSolves(g.nodes, g.edges, g.minCost, g.budget)) endsTooDear = false;
+            layoutsVary.add(g.nodes[0].x < g.nodes[1].x ? 'atk-left' : 'atk-right');
+        }
+    });
+    ok('cables at ATK and the CORE are shielded', shieldedEnds);
+    ok('blind recipes never solve a network', endsTooDear);
+    ok('layouts vary (ATK on either side)', layoutsVary.size === 2);
+    const sh = make(tiers[0], 21);
+    const trunk = sh.edges.findIndex(e => e.shielded);
+    ok('a shielded cable cannot be selected or cut', sh.tapEdge(trunk) === false && sh.cut(trunk) === false);
 
     // Select, then cut.
     const m = make(tiers[0], 5);
@@ -3053,9 +3072,9 @@ suite('Network Cut (Act 6) — puzzles, rules, flow', () => {
     const hard = make(tiers[3], 9);
     hard.scissors = 10;   // room to try things without running out
     const ownerIdx = hard.edges.findIndex(e => e.owner);
-    const sc = hard.scissors;
+    const sc = hard.scissors, lv = hard.lives;
     hard.cut(ownerIdx);
-    ok('cutting an owner line costs a life; the line is repaired', hard.lives === 2 && !hard.edges[ownerIdx].cut && hard.scissors === sc - 1);
+    ok('cutting an owner line costs a life; the line is repaired', hard.lives === lv - 1 && !hard.edges[ownerIdx].cut && hard.scissors === sc - 1);
     const armIdx = hard.edges.findIndex(e => e.armor > 1 && !e.dormant);
     hard.cut(armIdx);
     ok('armored cable cracks on the first cut', !hard.edges[armIdx].cut && hard.edges[armIdx].hp === 1);
@@ -3099,7 +3118,7 @@ suite('Network Cut (Act 6) — puzzles, rules, flow', () => {
     }
     ok('act 6 opens after gate 5', gm.progress.isActUnlocked(6));
     ok('stage summary', gm._stageSummary(gm.progress.act(6), gm.progress.act(6).stages[0]) === '3 NETWORKS · 3♥');
-    gm._coachStore('cut').mark('tutorial');   // the tutorial has its own suite
+    ['tutorial', 'shielded'].forEach(k => gm._coachStore('cut').mark(k));   // the tutorial has its own suite
     settle(gm, S.ACT);
     gm._startStage(6, 0);
     const cfg = gm.state.pendingContext;
@@ -3134,8 +3153,8 @@ suite('Network Cut teaches itself (tutorial + one-time tips)', () => {
     ok('first stage starts with the tutorial network', m.nodes.length === 6 && m.edges.length === 6 && m.minCost === 2);
     ok('it opens with an info bubble that pauses the game', m.coach && m.coach.kind === 'info' && m.coachBlocks);
     ok('cutting is blocked while a bubble is up', m.cut(1) === false && !m.edges[1].cut);
-    tap(m); tap(m);
-    ok('two taps later it asks for a selection', m.coach.kind === 'select');
+    tap(m); tap(m); tap(m);
+    ok('three taps later it asks for a selection', m.coach.kind === 'select');
     m.tapEdge(1);
     ok('selecting moves on to "tap again to cut"', m.coach.kind === 'cut' && m.selected === 1);
     m.tapEdge(1);
@@ -3165,7 +3184,9 @@ suite('Network Cut teaches itself (tutorial + one-time tips)', () => {
     vh.init({ width: 960, height: 640 });
     const keys = [];
     while (vh.coach) { keys.push(vh.coach.key); tap(vh); }
-    ok('owner, armored and failover each explained once', keys.join(',') === 'owner,armored,failover' && s2.s.owner && s2.s.armored && s2.s.failover);
+    ok('shielded, owner, armored and failover each explained once', keys.join(',') === 'shielded,owner,armored,failover' &&
+        s2.s.shielded && s2.s.owner && s2.s.armored && s2.s.failover);
+    ok('the tutorial also covers shielded cables', st.s.shielded === true);
     const vh2 = new NC(Object.assign({ rng: makeRng(10) }, tiers[3]));
     vh2.useCoach(s2, false);
     vh2.init({ width: 960, height: 640 });

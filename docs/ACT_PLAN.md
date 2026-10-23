@@ -26,7 +26,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
-| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | 🧪 Erken yayında, 4 aşama, taslak sayılar (Faz 5) |
+| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5; yıldızlar ve sıfırlama bekliyor) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
@@ -257,6 +257,13 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - **Zırhlı kablo (Zor ve üstü):** Kalın çizilmiş kablolar. Kesmek için **iki makas** gerekir: ilk kesimde çatlar, ikincide kopar. Ucuz bir yol yerine bazen zırhlıyı kesmek gerekir.
 - **Yedek hat / failover (Çok zor):** Uykuda duran, soluk ve kesik çizgili kablolar. Belirli bir kablo kesilince saldırgan trafiği yedeğe aktarır ve yedek uyanır. Her yedeğin ucundaki küçük bir işaret, onu hangi kablonun uyandıracağını gösterir. Bu yüzden kesme **sırası** önemlidir: oyuncu "bunu kesersem hangi yedek açılır?" diye plan yapar.
 
+**Kolay yollara karşı (2026-10-24, ilk oyun testinden sonra):** İlk sürümde CORE'un ya da ATK'nın yanındaki kabloları kesmek ağa hiç bakmadan her seferinde işe yarıyordu, çünkü uçlarda en fazla 3 kablo vardı ve makas hep buna yetiyordu. Düzeltme:
+- **Çelik ana hatlar:** ATK'ya ve CORE'a bağlanan kablolar çelik kılıflı, kesilemez. Kesim her zaman ağın içinde yapılır. Eğitim ve ilk karşılaşma açıklamaları bunu anlatır.
+- **Gizli darboğaz:** Ağ 3 satır ve 5–6 sütundan oluşur ve her yerde sık örülüdür. Tek dar yer, satır satır farklı sütunlarda kıvrılan zikzak bir sınırdır. En ucuz kesim buradadır, bulmak için ağa bakmak gerekir.
+- **Kolay yol kontrolü:** Üretici her ağda bakmadan uygulanabilecek yolları dener: ucun yanındaki sırayı ya da uç geçitleri tamamen kesmek hiçbir zaman makasa sığmaz; ortadan düz bir sütunu tamamen kesmek her zaman en iyi çözümden pahalıdır. Sağlamayan ağ atılıp yenisi üretilir.
+- **Her ağ farklı:** darboğazın yeri ve şekli, köşegen yönleri, iç sütunlardan rastgele eksilen düğümler, ATK/CORE'un yüksekliği ve ağların yarısında ayna çevirme (ATK sağda, CORE solda).
+- Kademe sayıları sütun sayısıyla tanımlandı: Kolay ve Orta 5 sütun, Zor ve Çok zor 6 sütun.
+
 **Oyun kendini öğretiyor (2026-10-24, ilk denemede "kimse anlamıyor" geri bildiriminden sonra):**
 - **Etkileşimli eğitim:** Act 6'nın ilk aşamasına ilk girişte ilk ağ elle kurulmuş basit bir eğitim ağıdır: iki ayrı yol, her biri tek kesimle kapanır. Baloncuklar sırayla anlatır: saldırgan ve çekirdek → kırmızı kablolar saldırganın yolları → "bu kabloya dokun" → "tekrar dokun, kes" → "diğer yolu da kes" → "erişim kesildi". Bilgi baloncukları oyunu durdurur ve dokununca geçer. Eylem adımları oyuncu yaptıkça ilerler.
 - **İlk karşılaşma açıklamaları:** Sahibin hattı, zırhlı kablo ve yedek hat ilk kez görüldüğünde oyun durur ve ne olduklarını tek cümleyle anlatır. Her biri bir kez gösterilir.
@@ -274,18 +281,29 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Yedek hatlı ağlarda küçük ağ boyutu sayesinde bütün kesme sıraları denenir. Makas payı içinde bir çözüm olduğu doğrulanır.
 - Ağ hiçbir zaman çözülmüş halde gelmez: başta saldırgan her zaman çekirdeğe ulaşabilir.
 
-**Aşamalar (ilk taslak, bot taramasıyla kesinleşecek):**
+**Aşamalar (kesin, 2026-10-24: bot taraması + L2 ayarı onaylandı):**
 
 | | Kolay | Orta | Zor | Çok zor |
 |---|---|---|---|---|
 | Ağ sayısı | 3 | 3 | 4 | 4 |
-| Düğüm | 6 | 8 | 10 | 12 |
+| Sütun (3 satır, ilk taslakta düğüm sayısı 6/8/10/12'ydi) | 5 | 5 | 6 | 6 |
 | En az gereken kesim | 2 | 2–3 | 3 | 3–4 |
-| Makas payı (en az kesimin üstüne) | +2 | +1 | +1 | +0 |
+| Makas payı (en az kesimin üstüne) | +2 | +1 | +1 | **+1** |
 | Sahibin hatları | – | 2–3 | 3–4 | 3–4 |
 | Zırhlı kablo | – | – | 1–2 | 2 |
 | Yedek hat | – | – | – | 1–2 |
-| Can | 3 | 3 | 3 | 3 |
+| Can | 3 | **4** | **5** | **5** |
+
+**Denge sonucu** (yeni üretici, insana benzer botlar, aşama başına 40 deneme; "ortalama" bot hamlelerin %60'ında en iyi kesimi planlıyor, kalanında tahmin ediyor):
+
+| Bot | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| İyi | 40/40 | 40/40 | 40/40 | 40/40 |
+| Ortalama | 40/40 | 30/40 | 16/40 | 12/40 |
+| Yavaş | 8/40 | 1/40 | 0/40 | 0/40 |
+
+- Makas payını artırmak yerine can verildi: Zor'da +2 makas, uçtaki 5 kablonun bakmadan kesilmesine yetiyordu.
+- Tahminle oynayan botlar bilerek zorlanıyor: oyun bakmadan kesmeyi cezalandırıyor. Oyun testine göre ayarlanabilir.
 
 **Revive:** Lockpick ile, diğer can oyunları gibi. Başarılı olursa **+1 can** verilir ve aynı ağ baştan kurulur. Aşama başına 2 hak, her biri 1 enerji.
 
@@ -452,7 +470,7 @@ Her fazın kabul şartları:
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
-| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | 🧪 Erken yayında (2026-10-24, taslak sayılar). Kalan: kademe ayarı onayı, yıldız kuralları, sıfırlama. |
+| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | 🧪 Yayında (2026-10-24), kademeler kesin. Kalan: yıldız kuralları, sıfırlama. |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
@@ -529,3 +547,4 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 19. **Endless sadece halkadan:** Endless ve leaderboard HUB'da sadece raydaki ∞ halkasının arkasında. Kilidi açanlar için HUB Endless kartında açılıyor, ayrıca kendilerine özel bir giriş ekranı var (bölüm 8b).
 20. **Herkesin ilerlemesi sıfırlanacak**, herkes sıfırdan başlayacak. **Act 6 ile birlikte** yayına girer. Leaderboard skorları ve operatör profilleri de silinir, oyunculara bildirim gösterilmez (bölüm 5b).
 21. **Act 6:** Network Cut. Saldırganı çekirdeğe bağlayan bütün yollar sınırlı makasla kesilir. Can + mantık oyunu, süre yok. Kademelerle sahibin hattı, zırhlı kablo ve yedek hat (failover) eklenir. Kural kartlı kablo fikri Act 7'ye ayrıldı (bölüm 3).
+22. **Act 6 kademeleri (2026-10-24):** L2 ayarı onaylandı: can 3/4/5/5, makas payı +2/+1/+1/+1, sütun 5/5/6/6. Çelik ana hatlar ve kolay yol kontrolü eklendi.
