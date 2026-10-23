@@ -312,6 +312,15 @@ class GameManager {
             },
             update: (dt) => {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
+                const a = this._ladderAnim;
+                if (a && a.actId === this._actView) {
+                    a.t += dt;
+                    if (!a.sound && a.t >= GameManager.LADDER_FILL) {
+                        a.sound = true;
+                        Sound.playWaveUp();
+                    }
+                    if (a.t >= GameManager.LADDER_FILL + GameManager.LADDER_BURST) this._ladderAnim = null;
+                }
             },
             render: (ctx) => {
                 const W = VIEW.W;
@@ -326,7 +335,10 @@ class GameManager {
                 this._renderHubMessage(ctx, W, H);
                 this.tipBar.render(ctx, W / 2, H - 35, this._inputMode(), 560);
             },
-            exit: () => this.ui.clearButtons(),
+            exit: () => {
+                this.ui.clearButtons();
+                this._ladderAnim = null;
+            },
             onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.HUB);
                 if (e.code === 'KeyH') this._openGuide();
@@ -2185,12 +2197,54 @@ class GameManager {
 
     // ── Act screen ──
 
-    _actScreenLayout(n) {
+    /**
+     * Rising stage ladder: card centres climb left to right, a circuit track
+     * runs under them (one node per card) and ends at the act's gate node.
+     */
+    _actScreenLayout(n, hasGate = true) {
         const W = VIEW.W;
-        const cardW = 170, cardH = 150, gap = 18;
-        const totalW = n * cardW + (n - 1) * gap;
+        const cardW = 150, cardH = 150, gap = 18, rise = 18;
+        const gateGap = 26, gateR = 22;
+        const totalW = n * cardW + (n - 1) * gap + (hasGate ? gateGap + gateR * 2 : 0);
         const x0 = (W - totalW) / 2 + cardW / 2;
-        return { cardW, cardH, y: 262, xs: Array.from({ length: n }, (_, i) => x0 + i * (cardW + gap)) };
+        const yMid = 282;
+        const xs = [], ys = [], trackYs = [];
+        for (let i = 0; i < n; i++) {
+            xs.push(x0 + i * (cardW + gap));
+            ys.push(yMid + ((n - 1) / 2 - i) * rise);
+            trackYs.push(ys[i] + cardH / 2 + 16);
+        }
+        const gate = hasGate
+            ? { x: xs[n - 1] + cardW / 2 + gateGap + gateR, y: trackYs[n - 1] - rise, r: gateR }
+            : null;
+        return { cardW, cardH, rise, xs, ys, trackYs, gate, statusY: 446, buttonY: 496 };
+    }
+
+    /** Does act `actId` end in a gate (the final act does not)? */
+    _actHasGate(actId) {
+        return !!CAMPAIGN.gates[actId - 1];
+    }
+
+    /**
+     * How stage card i should look: 'cleared' | 'next' | 'locked', plus
+     * `unlock` (0..1) while a freshly opened card plays its unlock effect.
+     * During the track fill the card being opened still shows as locked.
+     */
+    _stageView(act, i) {
+        const a = this._ladderAnim && this._ladderAnim.actId === act.id ? this._ladderAnim : null;
+        if (a && i === a.seg + 1) {
+            if (a.t < GameManager.LADDER_FILL) return { status: 'locked', unlock: null };
+            return { status: 'next', unlock: Math.min(1, (a.t - GameManager.LADDER_FILL) / GameManager.LADDER_BURST) };
+        }
+        if (this.progress.isStageCompleted(act.id, i)) return { status: 'cleared', unlock: null };
+        return { status: this.progress.isStageUnlocked(act.id, i) ? 'next' : 'locked', unlock: null };
+    }
+
+    /** Filled share (0..1) of track segment k: from card k to card k + 1 (or the gate). */
+    _ladderFill(act, k) {
+        const a = this._ladderAnim && this._ladderAnim.actId === act.id ? this._ladderAnim : null;
+        if (a && k === a.seg) return Utils.easeOutQuad(Utils.clamp(a.t / GameManager.LADDER_FILL, 0, 1));
+        return k < this.progress.stagesDone(act.id) ? 1 : 0;
     }
 
     /** One-line summary of a stage's key difficulty number. */
@@ -2209,21 +2263,24 @@ class GameManager {
         const H = VIEW.H;
         const act = this.progress.act(this._actView);
         if (!act) return;
-        const L = this._actScreenLayout(act.stages.length);
+        const L = this._actScreenLayout(act.stages.length, this._actHasGate(act.id));
 
         act.stages.forEach((stage, i) => {
-            this.ui.addButton(`stage${i}`, stage.tier, L.xs[i], L.y, L.cardW, L.cardH,
+            this.ui.addButton(`stage${i}`, stage.tier, L.xs[i], L.ys[i], L.cardW, L.cardH,
                 () => this._startStage(act.id, i),
                 { draw: (ctx, btn, hovered) => this._drawStageCard(ctx, btn, hovered, act, i) });
         });
 
         const n = act.id;
         if (this.progress.isGatePlayable(n)) {
-            this.ui.addButton('gate', `⚡ BREACH GATE ${n} → ACT ${n + 1}`, W / 2, 430, 320, 46,
+            this.ui.addButton('gate', `⚡ BREACH GATE ${n} → ACT ${n + 1}`, W / 2, L.buttonY, 320, 46,
                 () => this._tryStartGate(n),
                 { color: '#f59e0b' });
+            // The gate node at the end of the track is a tap target too.
+            this.ui.addButton('gate-node', '', L.gate.x, L.gate.y, 56, 56,
+                () => this._tryStartGate(n), { hidden: true, focusable: false });
         } else if (this.progress.isActComplete(n) && this.progress.isActUnlocked(n + 1)) {
-            this.ui.addButton('next', `NEXT: ACT ${n + 1} →`, W / 2, 430, 240, 42,
+            this.ui.addButton('next', `NEXT: ACT ${n + 1} →`, W / 2, L.buttonY, 240, 42,
                 () => this.state.change(this.state.STATES.ACT, { actId: n + 1 }),
                 { color: '#22c55e' });
         }
@@ -2246,47 +2303,128 @@ class GameManager {
     }
 
     _drawStageCard(ctx, btn, hovered, act, i) {
-        const theme = getLevelTheme(act.themeId);
+        const v = this._stageView(act, i);
         const stage = act.stages[i];
-        const done = this.progress.isStageCompleted(act.id, i);
-        const unlocked = this.progress.isStageUnlocked(act.id, i);
-        const color = done ? '#22c55e' : unlocked ? theme.zoneColor : '#475569';
-        const left = btn.x - btn.w / 2, top = btn.y - btn.h / 2;
+        const actColor = getLevelTheme(act.themeId).zoneColor;
+        const status = v.status;
+        const left = btn.x - btn.w / 2;
+        const top = btn.y - btn.h / 2;
+
+        const time = this.bgTime || 0;
 
         ctx.save();
-        ctx.globalAlpha = unlocked ? 1 : 0.6;
-        ctx.fillStyle = hovered && unlocked ? 'rgba(30,41,59,0.95)' : 'rgba(15,23,42,0.9)';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = hovered ? 2 : 1.2;
-        if (hovered && unlocked) { ctx.shadowColor = color; ctx.shadowBlur = 14; }
-        Utils.roundRect(ctx, left, top, btn.w, btn.h, 10);
-        ctx.fill();
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        if (status === 'locked') ctx.globalAlpha = 0.6;
+        if (status === 'next') {
+            ctx.translate(btn.x, btn.y);
+            ctx.scale(1.06, 1.06);
+            ctx.translate(-btn.x, -btn.y);
+        }
+
+        if (status === 'cleared') {
+            UITheme.panel(ctx, left, top, btn.w, btn.h, {
+                chamfer: 12,
+                stroke: UITheme.color.ok,
+                lineWidth: hovered ? 2 : 1.4,
+                fill: hovered ? UITheme.color.panelHi : UITheme.color.panel,
+                glow: hovered ? UITheme.color.ok : null
+            });
+        } else if (status === 'next') {
+            UITheme.panel(ctx, left, top, btn.w, btn.h, {
+                chamfer: 12,
+                stroke: actColor,
+                lineWidth: 2.2,
+                fill: UITheme.color.panelHi,
+                glow: actColor
+            });
+            ctx.save();
+            UITheme.chamferPath(ctx, left - 4, top - 4, btn.w + 8, btn.h + 8, 12);
+            ctx.strokeStyle = actColor;
+            ctx.lineWidth = 1.2;
+            ctx.globalAlpha = 0.15 + 0.25 * (0.5 + 0.5 * Math.sin(time * 3));
+            ctx.stroke();
+            ctx.restore();
+        } else {
+            UITheme.panel(ctx, left, top, btn.w, btn.h, {
+                chamfer: 12,
+                stroke: UITheme.color.locked,
+                lineWidth: 1.2,
+                dashed: true
+            });
+        }
+
+        if (status === 'locked') {
+            const seed = Math.floor(time * 6) * 7 + i * 13;
+            const h = k => Math.abs((Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(left, top, btn.w, btn.h);
+            ctx.clip();
+            ctx.strokeStyle = UITheme.color.textMute;
+            ctx.globalAlpha *= 0.25;
+            ctx.lineWidth = 1;
+            for (let k = 0; k < 5; k++) {
+                const y = top + 16 + h(k) * (btn.h - 40);
+                const len = 20 + h(k + 1) * 40;
+                const x = left + (btn.w - len) / 2;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + len, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
 
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle = '#64748b';
-        ctx.font = '600 14px Rajdhani';
-        ctx.fillText(`STAGE ${i + 1}`, btn.x, top + 26);
-        ctx.fillStyle = color;
-        ctx.font = '700 17px Orbitron';
-        ctx.fillText(stage.tier, btn.x, top + 56);
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 16px Rajdhani';
-        ctx.fillText(this._stageSummary(act, stage), btn.x, top + 84);
 
-        const status = done ? 'CLEARED' : unlocked ? 'READY' : 'LOCKED';
-        ctx.fillStyle = done ? '#22c55e' : unlocked ? '#3b82f6' : '#94a3b8';
-        ctx.font = '700 14px Rajdhani';
-        ctx.fillText(status, btn.x, top + 116);
+        UITheme.tierBadge(ctx, btn.x, top + 30, stage.tier, 26, { dim: status === 'locked' });
+
+        ctx.font = '700 17px Orbitron';
+        ctx.fillStyle = status === 'cleared' ? UITheme.color.ok : status === 'next' ? actColor : UITheme.color.textMute;
+        ctx.fillText(this.ui._fitText(stage.tier, btn.w - 16), btn.x, top + 72);
+
+        ctx.font = UITheme.font('body', 600);
+        ctx.fillStyle = UITheme.color.textDim;
+        ctx.fillText(this.ui._fitText(this._stageSummary(act, stage), btn.w - 16), btn.x, top + 98);
+
+        ctx.font = UITheme.font('label', 700);
+        if (status === 'cleared') {
+            ctx.fillStyle = UITheme.color.ok;
+            ctx.fillText('✓ CLEARED', btn.x, top + 124);
+        } else if (status === 'next') {
+            ctx.fillStyle = actColor;
+            ctx.fillText('NEXT ▸', btn.x, top + 124);
+        } else {
+            ctx.fillStyle = UITheme.color.textDim;
+            ctx.textAlign = 'left';
+            const label = 'LOCKED';
+            const textW = ctx.measureText(label).width || 50;
+            const glyphX = btn.x - (textW + 16) / 2;
+            this.ui._drawLockGlyph(ctx, glyphX, top + 115, 11, UITheme.color.textDim);
+            ctx.fillText(label, glyphX + 16, top + 124);
+            ctx.textAlign = 'center';
+        }
 
         const best = this.progress.stage(act.id, i).best;
         if (best > 0) {
-            ctx.fillStyle = '#475569';
-            ctx.font = '400 14px Rajdhani';
-            ctx.fillText('BEST ' + best, btn.x, top + 136);
+            ctx.font = UITheme.font('label', 500);
+            ctx.fillStyle = UITheme.color.locked;
+            ctx.fillText('BEST ' + best, btn.x, top + 142);
         }
+
+        if (status === 'next' && v.unlock !== null) {
+            const flashAlpha = 0.35 * (1 - v.unlock);
+            UITheme.chamferPath(ctx, left, top, btn.w, btn.h, 12);
+            ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
+            ctx.fill();
+            const glyphY = top + 40 - 40 * v.unlock;
+            ctx.globalAlpha = 1 - v.unlock;
+            ctx.translate(btn.x, glyphY + 9);
+            ctx.rotate(0.6 * v.unlock);
+            ctx.translate(-btn.x, -(glyphY + 9));
+            this.ui._drawLockGlyph(ctx, btn.x - 9, glyphY, 18, actColor);
+        }
+
         ctx.restore();
     }
 
@@ -2315,21 +2453,94 @@ class GameManager {
             ctx.fillText(act.controls, W / 2, 124);
         }
 
-        // Path between stage cards
-        const L = this._actScreenLayout(act.stages.length);
-        ctx.strokeStyle = 'rgba(71,85,105,0.5)';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([5, 6]);
-        ctx.beginPath();
-        ctx.moveTo(L.xs[0], L.y);
-        ctx.lineTo(L.xs[L.xs.length - 1], L.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        const L = this._actScreenLayout(act.stages.length, this._actHasGate(act.id));
+        this._drawStageTrack(ctx, act, L, theme.zoneColor);
 
         const done = this.progress.stagesDone(act.id);
         ctx.fillStyle = done === act.stages.length ? '#22c55e' : '#64748b';
         ctx.font = '600 16px Rajdhani';
-        ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, 372);
+        ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, L.statusY);
+        ctx.restore();
+    }
+
+    /** Circuit track under the ladder: dashed base, act-coloured fill, nodes, gate. */
+    _drawStageTrack(ctx, act, L, color) {
+        const n = act.stages.length;
+        const segs = L.gate ? n : n - 1;
+        // Segment k: from node k, along its track line, step up mid-gap, on to the next node.
+        const points = (k) => {
+            const x1 = L.xs[k], y1 = L.trackYs[k];
+            const x2 = k + 1 < n ? L.xs[k + 1] : L.gate.x - L.gate.r;
+            const y2 = k + 1 < n ? L.trackYs[k + 1] : L.gate.y;
+            const mx = k + 1 < n ? (x1 + x2) / 2 : x1 + L.cardW / 2 + 13;
+            return [[x1, y1], [mx, y1], [mx, y2], [x2, y2]];
+        };
+        const polyline = (pts, share) => {
+            let total = 0;
+            for (let j = 1; j < pts.length; j++) total += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
+            let left = total * share;
+            ctx.beginPath();
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            for (let j = 1; j < pts.length && left > 0; j++) {
+                const dx = pts[j][0] - pts[j - 1][0], dy = pts[j][1] - pts[j - 1][1];
+                const len = Math.hypot(dx, dy);
+                const f = Math.min(1, left / len);
+                ctx.lineTo(pts[j - 1][0] + dx * f, pts[j - 1][1] + dy * f);
+                left -= len;
+            }
+            ctx.stroke();
+        };
+
+        ctx.save();
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        for (let k = 0; k < segs; k++) {
+            const pts = points(k);
+            ctx.strokeStyle = UITheme.color.line;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 6]);
+            polyline(pts, 1);
+            ctx.setLineDash([]);
+            const fill = this._ladderFill(act, k);
+            if (fill > 0) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                polyline(pts, fill);
+            }
+        }
+
+        // Card stems and nodes: lit once the stage is reachable.
+        for (let i = 0; i < n; i++) {
+            const view = this._stageView(act, i);
+            const lit = view.status !== 'locked';
+            const x = L.xs[i], y = L.trackYs[i];
+            ctx.strokeStyle = lit ? color : UITheme.color.line;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, L.ys[i] + L.cardH / 2);
+            ctx.lineTo(x, y - 6);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = view.status === 'cleared' ? color : UITheme.color.panel;
+            ctx.fill();
+            ctx.strokeStyle = lit ? color : UITheme.color.locked;
+            ctx.stroke();
+        }
+
+        // Gate node at the end, drawn by the map's gate painter (scaled up).
+        if (L.gate) {
+            const btn = this.ui.buttons.find(b => b.id === 'gate-node' || b.id === 'gate');
+            ctx.save();
+            ctx.translate(L.gate.x, L.gate.y);
+            ctx.scale(L.gate.r / 16, L.gate.r / 16);
+            this._drawGateNode(ctx, { x: 0, y: 0, w: 32, h: 32 }, !!btn && this.ui.isHovered(btn), act.id);
+            ctx.restore();
+            ctx.fillStyle = UITheme.color.textMute;
+            ctx.font = UITheme.font('label', 700);
+            ctx.textAlign = 'center';
+            ctx.fillText(`GATE ${act.id}`, L.gate.x, L.gate.y + L.gate.r + 20);
+        }
         ctx.restore();
     }
 
@@ -2483,7 +2694,14 @@ class GameManager {
         const S = this.state.STATES;
         const st = this._stage;
         if (!st) return;
+        const firstClear = !this.progress.isStageCompleted(st.actId, st.index);
         const res = this.progress.completeStage(st.actId, st.index, score);
+        // First clear: the act screen plays the track fill + unlock once.
+        const act = this.progress.act(st.actId);
+        const opensNext = act && (st.index + 1 < act.stages.length || this._actHasGate(st.actId));
+        this._ladderAnim = firstClear && opensNext
+            ? { actId: st.actId, seg: st.index, t: -GameManager.LADDER_DELAY, sound: false }
+            : null;
         const later = (ms, fn) => (ms > 0 ? setTimeout(fn, ms) : fn());
 
         if (res.actCompleted && this.progress.isCampaignComplete() && !this.progress.congratsSeen) {
@@ -2825,6 +3043,12 @@ class GameManager {
         ctx.restore();
     }
 }
+
+// Act screen unlock effect (seconds): the track fills to the next card,
+// then its lock breaks. Starts after a short wait for the screen fade.
+GameManager.LADDER_DELAY = 0.35;
+GameManager.LADDER_FILL = 0.6;
+GameManager.LADDER_BURST = 0.5;
 
 // Field guide pages (rendered by _renderGuide).
 GameManager.GUIDE_PAGES = [

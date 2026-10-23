@@ -52,6 +52,7 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
 - Data lives in `js/data/Campaign.js`. Progress, lock rules and the migration from the old save format live in `js/CampaignProgress.js` (save key `sb_campaign_v1`).
 - Phase status: Phase 1 (campaign + Acts 1–2 + Gate 1), Phase 2 (Act 3 Orbital Shield + Gate 2) and Phase 3 (Act 4 Signal Lock + Gate 3) are implemented. The campaign was then extended to 9 acts (gates 1–8). Phase 4 (Act 5 Route Trace + Gate 4) is implemented. Next: Act 6.
 - HUB act map = a carousel (`_mapIndex` / `_mapScroll`): progress rail on top, the focused act as a big card, neighbours peeking. Cards and gates are drawn by `_renderActMap`; their tap targets are hidden buttons rebuilt by `_mapGo`.
+- Act screen = a rising stage ladder (`_actScreenLayout`): cards climb left to right, a circuit track (`_drawStageTrack`) runs under them to the gate node. `_stageView` decides cleared / next / locked. The first clear of a stage plays a one-time track fill + unlock effect (`_ladderAnim`, advanced in the ACT `update`, dropped on exit).
 - Hold-to-play games set `wantsHold = true` and implement `handleKeyUp`, `handlePointer(…, 'up')` and `releaseAll()`. `InputManager` delivers key-up, mouse-down, pointer-up (also off-canvas) and window blur. The host never turns the click that follows a mouse hold into a new press.
 
 ## Leaderboard / Supabase

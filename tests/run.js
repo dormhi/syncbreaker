@@ -2325,6 +2325,94 @@ suite('UITheme + tap targets', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Act screen ladder + unlock effect', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const GM = mod.GameManager;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+
+    // Layout: 3, 4 and 5 stages, with and without a gate.
+    for (const n of [3, 4, 5]) {
+        for (const hasGate of [true, false]) {
+            const L = gm._actScreenLayout(n, hasGate);
+            const tag = `${n} stages${hasGate ? '' : ', no gate'}`;
+            const half = L.cardW * 1.06 / 2;   // the NEXT card is drawn 6% larger
+            ok(`ladder rises (${tag})`, L.ys.every((y, i) => i === 0 || y < L.ys[i - 1]));
+            ok(`cards inside the canvas (${tag})`, L.xs.every((x, i) => x - half >= 0 && x + half <= 960 &&
+                L.ys[i] - half >= 140 && L.trackYs[i] + 8 < L.statusY - 16));
+            ok(`cards do not overlap (${tag})`, L.xs.every((x, i) => i === 0 || x - L.xs[i - 1] >= L.cardW * 1.06));
+            if (hasGate) {
+                ok(`gate node after the last card (${tag})`, L.gate.x - L.gate.r > L.xs[n - 1] + half &&
+                    L.gate.x + L.gate.r <= 960);
+            } else {
+                ok(`no gate node (${tag})`, L.gate === null);
+            }
+        }
+    }
+    ok('final act has no gate', !gm._actHasGate(9) && gm._actHasGate(1) && gm._actHasGate(8));
+
+    // Fresh player: stage 1 is next, the rest locked.
+    const act1 = gm.progress.act(1);
+    ok('fresh act: first stage is next', gm._stageView(act1, 0).status === 'next' && gm._stageView(act1, 1).status === 'locked');
+    ok('fresh act: track empty', gm._ladderFill(act1, 0) === 0);
+
+    // First clear of stage 1 plays the effect on the act screen.
+    gm._stage = { actId: 1, index: 0 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(300, 0);
+    ok('first clear starts the effect', !!gm._ladderAnim && gm._ladderAnim.actId === 1 && gm._ladderAnim.seg === 0);
+    settle(gm, S.ACT);
+    const H = gm.state._handlers[S.ACT];
+    H.enter({ actId: 1 });
+    ok('during the fill the next card still looks locked', gm._stageView(act1, 1).status === 'locked');
+    ok('the cleared card is cleared', gm._stageView(act1, 0).status === 'cleared');
+    const t0 = gm._ladderAnim.t;
+    H.render(ctx, 0);
+    ok('render does not advance the effect', gm._ladderAnim.t === t0);
+    const step = (sec) => { for (let k = 0; k < Math.round(sec * 60); k++) H.update(1 / 60); };
+    step(GM.LADDER_DELAY + GM.LADDER_FILL / 2);
+    const mid = gm._ladderFill(act1, 0);
+    ok('track is filling', mid > 0 && mid < 1, String(mid));
+    step(GM.LADDER_FILL / 2 + 0.1);
+    const v = gm._stageView(act1, 1);
+    ok('then the card unlocks with the effect', v.status === 'next' && v.unlock > 0 && v.unlock < 1);
+    H.render(ctx, 0);
+    step(GM.LADDER_BURST);
+    ok('effect ends', gm._ladderAnim === null && gm._stageView(act1, 1).status === 'next' && gm._ladderFill(act1, 0) === 1);
+
+    // A replay of a cleared stage does not play it again.
+    gm._stage = { actId: 1, index: 0 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(900, 0);
+    ok('replay: no effect', gm._ladderAnim === null);
+
+    // Leaving the act screen drops a running effect.
+    gm._stage = { actId: 1, index: 1 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(300, 0);
+    settle(gm, S.ACT);
+    H.enter({ actId: 1 });
+    H.exit();
+    ok('leaving drops the effect', gm._ladderAnim === null);
+
+    // The last stage fills the track to the gate, which becomes tappable.
+    gm.progress.completeStage(1, 2, 100);
+    gm._stage = { actId: 1, index: 3 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(300, 0);
+    ok('last stage animates the gate segment', !!gm._ladderAnim && gm._ladderAnim.seg === 3);
+    settle(gm, S.ACT);
+    gm.ui.clearButtons();
+    H.enter({ actId: 1 });
+    ok('gate node is a tap target', !!btn('gate-node') && btn('gate-node').hidden === true);
+    btn('gate-node').onClick();
+    ok('tapping the gate node starts the gate', gm.state.pendingState !== null);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);
