@@ -63,6 +63,20 @@ const UITheme = {
         { key: 'CORE',      acts: [7, 8, 9], color: '#ef4444' }
     ],
 
+    // Operator clearance names, one per level (level = acts fully cleared).
+    clearance: ['GUEST', 'USER', 'TECH', 'ANALYST', 'OPERATOR', 'ENGINEER', 'ADMIN', 'SECOPS', 'SYSADMIN', 'ROOT'],
+
+    /** 'L4 OPERATOR' style label for a clearance level. */
+    clearanceLabel(level) {
+        const k = Math.max(0, Math.min(UITheme.clearance.length - 1, level | 0));
+        return `L${k} ${UITheme.clearance[k]}`;
+    },
+
+    /** Integrity colour: red when compromised, amber midway, green once clean. */
+    integrityColor(value) {
+        return value >= 1 ? UITheme.color.ok : value >= 0.5 ? UITheme.color.warn : UITheme.color.danger;
+    },
+
     layerOf(actId) {
         return UITheme.layers.find(l => l.acts.indexOf(actId) !== -1) || UITheme.layers[UITheme.layers.length - 1];
     },
@@ -150,6 +164,111 @@ const UITheme = {
             ctx.fillText(btn.subtitle, btn.x, btn.y + 12);
         } else {
             ctx.fillText(btn.label, btn.x, btn.y + 1);
+        }
+        ctx.restore();
+    },
+
+    // ── Colour helpers ──
+
+    /** '#38bdf8' -> [56, 189, 248] */
+    rgb(hex) {
+        const n = parseInt(String(hex).slice(1), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    },
+
+    /** Blend two '#rrggbb' colours; returns an [r, g, b] array. */
+    mix(a, b, t) {
+        const ca = UITheme.rgb(a), cb = UITheme.rgb(b);
+        return ca.map((v, i) => Math.round(v + (cb[i] - v) * t));
+    },
+
+    rgba(c, alpha) {
+        return `rgba(${c[0]},${c[1]},${c[2]},${alpha})`;
+    },
+
+    // ── Operator status painters ──
+
+    /** 'CLEARANCE  L4 OPERATOR' chip centred on (cx, cy); returns its width. */
+    clearanceChip(ctx, cx, cy, level, opts = {}) {
+        const color = opts.color || '#38bdf8';
+        const label = UITheme.clearanceLabel(level);
+        const width = (t) => {
+            const m = ctx.measureText(t);
+            return (m && isFinite(m.width)) ? m.width : t.length * 8;
+        };
+        ctx.save();
+        ctx.font = UITheme.font('label', 600);
+        const w1 = width('CLEARANCE');
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        const w2 = width(label);
+        const w = 16 + w1 + 6 + w2 + 16, h = 30;
+        const left = cx - w / 2;
+        UITheme.panel(ctx, left, cy - h / 2, w, h, { chamfer: 8, stroke: color, lineWidth: 1.2 });
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = UITheme.color.textMute;
+        ctx.font = UITheme.font('label', 600);
+        ctx.fillText('CLEARANCE', left + 16, cy + 1);
+        ctx.fillStyle = color;
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText(label, left + 16 + w1 + 6, cy + 1);
+        ctx.restore();
+        return w;
+    },
+
+    /** Ten-segment SYSTEM INTEGRITY meter; left edge x, vertical centre y, value 0..1. */
+    integrityMeter(ctx, x, y, w, value, opts = {}) {
+        const v = Math.max(0, Math.min(1, value));
+        const color = UITheme.integrityColor(v);
+        const n = 10, gap = 3, segW = (w - gap * (n - 1)) / n;
+        ctx.save();
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = UITheme.color.textMute;
+        ctx.font = UITheme.font('label', 600);
+        ctx.fillText('SYSTEM INTEGRITY', x, y - 14);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = color;
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText(Math.round(v * 100) + '%', x + w, y - 14);
+        const filled = v * n;
+        for (let k = 0; k < n; k++) {
+            UITheme.chamferPath(ctx, x + k * (segW + gap), y - 4, segW, 8, 2);
+            if (k + 1 <= filled) {
+                ctx.fillStyle = color;
+                // A compromised system flickers.
+                ctx.globalAlpha = v < 0.5 ? 0.75 + 0.25 * Math.sin((opts.time || 0) * 9 + k) : 1;
+            } else if (k < filled) {
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.45;
+            } else {
+                ctx.fillStyle = 'rgba(71,85,105,0.35)';
+                ctx.globalAlpha = 1;
+            }
+            ctx.fill();
+        }
+        ctx.restore();
+    },
+
+    /** Screen-wide corruption overlay (tear bars, scanlines); strength 0..1. */
+    glitch(ctx, W, H, strength, time) {
+        if (!(strength > 0)) return;
+        const seed = Math.floor(time * 12);
+        const h = (k) => Math.abs((Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1);
+        ctx.save();
+        const a = 0.06 + 0.10 * strength;
+        const bars = Math.round(strength * 6);
+        for (let k = 0; k < bars; k++) {
+            ctx.fillStyle = k % 2 ? `rgba(56,189,248,${a})` : `rgba(239,68,68,${a})`;
+            ctx.fillRect((h(k + 23) - 0.5) * 40 * strength, h(k) * H, W, 2 + h(k + 11) * 10);
+        }
+        ctx.globalAlpha = strength;
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1);
+        if (h(99) < 0.25 * strength) {
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = 'rgba(239,68,68,0.35)';
+            ctx.fillRect(0, h(98) * H, W, 3);
         }
         ctx.restore();
     }

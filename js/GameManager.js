@@ -73,6 +73,10 @@ class GameManager {
         this.bgTime += dt;
         this._updateBgParticles(dt);
         this._updateDataRain(dt);
+        // Network layer atmosphere eases toward the layer of the current screen.
+        const layer = this._bgLayerTarget();
+        this._bgLayer = this._bgLayer === undefined ? layer : this._bgLayer + (layer - this._bgLayer) * Math.min(1, dt * 3);
+        this._syncPageLayer(layer);
         // The "leave this game?" prompt pauses the game underneath.
         if (!this._quit) this.state.update(dt);
 
@@ -121,12 +125,27 @@ class GameManager {
                 const W = VIEW.W;
                 const H = VIEW.H;
                 const cx = W / 2;
+                // The menu reflects system integrity: corrupted and red at first,
+                // calm once the system is clean.
+                const integrity = this.progress.integrity();
+                const corrupt = 1 - integrity;
+                const tone = UITheme.integrityColor(integrity);
+                const time = this.bgTime || 0;
 
-                // Title + version badge
+                // Title (RGB-split while compromised) + version badge
                 ctx.save();
-                ctx.fillStyle = '#e2e8f0';
                 ctx.font = '900 40px Orbitron';
                 ctx.textAlign = 'center';
+                if (corrupt > 0) {
+                    const jitter = Math.sin(time * 23) * Math.sin(time * 7) * 3 * corrupt;
+                    ctx.globalAlpha = 0.55 * corrupt;
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillText('SYNCBREAKER', cx - 2 - jitter, 70);
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillText('SYNCBREAKER', cx + 2 + jitter, 70);
+                    ctx.globalAlpha = 1;
+                }
+                ctx.fillStyle = '#e2e8f0';
                 ctx.fillText('SYNCBREAKER', cx, 70);
                 const titleW = ctx.measureText('SYNCBREAKER').width;
                 ctx.font = '700 18px Orbitron';
@@ -137,9 +156,9 @@ class GameManager {
                 ctx.restore();
 
                 // Subtitle
-                ctx.fillStyle = '#ef4444';
+                ctx.fillStyle = tone;
                 ctx.font = '600 16px Rajdhani';
-                ctx.fillText('⚠ CYBER DEFENSE PROTOCOL ⚠', cx, 100);
+                ctx.fillText(integrity >= 1 ? '✓ CYBER DEFENSE PROTOCOL COMPLETE ✓' : '⚠ CYBER DEFENSE PROTOCOL ⚠', cx, 100);
 
                 // Story panel
                 const panelX = cx - 320;
@@ -148,15 +167,14 @@ class GameManager {
                 const panelH = 350;
 
                 // Panel background
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-                ctx.strokeStyle = '#1e293b';
-                ctx.lineWidth = 1;
-                Utils.roundRect(ctx, panelX, panelY, panelW, panelH, 8);
-                ctx.fill();
-                ctx.stroke();
+                UITheme.panel(ctx, panelX, panelY, panelW, panelH, {
+                    chamfer: 14,
+                    fill: 'rgba(15, 23, 42, 0.78)',
+                    stroke: UITheme.rgba(UITheme.rgb(tone), 0.45)
+                });
 
                 // Terminal header
-                ctx.fillStyle = '#ef4444';
+                ctx.fillStyle = tone;
                 ctx.font = '700 16px Orbitron';
                 ctx.textAlign = 'left';
                 ctx.fillText('> STATUS REPORT', panelX + 20, panelY + 30);
@@ -169,12 +187,19 @@ class GameManager {
                 ctx.stroke();
 
                 // Story text
+                const alert = integrity >= 1
+                    ? { text: '[SECURE] System integrity restored. The attacker is locked out.', color: '#22c55e', bold: true }
+                    : integrity >= 0.5
+                        ? { text: '[ALERT] The attacker is falling back toward the core.', color: '#f59e0b', bold: true }
+                        : { text: '[WARNING] Your system is under cyber attack!', color: '#ef4444', bold: true };
                 const lines = [
-                    { text: '[WARNING] Your system is under cyber attack!', color: '#ef4444', bold: true },
+                    alert,
                     { text: '', color: '' },
                     { text: 'An unknown attacker has infiltrated your network.', color: '#e2e8f0' },
                     { text: 'Malicious code has been injected into critical system files.', color: '#e2e8f0' },
-                    { text: 'The attacker is still active and spreading.', color: '#f59e0b' },
+                    integrity >= 1
+                        ? { text: 'No attacker activity detected.', color: '#22c55e' }
+                        : { text: 'The attacker is still active and spreading.', color: '#f59e0b' },
                     { text: '', color: '' },
                     { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
                     { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
@@ -195,6 +220,13 @@ class GameManager {
                     ctx.fillText(line.text, panelX + 20, lineY);
                     lineY += lineHeight;
                 }
+
+                // Operator status along the bottom of the panel
+                UITheme.clearanceChip(ctx, panelX + 150, panelY + panelH - 30, this.progress.clearanceLevel(), { color: tone });
+                UITheme.integrityMeter(ctx, panelX + panelW - 300, panelY + panelH - 26, 280, integrity, { time });
+
+                // Corruption overlay while the system is compromised
+                UITheme.glitch(ctx, W, H, corrupt * 0.6, time);
 
                 // Buton
                 this.ui.renderButtons();
@@ -328,6 +360,15 @@ class GameManager {
                     }
                     if (a.t >= GameManager.LADDER_FILL + GameManager.LADDER_BURST) this._ladderAnim = null;
                 }
+                const c = this._clearanceUp;
+                if (c && c.actId === this._actView) {
+                    c.t += dt;
+                    if (!c.sound && c.t >= 0) {
+                        c.sound = true;
+                        Sound.playLevelComplete();
+                    }
+                    if (c.t >= GameManager.CLEARANCE_SHOW) this._clearanceUp = null;
+                }
             },
             render: (ctx) => {
                 const W = VIEW.W;
@@ -345,6 +386,7 @@ class GameManager {
             exit: () => {
                 this.ui.clearButtons();
                 this._ladderAnim = null;
+                this._clearanceUp = null;
             },
             onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.HUB);
@@ -1890,16 +1932,10 @@ class GameManager {
         }
         ctx.globalAlpha = 1;
 
-        // Stages of acts still in development are unknown, so count cleared
-        // stages instead of showing a misleading "x/x".
-        const actsDone = acts.filter(a => this.progress.isActComplete(a.id)).length;
-        let stagesDone = 0;
-        for (const a of acts) stagesDone += this.progress.stagesDone(a.id);
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '600 14px Rajdhani';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${actsDone}/${n} ACTS  ·  ${stagesDone} STAGES CLEARED`, W / 2, L.railY + 46);
+        // Operator status: clearance (acts cleared) and system integrity.
+        const layer = UITheme.layerOf(this._mapIndex + 1);
+        UITheme.clearanceChip(ctx, W / 2 - 130, L.railY + 54, this.progress.clearanceLevel(), { color: layer.color });
+        UITheme.integrityMeter(ctx, W / 2 + 20, L.railY + 60, 200, this.progress.integrity(), { time: this.bgTime || 0 });
         ctx.restore();
     }
 
@@ -2660,10 +2696,36 @@ class GameManager {
         const L = this._actScreenLayout(act.stages.length, this._actHasGate(act.id));
         this._drawStageTrack(ctx, act, L, theme.zoneColor);
 
-        const done = this.progress.stagesDone(act.id);
-        ctx.fillStyle = done === act.stages.length ? '#22c55e' : '#64748b';
-        ctx.font = '600 16px Rajdhani';
-        ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, L.statusY);
+        const c = this._clearanceUp;
+        if (c && c.actId === act.id && c.t >= 0) {
+            this._drawClearanceBanner(ctx, W / 2, L.statusY - 4, c, UITheme.layerOf(act.id).color);
+        } else {
+            const done = this.progress.stagesDone(act.id);
+            ctx.fillStyle = done === act.stages.length ? '#22c55e' : '#64748b';
+            ctx.font = '600 16px Rajdhani';
+            ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, L.statusY);
+        }
+        ctx.restore();
+    }
+
+    /** "CLEARANCE GRANTED · L4 OPERATOR": pops in, holds, fades out. */
+    _drawClearanceBanner(ctx, cx, cy, c, color) {
+        const t = c.t, end = GameManager.CLEARANCE_SHOW;
+        const pop = Utils.easeOutQuad(Utils.clamp(t / 0.25, 0, 1));
+        const w = 440, h = 50;
+        ctx.save();
+        ctx.globalAlpha = Utils.clamp((end - t) / 0.4, 0, 1);
+        ctx.translate(cx, cy);
+        ctx.scale(0.85 + 0.15 * pop, 0.85 + 0.15 * pop);
+        UITheme.panel(ctx, -w / 2, -h / 2, w, h, { chamfer: 12, stroke: color, lineWidth: 2, fill: UITheme.color.panelHi, glow: color });
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = UITheme.color.textDim;
+        ctx.font = UITheme.font('label', 700);
+        ctx.fillText('CLEARANCE GRANTED', 0, -11);
+        ctx.fillStyle = color;
+        ctx.font = UITheme.font('title', 700, 'Orbitron');
+        ctx.fillText(UITheme.clearanceLabel(c.level), 0, 11);
         ctx.restore();
     }
 
@@ -2913,6 +2975,13 @@ class GameManager {
             return;
         }
         if (res.actCompleted) {
+            // The act screen announces the new clearance once the track has filled.
+            this._clearanceUp = {
+                actId: st.actId,
+                level: this.progress.clearanceLevel(),
+                t: -(GameManager.LADDER_DELAY + GameManager.LADDER_FILL),
+                sound: false
+            };
             const n = st.actId;
             this._hubMessage = this.progress.isActAvailable(n + 1)
                 ? `ACT ${n} COMPLETE — breach gate ${n} to reach ACT ${n + 1}`
@@ -3189,7 +3258,7 @@ class GameManager {
         const chars = '01アイウエオカキクケコ⟡⟢⟣';
         for (const d of this.dataRain) {
             // CG: Linear Translation (Y-axis only) for the Matrix digital rain effect
-            d.y += d.speed * dt;
+            d.y += d.speed * dt * (1 + 0.35 * (this._bgLayer || 0));   // deeper layers run faster
 
             // Reset position to top with a random character when it drops below the screen
             if (d.y > 660) {
@@ -3197,6 +3266,27 @@ class GameManager {
                 d.x = Utils.randFloat(0, 960);
                 d.char = chars[Utils.randInt(0, chars.length - 1)];
             }
+        }
+    }
+
+    /** Layer index (0 PERIMETER, 1 INTERNAL, 2 CORE) the background should show. */
+    _bgLayerTarget() {
+        const S = this.state.STATES;
+        const st = this.state.currentState;
+        if (st === S.MENU || st === S.ENDLESS || st === S.ENDLESS_OVER || st === S.LEADERBOARD || st === S.CONGRATS) return 0;
+        const n = this.progress.acts.length;
+        const actId = st === S.HUB
+            ? Math.max(0, Math.min(n - 1, Math.round(this._mapScroll || 0))) + 1
+            : (this._actView || 1);
+        return UITheme.layers.indexOf(UITheme.layerOf(actId));
+    }
+
+    /** Mirror the layer on <body> so the page around the canvas matches (CSS). */
+    _syncPageLayer(i) {
+        if (i === this._pageLayer) return;
+        this._pageLayer = i;
+        if (typeof document !== 'undefined' && document.body && document.body.dataset) {
+            document.body.dataset.layer = UITheme.layers[i].key.toLowerCase();
         }
     }
 
@@ -3209,13 +3299,24 @@ class GameManager {
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
+        // Network layer tint, blended between neighbouring layers while it eases.
+        const layers = UITheme.layers;
+        const f = Utils.clamp(this._bgLayer || 0, 0, layers.length - 1);
+        const i0 = Math.floor(f), i1 = Math.min(layers.length - 1, i0 + 1);
+        const tint = UITheme.mix(layers[i0].color, layers[i1].color, f - i0);
+        const glow = ctx.createRadialGradient(W / 2, H * 1.15, 0, W / 2, H * 1.15, H);
+        glow.addColorStop(0, UITheme.rgba(tint, 0.14));
+        glow.addColorStop(1, UITheme.rgba(tint, 0));
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, W, H);
+
         // Parallax: layers further back move less (set by the HUB carousel).
         const shift = this._bgShift || 0;
         const wrap = (x) => ((x % W) + W) % W;
 
         // 2. Grid — CG: Coordinate system visualization
         ctx.save();
-        ctx.strokeStyle = 'rgba(30, 41, 59, 0.2)';
+        ctx.strokeStyle = UITheme.rgba(tint, 0.07);
         ctx.lineWidth = 0.5;
         const gridSize = 60;
         for (let x = ((shift % gridSize) + gridSize) % gridSize; x <= W; x += gridSize) {
@@ -3236,7 +3337,7 @@ class GameManager {
         ctx.save();
         for (const d of this.dataRain) {
             ctx.globalAlpha = d.alpha;
-            ctx.fillStyle = '#3b82f6';
+            ctx.fillStyle = UITheme.rgba(tint, 1);
             ctx.font = d.size + 'px monospace';
             ctx.fillText(d.char, wrap(d.x + shift * 0.6), d.y);
         }
@@ -3252,6 +3353,19 @@ class GameManager {
             ctx.fill();
         }
         ctx.restore();
+
+        // 5. CORE: faint scanlines and a slow interference band.
+        const core = Utils.clamp(f - 1, 0, 1);
+        if (core > 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.05 * core;
+            ctx.fillStyle = '#000';
+            for (let y = 0; y < H; y += 3) ctx.fillRect(0, y, W, 1);
+            ctx.globalAlpha = 0.05 * core;
+            ctx.fillStyle = UITheme.rgba(tint, 1);
+            ctx.fillRect(0, ((this.bgTime || 0) * 40) % (H + 40) - 20, W, 14);
+            ctx.restore();
+        }
     }
 }
 
@@ -3260,6 +3374,8 @@ class GameManager {
 GameManager.LADDER_DELAY = 0.35;
 GameManager.LADDER_FILL = 0.6;
 GameManager.LADDER_BURST = 0.5;
+// How long the act screen shows "CLEARANCE GRANTED" after an act is cleared.
+GameManager.CLEARANCE_SHOW = 2.6;
 
 // Field guide pages (rendered by _renderGuide).
 GameManager.GUIDE_PAGES = [

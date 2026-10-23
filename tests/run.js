@@ -2492,6 +2492,83 @@ suite('HUB carousel drag + game cards', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Clearance, integrity + layer atmosphere', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const T = mod.UITheme;
+    const P = gm.progress;
+
+    ok('fresh player: L0, integrity 0', P.clearanceLevel() === 0 && P.integrity() === 0);
+    ok('clearance labels', T.clearanceLabel(0) === 'L0 GUEST' && T.clearanceLabel(4) === 'L4 OPERATOR' &&
+        T.clearanceLabel(9) === 'L9 ROOT' && T.clearanceLabel(42) === 'L9 ROOT');
+    ok('integrity colours', T.integrityColor(0.2) === T.color.danger && T.integrityColor(0.6) === T.color.warn && T.integrityColor(1) === T.color.ok);
+    P.completeStage(1, 0, 100);
+    P.completeStage(1, 1, 100);
+    ok('half an act = half of one ninth', Math.abs(P.integrity() - 0.5 / 9) < 1e-9 && P.clearanceLevel() === 0);
+    P.completeStage(1, 2, 100);
+    P.completeStage(1, 3, 100);
+    ok('a cleared act raises clearance', P.clearanceLevel() === 1 && Math.abs(P.integrity() - 1 / 9) < 1e-9);
+    ok('colour mix', T.mix('#000000', '#ffffff', 0.5).join(',') === '128,128,128' && T.rgba([1, 2, 3], 0.5) === 'rgba(1,2,3,0.5)');
+
+    // Background layer follows the screen: menu = perimeter, HUB = focused act, act screen = its act.
+    settle(gm, S.MENU);
+    ok('menu shows the perimeter', gm._bgLayerTarget() === 0);
+    settle(gm, S.HUB);
+    gm._mapScroll = 4;
+    ok('HUB on act 5 shows the internal layer', gm._bgLayerTarget() === 1);
+    gm._mapScroll = 7.4;
+    ok('HUB on act 8 shows the core', gm._bgLayerTarget() === 2);
+    settle(gm, S.ACT);
+    gm._actView = 2;
+    ok('act screen uses its act', gm._bgLayerTarget() === 0);
+    gm._bgLayer = 0;
+    gm._actView = 7;
+    for (let k = 0; k < 120; k++) gm.update(1 / 60);
+    ok('the background eases to the new layer', gm._bgLayer > 1.9 && gm._bgLayer <= 2);
+    let threw = null;
+    try { gm.render(ctx, 0); gm._bgLayer = 1.5; gm.render(ctx, 0); } catch (e) { threw = e.message; }
+    ok('layered background renders, also mid-blend', threw === null, threw);
+
+    // Clearing the last stage of an act announces the new clearance on the act screen.
+    gm.progress.openGate(1);
+    for (let i = 0; i < 2; i++) P.completeStage(2, i, 100);
+    gm._stage = { actId: 2, index: 2 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(300, 0);
+    const c = gm._clearanceUp;
+    ok('act clear queues the clearance moment', !!c && c.actId === 2 && c.level === 2 && c.t < 0);
+    settle(gm, S.ACT);
+    const H = gm.state._handlers[S.ACT];
+    H.enter({ actId: 2 });
+    const texts = [];
+    const spy = makeFakeCtx(canvas);
+    spy.fillText = (t) => { texts.push(String(t)); return spy; };
+    for (let k = 0; k < Math.round((GM_T(mod) + 0.3) * 60); k++) H.update(1 / 60);
+    H.render(spy, 0);
+    ok('banner shows the new clearance', texts.includes('CLEARANCE GRANTED') && texts.includes('L2 TECH'));
+    for (let k = 0; k < 4 * 60; k++) H.update(1 / 60);
+    ok('banner goes away', gm._clearanceUp === null);
+    gm._stage = { actId: 2, index: 2 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(999, 0);
+    ok('replaying a cleared act does not announce again', gm._clearanceUp === null);
+
+    // Main menu reflects integrity.
+    settle(gm, S.MENU);
+    const menu = [];
+    const spy2 = makeFakeCtx(canvas);
+    spy2.fillText = (t) => { menu.push(String(t)); return spy2; };
+    gm.state._handlers[S.MENU].render(spy2, 0);
+    ok('menu shows clearance and integrity', menu.includes('CLEARANCE') && menu.includes('SYSTEM INTEGRITY') && menu.includes('L2 TECH'));
+    ok('compromised menu warns', menu.some(t => /\[WARNING\]/.test(t)));
+});
+
+function GM_T(mod) { return mod.GameManager.LADDER_DELAY + mod.GameManager.LADDER_FILL; }
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

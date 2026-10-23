@@ -140,6 +140,24 @@ class CampaignProgress {
         return this.isActAvailable(actId) && this.stagesDone(actId) === a.stages.length;
     }
 
+    /** Operator clearance level: the number of fully cleared acts (0..acts). */
+    clearanceLevel() {
+        return this.campaign.acts.filter(a => this.isActComplete(a.id)).length;
+    }
+
+    /**
+     * System integrity, 0..1. Every act is an equal share, filled by its
+     * cleared stages; acts still in development count as uncleared.
+     */
+    integrity() {
+        const acts = this.campaign.acts;
+        let sum = 0;
+        for (const a of acts) {
+            if (a.stages.length) sum += Math.min(1, this.stagesDone(a.id) / a.stages.length);
+        }
+        return acts.length ? sum / acts.length : 0;
+    }
+
     isGatePlayable(n) {
         return !this.isGateOpen(n) && this.isActComplete(n) && this.isActAvailable(n + 1);
     }

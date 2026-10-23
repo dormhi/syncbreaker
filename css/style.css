@@ -34,9 +34,29 @@ body {
     justify-content: center;
     font-family: var(--font-body);
     color: var(--text);
+    /* The page around the canvas (side bars on phones) follows the
+       network layer the game shows: set on <body data-layer> by GameManager. */
+    transition: background-color 1.2s ease;
+}
+
+body[data-layer="perimeter"] { background-color: #06111b; }
+body[data-layer="internal"]  { background-color: #130e06; }
+body[data-layer="core"]      { background-color: #16070c; }
+
+/* Faint grid continuing the canvas background into the side bars. */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+    background-size: 36px 36px;
 }
 
 canvas {
+    position: relative;   /* above the page grid */
     display: block;
     background: var(--bg-dark);
     /* No text selection / long-press callout while holding (Signal Lock). */
