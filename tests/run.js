@@ -2677,6 +2677,102 @@ suite('Stage stars (UI-5)', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Polish: transitions, stamps, sounds, reduced motion (UI-6)', () => {
+    const mod = loadGameManager();
+    const T = mod.UITheme;
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const P = gm.progress;
+    const heard = [];
+    for (const k of ['playClick', 'playWhoosh', 'playStamp', 'playStar']) {
+        mod.Sound[k] = (...a) => heard.push(k + (a.length ? a[0] : ''));
+    }
+    const counting = () => {
+        const c = makeFakeCtx(canvas);
+        c.rects = 0;
+        c.fillRect = () => { c.rects++; return c; };
+        return c;
+    };
+
+    // Transition: shutter bands + scan line normally, a single fade with reduced motion.
+    gm.state.transitioning = true;
+    gm.state.transitionProgress = 0.4;
+    const a = counting();
+    gm.state._renderTransition(a);
+    ok('transition draws shutter bands', a.rects >= 9, String(a.rects));
+    T.reducedMotion = true;
+    const b = counting();
+    gm.state._renderTransition(b);
+    ok('reduced motion: a plain fade', b.rects === 1, String(b.rects));
+    const g = counting();
+    T.glitch(g, 960, 640, 1, 0.5);
+    ok('reduced motion: no glitch overlay', g.rects === 0);
+    T.reducedMotion = false;
+    const g2 = counting();
+    T.glitch(g2, 960, 640, 1, 0.5);
+    ok('glitch overlay draws normally', g2.rects > 10);
+    gm.state.transitioning = false;
+
+    // Sounds: a screen change whooshes, buttons click (the pause button stays silent).
+    heard.length = 0;
+    settle(gm, S.MENU);
+    gm.state.change(S.HUB);
+    ok('screen change whooshes', heard.includes('playWhoosh'));
+    settle(gm, S.HUB);
+    heard.length = 0;
+    gm.ui.clearButtons();
+    gm.ui.addButton('x', 'X', 100, 100, 80, 40, () => {});
+    gm.ui.addButton('pause', '', 300, 300, 60, 48, () => {}, { exact: true });
+    gm.ui.handleClick(100, 100);
+    gm.ui.handleClick(300, 300);
+    ok('buttons click, pause is silent', heard.filter(h => h === 'playClick').length === 1);
+
+    // Result: one stamp and one chime per lit star, each exactly once.
+    heard.length = 0;
+    gm._resultStars = { n: 2, t: 0, newBest: false };
+    for (let k = 0; k < 120; k++) gm._tickResultStars(1 / 60);
+    ok('stamp + a chime per lit star', heard.join(',') === 'playStamp,playStar0,playStar1', heard.join(','));
+    const r = counting();
+    gm._drawResultStars(r, 480, 400);
+    ok('result panel renders', true);
+
+    // SECURED stamp: armed by an act clear, slams when the HUB shows the act.
+    for (let i = 0; i < 3; i++) P.completeStage(1, i, 100);
+    gm._stage = { actId: 1, index: 3 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(100, 0);
+    ok('act clear arms the SECURED stamp', !!gm._securedAnim && gm._securedAnim.actId === 1 && gm._securedAnim.t === null);
+    settle(gm, S.HUB);
+    gm._actView = 1;
+    const H = gm.state._handlers[S.HUB];
+    H.enter();
+    ok('HUB starts it after the screen change', gm._securedAnim.t < 0);
+    heard.length = 0;
+    for (let k = 0; k < 90; k++) H.update(1 / 60);
+    H.render(ctx, 0);
+    ok('the stamp lands with a thud', heard.includes('playStamp'));
+    for (let k = 0; k < 60; k++) H.update(1 / 60);
+    ok('and is done', gm._securedAnim === null);
+
+    // Reduced motion skips the act-screen fill, the SECURED slam and parallax.
+    T.reducedMotion = true;
+    P.completeStage(2, 0, 0);   // locked: no effect
+    gm.progress.openGate(1);
+    gm._stage = { actId: 2, index: 0 };
+    settle(gm, S.LEVEL);
+    gm._onStageCleared(100, 0);
+    ok('reduced motion: no ladder fill effect', gm._ladderAnim === null);
+    settle(gm, S.HUB);
+    H.enter();
+    gm._mapScroll = 3;
+    H.update(1 / 60);
+    ok('reduced motion: no parallax', gm._bgShift === 0);
+    T.reducedMotion = false;
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

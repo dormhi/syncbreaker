@@ -24,6 +24,10 @@ const UITheme = {
         locked: '#475569'
     },
 
+    // The player asked the OS for less motion (prefers-reduced-motion):
+    // glitches, parallax, pops and wipes are toned down or skipped.
+    reducedMotion: false,
+
     // label is the smallest text allowed on these screens; minTap is the
     // smallest tap target (~44 pt on a phone).
     size: {
@@ -280,7 +284,7 @@ const UITheme = {
 
     /** Screen-wide corruption overlay (tear bars, scanlines); strength 0..1. */
     glitch(ctx, W, H, strength, time) {
-        if (!(strength > 0)) return;
+        if (!(strength > 0) || UITheme.reducedMotion) return;
         const seed = Math.floor(time * 12);
         const h = (k) => Math.abs((Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1);
         ctx.save();
@@ -301,5 +305,14 @@ const UITheme = {
         ctx.restore();
     }
 };
+
+// Follow the OS "reduce motion" setting, also when it changes mid-game.
+if (typeof window !== 'undefined' && window.matchMedia) {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    UITheme.reducedMotion = !!mq.matches;
+    const onChange = (e) => { UITheme.reducedMotion = !!e.matches; };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+}
 
 if (typeof module !== 'undefined' && module.exports) module.exports = UITheme;

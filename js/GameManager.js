@@ -137,7 +137,7 @@ class GameManager {
                 ctx.font = '900 40px Orbitron';
                 ctx.textAlign = 'center';
                 if (corrupt > 0) {
-                    const jitter = Math.sin(time * 23) * Math.sin(time * 7) * 3 * corrupt;
+                    const jitter = UITheme.reducedMotion ? 0 : Math.sin(time * 23) * Math.sin(time * 7) * 3 * corrupt;
                     ctx.globalAlpha = 0.55 * corrupt;
                     ctx.fillStyle = '#ef4444';
                     ctx.fillText('SYNCBREAKER', cx - 2 - jitter, 70);
@@ -281,6 +281,7 @@ class GameManager {
                 Sound.startAmbient();
                 this._mapIndex = (this._actView || this.progress.currentActId()) - 1;
                 this._mapScroll = this._mapIndex;
+                if (this._securedAnim) this._securedAnim.t = -0.5;   // after the screen change
                 this._buildActMapButtons();
                 this._pickEnergyEggCell();
                 this.tipBar.setTips('map', TipBar.MAP);
@@ -288,13 +289,20 @@ class GameManager {
             update: (dt) => {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
                 if (this._wheelCooldown > 0) this._wheelCooldown -= dt;
+                const sa = this._securedAnim;
+                if (sa && sa.t !== null) {
+                    const before = sa.t;
+                    sa.t += dt;
+                    if (before < 0 && sa.t >= 0) Sound.playStamp();
+                    if (sa.t >= 0.6) this._securedAnim = null;
+                }
                 // Ease the carousel toward the focused act (the finger leads while dragging).
                 if (!this._mapDrag) {
                     this._mapScroll += (this._mapIndex - this._mapScroll) * Math.min(1, dt * 10);
                     if (Math.abs(this._mapIndex - this._mapScroll) < 0.001) this._mapScroll = this._mapIndex;
                 }
-                // Background parallax follows the carousel.
-                this._bgShift = -this._mapScroll * 30;
+                // Background parallax follows the carousel (not with reduced motion).
+                this._bgShift = UITheme.reducedMotion ? 0 : -this._mapScroll * 30;
                 // Catch-up: a finished campaign shows the celebration once.
                 if (this.progress.isCampaignComplete() && !this.progress.congratsSeen) {
                     this.progress.markCongratsSeen();
@@ -331,6 +339,7 @@ class GameManager {
             exit: () => {
                 this.ui.clearButtons();
                 this._mapDrag = null;
+                if (this._securedAnim && this._securedAnim.t !== null) this._securedAnim = null;
             },
             onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.MENU);
@@ -446,7 +455,7 @@ class GameManager {
                     this._beginResultStars(this.levels);
                     this._onStageCleared(this.levels.score, 1500, this._resultStars.n);
                 }
-                if (this._resultStars) this._resultStars.t += dt;
+                this._tickResultStars(dt);
 
                 if (this.levels.levelFailed === true) {
                     this.levels.levelFailed = 'handled';
@@ -479,7 +488,7 @@ class GameManager {
                     ctx.fillStyle = '#64748b';
                     ctx.font = '500 18px Rajdhani';
                     ctx.fillText(`Score: ${this.levels.score} | Max Combo: x${this.levels.maxCombo}`, W / 2, H / 2 - 35);
-                    this._drawResultStars(ctx, W / 2, H / 2 + 20);
+                    this._drawResultStars(ctx, W / 2, H / 2 + 46);
                 }
             },
             exit: () => this.ui.clearButtons(),
@@ -645,7 +654,7 @@ class GameManager {
                         this._mgEndTimer = Math.max(this._mgEndTimer, GameManager.STARS_HOLD);
                     }
                 }
-                if (this._resultStars) this._resultStars.t += dt;
+                this._tickResultStars(dt);
                 if (this._mgHandled) {
                     this._mgEndTimer -= dt;
                     if (this._mgEndTimer <= 0) {
@@ -689,7 +698,7 @@ class GameManager {
                 });
                 if (cfg.footHint) this._drawFaintHint(ctx, cfg.footHint, W / 2, H - 14);
                 this.ui.renderButtons();
-                if (this._resultStars && this._mgHandled) this._drawResultStars(ctx, W / 2, H - 112);
+                if (this._resultStars && this._mgHandled) this._drawResultStars(ctx, W / 2, H - 120);
             },
             exit: () => {
                 this._releaseHold('all');
@@ -1544,7 +1553,7 @@ class GameManager {
             : theme.zoneColor;
         const dim = status === 'locked' || status === 'dev';
         const game = GameRegistry.get(act.game);
-        const time = this.bgTime || 0;
+        const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);   // frozen with reduced motion
         const layer = UITheme.layerOf(act.id);
         const stage = { x: left + 10, y: top + 10, w: w - 20, h: 96 };
         const cx = stage.x + stage.w / 2;
@@ -1627,11 +1636,16 @@ class GameManager {
         // Status overlay on stage
         if (status === 'complete') {
             // 'SECURED' stamp to the right of the icon
+            // A freshly secured act: the stamp slams down when the HUB first shows it.
+            const sa = this._securedAnim;
+            const fresh = sa && sa.actId === act.id && sa.t !== null;
+            const q = fresh ? Utils.clamp(sa.t / 0.15, 0, 1) : 1;
             ctx.save();
             ctx.translate(cx + 102, cy);
             ctx.rotate(-0.12);
+            ctx.scale(1 + 1.2 * (1 - q), 1 + 1.2 * (1 - q));
             ctx.strokeStyle = UITheme.color.ok;
-            ctx.globalAlpha = 0.85;
+            ctx.globalAlpha = 0.85 * q;
             ctx.lineWidth = 2.5;
             ctx.strokeRect(-60, -16, 120, 32);
             ctx.fillStyle = UITheme.color.ok;
@@ -2569,7 +2583,7 @@ class GameManager {
         const left = btn.x - btn.w / 2;
         const top = btn.y - btn.h / 2;
 
-        const time = this.bgTime || 0;
+        const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);   // frozen with reduced motion
 
         ctx.save();
         if (status === 'locked') ctx.globalAlpha = 0.6;
@@ -2730,7 +2744,7 @@ class GameManager {
     /** "CLEARANCE GRANTED · L4 OPERATOR": pops in, holds, fades out. */
     _drawClearanceBanner(ctx, cx, cy, c, color) {
         const t = c.t, end = GameManager.CLEARANCE_SHOW;
-        const pop = Utils.easeOutQuad(Utils.clamp(t / 0.25, 0, 1));
+        const pop = UITheme.reducedMotion ? 1 : Utils.easeOutQuad(Utils.clamp(t / 0.25, 0, 1));
         const w = 440, h = 50;
         ctx.save();
         ctx.globalAlpha = Utils.clamp((end - t) / 0.4, 0, 1);
@@ -2985,7 +2999,7 @@ class GameManager {
         // First clear: the act screen plays the track fill + unlock once.
         const act = this.progress.act(st.actId);
         const opensNext = act && (st.index + 1 < act.stages.length || this._actHasGate(st.actId));
-        this._ladderAnim = firstClear && opensNext
+        this._ladderAnim = firstClear && opensNext && !UITheme.reducedMotion
             ? { actId: st.actId, seg: st.index, t: -GameManager.LADDER_DELAY, sound: false }
             : null;
         const later = (ms, fn) => (ms > 0 ? setTimeout(fn, ms) : fn());
@@ -2995,6 +3009,8 @@ class GameManager {
             return;
         }
         if (res.actCompleted) {
+            // The HUB stamps SECURED on the act card the first time it shows it.
+            this._securedAnim = UITheme.reducedMotion ? null : { actId: st.actId, t: null };
             // The act screen announces the new clearance once the track has filled.
             this._clearanceUp = {
                 actId: st.actId,
@@ -3029,25 +3045,61 @@ class GameManager {
         this._resultStars = { n, t: 0, newBest: before > 0 && n > before };
     }
 
-    /** Result panel: three stars pop in one by one, filled ones in gold. */
+    /** Advance the result reveal; the stamp and each lit star make a sound once. */
+    _tickResultStars(dt) {
+        const r = this._resultStars;
+        if (!r) return;
+        const before = r.t;
+        r.t += dt;
+        const crossed = (at) => before < at && r.t >= at;
+        if (crossed(0.05)) Sound.playStamp();
+        for (let k = 0; k < r.n; k++) {
+            if (crossed(GameManager.STARS_FIRST + k * GameManager.STARS_STEP)) Sound.playStar(k);
+        }
+    }
+
+    /**
+     * Result panel: an ACCESS GRANTED stamp slams down, then three stars pop
+     * in one by one (lit ones in gold). Reduced motion drops the slam and pops.
+     */
     _drawResultStars(ctx, cx, cy) {
         const r = this._resultStars;
         if (!r) return;
-        const w = 240, h = 74;
+        const calm = UITheme.reducedMotion;
+        const w = 260, h = 104;
         ctx.save();
-        ctx.globalAlpha = Utils.clamp(r.t / 0.2, 0, 1);
+        ctx.globalAlpha = Utils.clamp(r.t / 0.15, 0, 1);
         UITheme.panel(ctx, cx - w / 2, cy - h / 2, w, h, { chamfer: 12, stroke: '#facc15', fill: UITheme.color.panelHi });
         ctx.restore();
+
+        // Stamp: drops from 1.8x to 1x over 0.12 s, with a small rotation.
+        const s = calm ? 1 : 1 + 0.8 * (1 - Utils.clamp(r.t / 0.12, 0, 1));
+        ctx.save();
+        ctx.globalAlpha = calm ? 1 : Utils.clamp(r.t / 0.08, 0, 1);
+        ctx.translate(cx, cy - 26);
+        ctx.rotate(-0.05);
+        ctx.scale(s, s);
+        ctx.strokeStyle = UITheme.color.ok;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-92, -14, 184, 28);
+        ctx.fillStyle = UITheme.color.ok;
+        ctx.font = '900 15px Orbitron';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('ACCESS GRANTED', 0, 1);
+        ctx.restore();
+
         for (let k = 0; k < 3; k++) {
+            const x = cx + (k - 1) * 56, y = cy + 14;
             const local = r.t - GameManager.STARS_FIRST - k * GameManager.STARS_STEP;
             if (local < 0) {
-                UITheme.star(ctx, cx + (k - 1) * 64, cy - 6, 20, false);
+                UITheme.star(ctx, x, y, 17, false);
                 continue;
             }
             // Pop: overshoot then settle.
             const p = Utils.clamp(local / 0.2, 0, 1);
-            const scale = k < r.n ? 1 + 0.35 * Math.sin(p * Math.PI) : 1;
-            UITheme.star(ctx, cx + (k - 1) * 64, cy - 6, 20 * scale, k < r.n);
+            const scale = k < r.n && !calm ? 1 + 0.35 * Math.sin(p * Math.PI) : 1;
+            UITheme.star(ctx, x, y, 17 * scale, k < r.n);
         }
         if (r.newBest && r.t > GameManager.STARS_FIRST + 3 * GameManager.STARS_STEP) {
             ctx.save();
@@ -3055,7 +3107,7 @@ class GameManager {
             ctx.font = UITheme.font('label', 700, 'Orbitron');
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('NEW BEST', cx, cy + 24);
+            ctx.fillText('NEW BEST', cx, cy + 40);
             ctx.restore();
         }
     }
@@ -3425,7 +3477,7 @@ class GameManager {
 
         // 5. CORE: faint scanlines and a slow interference band.
         const core = Utils.clamp(f - 1, 0, 1);
-        if (core > 0) {
+        if (core > 0 && !UITheme.reducedMotion) {
             ctx.save();
             ctx.globalAlpha = 0.05 * core;
             ctx.fillStyle = '#000';

@@ -106,6 +106,7 @@ class UIManager {
     activateFocus() {
         const b = this.focused;
         if (!b) return false;
+        UIManager.clickSound();
         b.onClick();
         return true;
     }
@@ -116,6 +117,8 @@ class UIManager {
             const inX = x >= btn.x - btn.w / 2 && x <= btn.x + btn.w / 2;
             const inY = y >= btn.y - btn.h / 2 && y <= btn.y + btn.h / 2;
             if (inX && inY) {
+                // In-game buttons (pause) stay silent: taps there are gameplay-adjacent.
+                if (!btn.exact) UIManager.clickSound();
                 btn.onClick();
                 return true;
             }
@@ -133,6 +136,7 @@ class UIManager {
             if (d < bestD) { bestD = d; best = btn; }
         }
         if (best) {
+            UIManager.clickSound();
             best.onClick();
             return true;
         }
@@ -144,6 +148,10 @@ class UIManager {
         const inX = this.mouseX >= btn.x - btn.w / 2 && this.mouseX <= btn.x + btn.w / 2;
         const inY = this.mouseY >= btn.y - btn.h / 2 && this.mouseY <= btn.y + btn.h / 2;
         return inX && inY;
+    }
+
+    static clickSound() {
+        if (typeof Sound !== 'undefined' && Sound.playClick) Sound.playClick();
     }
 
     // ── Render ──

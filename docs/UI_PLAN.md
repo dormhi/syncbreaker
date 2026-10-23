@@ -166,7 +166,7 @@ Yeni bir `js/UITheme.js` dosyası (global nesne) bütün ekranların ortak değe
 | **UI-3 HUB carousel** ✅ 2026-10-23 | Oyun kartları, kapı duvarları, büyük ray düğümleri, sürükleyerek kaydırma, paralaks | Geri tuşu, Esc, oklar ve tekerlek eskisi gibi çalışıyor. Sürükleme telefonda akıcı. |
 | **UI-4 Kademe atmosferi** ✅ 2026-10-23 | Katman arka planları, yan boşlukların doldurulması, yetki seviyesi rozeti ve yükselme anı, sistem bütünlüğü göstergesi, giriş menüsünün bütünlüğe göre yenilenmesi | Kayıttan doğru hesaplanıyor ve testleri var. |
 | **UI-5 Yıldızlar** ✅ 2026-10-23 | Mekanik başına performans oranı, 1–3 yıldız eşikleri, sonuç ekranında ve kartlarda yıldızlar | Eşikler bot taramasıyla doğrulanmış. |
-| **UI-6 Cila** | Ekran geçişleri, damga animasyonları, sesler, hareketi azaltma desteği | Telefonda 60 fps'e yakın çalışıyor. |
+| **UI-6 Cila** ✅ 2026-10-23 | Ekran geçişleri, damga animasyonları, sesler, hareketi azaltma desteği | Telefonda 60 fps'e yakın çalışıyor. |
 
 - Her faz ayrı bir commit ve sürüm. Her sürümde `?v=` önbellek etiketi artırılıyor.
 - Oyunların kendi ekranları (Act 1–5 mekanikleri) bu planın dışında. Sadece ortak HUD parçaları (can, süre, skor) UI-1'de ortaklaştırılabilir.

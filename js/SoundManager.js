@@ -101,6 +101,31 @@ class SoundManager {
         this._tone(300, 'sawtooth', 0.35, 0.25, 80);
     }
 
+    // ── Interface sounds (kept quiet: they play on every menu action) ──
+
+    /** Button press. */
+    playClick() {
+        this._tone(1400, 'square', 0.03, 0.04);
+    }
+
+    /** Screen transition sweep. */
+    playWhoosh() {
+        this._tone(900, 'sawtooth', 0.16, 0.025, 140);
+    }
+
+    /** A stamp slamming down (ACCESS GRANTED, SECURED). */
+    playStamp() {
+        this._tone(140, 'sine', 0.2, 0.3, 45);
+        this._tone(2200, 'square', 0.02, 0.05);
+    }
+
+    /** Result star k (0..2) lighting up: a rising chime. */
+    playStar(k) {
+        const f = [880, 1109, 1319][k] || 880;
+        this._tone(f, 'triangle', 0.22, 0.16);
+        this._tone(f * 2, 'sine', 0.12, 0.05);
+    }
+
     // ── Ambient — Cyber Attack atmosphere ──
     // Multiple layered oscillators + noise bursts + data stream beeps
 
