@@ -168,6 +168,34 @@ const UITheme = {
         ctx.restore();
     },
 
+    // ── Stars ──
+
+    /** Five-point star centred on (cx, cy), outer radius r. */
+    star(ctx, cx, cy, r, filled, color = '#facc15') {
+        ctx.save();
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+            const a = -Math.PI / 2 + k * Math.PI / 5;
+            const rr = k % 2 ? r * 0.45 : r;
+            ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+        }
+        ctx.closePath();
+        if (filled) {
+            ctx.fillStyle = color;
+            ctx.fill();
+        } else {
+            ctx.strokeStyle = 'rgba(148,163,184,0.55)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+        }
+        ctx.restore();
+    },
+
+    /** Row of three stars centred on (cx, cy): `n` filled, spaced by `gap`. */
+    starRow(ctx, cx, cy, n, r = 8, gap = 20) {
+        for (let k = 0; k < 3; k++) UITheme.star(ctx, cx + (k - 1) * gap, cy, r, k < n);
+    },
+
     // ── Colour helpers ──
 
     /** '#38bdf8' -> [56, 189, 248] */

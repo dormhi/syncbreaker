@@ -72,6 +72,25 @@ Bu rozetler act ekranında, sonuç ekranında, haritadaki panelde ve oyun içi H
 - Derece ham skordan değil, her mekaniğin vereceği 0–1 arası bir **performans oranından** hesaplanıyor (kalan can, kalan süre, isabet gibi). Ham skorlar oyundan oyuna çok farklı.
 - Eşikler oynanışı değiştirmez, ama kullanıcının onayı ve bir bot taramasıyla belirlenmeli. Ayrıca kayda yeni bir alan (`stars`) eklenmeli. Eski kayıtlarda bu alan 0 sayılıyor.
 
+### 3e. Yıldız kuralları (onaylandı, 2026-10-23)
+
+Bot taramasıyla belirlendi. İyi, ortalama ve yavaş insana benzer botlar her aşamayı 40 kez oynadı. Botlar `ACT_PLAN.md`'deki eski denge sonuçlarına göre ayarlandı.
+
+- **1 yıldız:** aşamayı geçmek.
+- **Revive kullanıldıysa** en fazla 1 yıldız verilir.
+- Kayıtta her aşama için en iyi yıldız sayısı saklanır. Yıldızlardan önce bitirilmiş aşamalar 1 yıldız sayılır.
+- Gösterildiği yerler: aşama sonunda sonuç paneli (yıldızlar tek tek belirir, iyileşmede NEW BEST), act ekranındaki bitmiş kartlar, HUB'daki act kartında act toplamı (★ 11/15).
+
+| Oyun | 3 yıldız | 2 yıldız |
+|---|---|---|
+| Timing Bar | hiç kaçırma yok ve PERFECT oranı ≥ %80 | en fazla 1 kaçırma |
+| Stack Overflow | hiç kare düşmedi ve hizalama ≥ %80 | hizalama ≥ %70 |
+| Orbital Shield | hiç paket geçmedi | en fazla 1 paket geçti |
+| Signal Lock (kalan süre) | Kolay 38 sn · Orta 33 · Zor 30 · Çok zor 30 · Uzman 20 | Kolay 36 sn · Orta 31 · Zor 22 · Çok zor 20 · Uzman 12 |
+| Route Trace (kalan süre) | Kolay 30 sn · Orta 35 · Zor 45 | Kolay 20 sn · Orta 15 · Zor 20 |
+
+Hizalama, her karenin altındakine göre ne kadar ortalandığını ölçer. Tam ortadaysa %100 olur.
+
 ## 4. HUB: gelişmiş carousel (karar: 2026-10-21)
 
 Carousel yapısı kalıyor (`_mapIndex` / `_mapScroll`, yan kartlar, oklar, üstteki ilerleme rayı). Değişen kısım görünüm ve dokunma rahatlığı.
@@ -146,7 +165,7 @@ Yeni bir `js/UITheme.js` dosyası (global nesne) bütün ekranların ortak değe
 | **UI-2 Act ekranı** ✅ 2026-10-23 | Yükselen merdiven ve dolan hat (taslak A), kademe rozetleri, yeni aşama açılma animasyonu. Başlık aynı kalıyor. | 3, 4 ve 5 aşamalı act'ler 960×640'ta ve 844×390'da düzgün sığıyor. |
 | **UI-3 HUB carousel** ✅ 2026-10-23 | Oyun kartları, kapı duvarları, büyük ray düğümleri, sürükleyerek kaydırma, paralaks | Geri tuşu, Esc, oklar ve tekerlek eskisi gibi çalışıyor. Sürükleme telefonda akıcı. |
 | **UI-4 Kademe atmosferi** ✅ 2026-10-23 | Katman arka planları, yan boşlukların doldurulması, yetki seviyesi rozeti ve yükselme anı, sistem bütünlüğü göstergesi, giriş menüsünün bütünlüğe göre yenilenmesi | Kayıttan doğru hesaplanıyor ve testleri var. |
-| **UI-5 Yıldızlar** | Mekanik başına performans oranı, 1–3 yıldız eşikleri, sonuç ekranında ve kartlarda yıldızlar | Eşikler bot taramasıyla doğrulanmış. |
+| **UI-5 Yıldızlar** ✅ 2026-10-23 | Mekanik başına performans oranı, 1–3 yıldız eşikleri, sonuç ekranında ve kartlarda yıldızlar | Eşikler bot taramasıyla doğrulanmış. |
 | **UI-6 Cila** | Ekran geçişleri, damga animasyonları, sesler, hareketi azaltma desteği | Telefonda 60 fps'e yakın çalışıyor. |
 
 - Her faz ayrı bir commit ve sürüm. Her sürümde `?v=` önbellek etiketi artırılıyor.

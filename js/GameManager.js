@@ -443,8 +443,10 @@ class GameManager {
 
                 if (this.levels.levelComplete === true) {
                     this.levels.levelComplete = 'handled';
-                    this._onStageCleared(this.levels.score, 1500);
+                    this._beginResultStars(this.levels);
+                    this._onStageCleared(this.levels.score, 1500, this._resultStars.n);
                 }
+                if (this._resultStars) this._resultStars.t += dt;
 
                 if (this.levels.levelFailed === true) {
                     this.levels.levelFailed = 'handled';
@@ -477,6 +479,7 @@ class GameManager {
                     ctx.fillStyle = '#64748b';
                     ctx.font = '500 18px Rajdhani';
                     ctx.fillText(`Score: ${this.levels.score} | Max Combo: x${this.levels.maxCombo}`, W / 2, H / 2 - 35);
+                    this._drawResultStars(ctx, W / 2, H / 2 + 20);
                 }
             },
             exit: () => this.ui.clearButtons(),
@@ -636,7 +639,13 @@ class GameManager {
                 if (m.result !== null && !this._mgHandled) {
                     this._mgHandled = true;
                     this._mgEndTimer = m.resultDuration || 1.2;
+                    // A cleared campaign stage shows its stars a little longer.
+                    if (m.result === 'success' && (this._mgConfig || {}).stage) {
+                        this._beginResultStars(m);
+                        this._mgEndTimer = Math.max(this._mgEndTimer, GameManager.STARS_HOLD);
+                    }
                 }
+                if (this._resultStars) this._resultStars.t += dt;
                 if (this._mgHandled) {
                     this._mgEndTimer -= dt;
                     if (this._mgEndTimer <= 0) {
@@ -680,6 +689,7 @@ class GameManager {
                 });
                 if (cfg.footHint) this._drawFaintHint(ctx, cfg.footHint, W / 2, H - 14);
                 this.ui.renderButtons();
+                if (this._resultStars && this._mgHandled) this._drawResultStars(ctx, W / 2, H - 112);
             },
             exit: () => {
                 this._releaseHold('all');
@@ -1704,6 +1714,15 @@ class GameManager {
             ctx.font = UITheme.font('label', 600);
             ctx.fillText(`BEST ${this._actBest(act)}`, left + 22, top + h - 14);
         }
+        // Stars earned in this act
+        const stars = this.progress.actStars(act.id);
+        if (stars.got > 0) {
+            UITheme.star(ctx, -24, top + h - 19, 7, true);
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#facc15';
+            ctx.font = UITheme.font('label', 700);
+            ctx.fillText(`${stars.got}/${stars.max}`, -12, top + h - 14);
+        }
         ctx.textAlign = 'right';
         if (status === 'active' || status === 'complete') {
             ctx.fillStyle = highlighted ? color : UITheme.color.textMute;
@@ -2629,8 +2648,8 @@ class GameManager {
 
         ctx.font = UITheme.font('label', 700);
         if (status === 'cleared') {
-            ctx.fillStyle = UITheme.color.ok;
-            ctx.fillText('✓ CLEARED', btn.x, top + 124);
+            // Best stars of this stage (a cleared stage has at least one).
+            UITheme.starRow(ctx, btn.x, top + 119, this.progress.stageStars(act.id, i), 9, 24);
         } else if (status === 'next') {
             ctx.fillStyle = actColor;
             ctx.fillText('NEXT ▸', btn.x, top + 124);
@@ -2916,6 +2935,7 @@ class GameManager {
         if (!game) return false;
         this._stage = { actId, index };
         this._actView = actId;
+        this._resultStars = null;
         const S = this.state.STATES;
 
         if (game.kind === 'bar') {
@@ -2938,7 +2958,7 @@ class GameManager {
             footHint: index === 0 ? act.hint : null,
             onComplete: (success, m) => {
                 if (success) {
-                    this._onStageCleared(m.score, 0);
+                    this._onStageCleared(m.score, 0, this._resultStars ? this._resultStars.n : 1);
                 } else {
                     this._onStageFailed({
                         score: m.computeScore ? m.computeScore() : (m.score || 0),
@@ -2956,12 +2976,12 @@ class GameManager {
     }
 
     /** Record a cleared stage, then route: congrats / act screen. */
-    _onStageCleared(score, delayMs) {
+    _onStageCleared(score, delayMs, stars = 1) {
         const S = this.state.STATES;
         const st = this._stage;
         if (!st) return;
         const firstClear = !this.progress.isStageCompleted(st.actId, st.index);
-        const res = this.progress.completeStage(st.actId, st.index, score);
+        const res = this.progress.completeStage(st.actId, st.index, score, stars);
         // First clear: the act screen plays the track fill + unlock once.
         const act = this.progress.act(st.actId);
         const opensNext = act && (st.index + 1 < act.stages.length || this._actHasGate(st.actId));
@@ -2989,6 +3009,55 @@ class GameManager {
             this._hubMessageTimer = 3.5;
         }
         later(delayMs, () => this.state.change(S.ACT, { actId: st.actId }));
+    }
+
+    /** Stars for the stage just cleared, from the game's end-of-stage numbers. */
+    _stageStars(source) {
+        const st = this._stage;
+        const act = st && this.progress.act(st.actId);
+        if (!act) return 1;
+        const revived = act.game === 'timingbar' ? this.levels.revivesUsed > 0 : this._stageRevives > 0;
+        const stats = source && source.starStats ? source.starStats() : null;
+        return CAMPAIGN.starsFor(act.game, act.stages[st.index].tier, stats, revived);
+    }
+
+    /** Start the result-star reveal for a cleared stage (`source` = game or LevelManager). */
+    _beginResultStars(source) {
+        const st = this._stage;
+        const before = st ? this.progress.stageStars(st.actId, st.index) : 0;
+        const n = this._stageStars(source);
+        this._resultStars = { n, t: 0, newBest: before > 0 && n > before };
+    }
+
+    /** Result panel: three stars pop in one by one, filled ones in gold. */
+    _drawResultStars(ctx, cx, cy) {
+        const r = this._resultStars;
+        if (!r) return;
+        const w = 240, h = 74;
+        ctx.save();
+        ctx.globalAlpha = Utils.clamp(r.t / 0.2, 0, 1);
+        UITheme.panel(ctx, cx - w / 2, cy - h / 2, w, h, { chamfer: 12, stroke: '#facc15', fill: UITheme.color.panelHi });
+        ctx.restore();
+        for (let k = 0; k < 3; k++) {
+            const local = r.t - GameManager.STARS_FIRST - k * GameManager.STARS_STEP;
+            if (local < 0) {
+                UITheme.star(ctx, cx + (k - 1) * 64, cy - 6, 20, false);
+                continue;
+            }
+            // Pop: overshoot then settle.
+            const p = Utils.clamp(local / 0.2, 0, 1);
+            const scale = k < r.n ? 1 + 0.35 * Math.sin(p * Math.PI) : 1;
+            UITheme.star(ctx, cx + (k - 1) * 64, cy - 6, 20 * scale, k < r.n);
+        }
+        if (r.newBest && r.t > GameManager.STARS_FIRST + 3 * GameManager.STARS_STEP) {
+            ctx.save();
+            ctx.fillStyle = '#facc15';
+            ctx.font = UITheme.font('label', 700, 'Orbitron');
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('NEW BEST', cx, cy + 24);
+            ctx.restore();
+        }
     }
 
     _onStageFailed(ctx) {
@@ -3374,6 +3443,11 @@ class GameManager {
 GameManager.LADDER_DELAY = 0.35;
 GameManager.LADDER_FILL = 0.6;
 GameManager.LADDER_BURST = 0.5;
+// Result stars: first star pops after STARS_FIRST s, then one every STARS_STEP;
+// a cleared minigame stage stays on screen for STARS_HOLD s.
+GameManager.STARS_FIRST = 0.3;
+GameManager.STARS_STEP = 0.25;
+GameManager.STARS_HOLD = 2.0;
 // How long the act screen shows "CLEARANCE GRANTED" after an act is cleared.
 GameManager.CLEARANCE_SHOW = 2.6;
 

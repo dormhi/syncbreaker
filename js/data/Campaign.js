@@ -143,4 +143,30 @@ const CAMPAIGN = {
     finalAct: 9
 };
 
+// Stage stars (bot-swept, approved 2026-10-23; docs/UI_PLAN.md 3e).
+// Clearing a stage earns 1 star; these rules decide 2 and 3. A run that
+// used a revive earns 1 star at most. `stats` comes from the game's
+// starStats() (the Timing Bar's from LevelManager).
+CAMPAIGN.starRules = (() => {
+    // Seconds left needed for [3 stars, 2 stars], per tier.
+    const bySeconds = (table) => (s, tier) => {
+        const t = table[tier] || [Infinity, Infinity];
+        return s.timeLeft >= t[0] ? 3 : s.timeLeft >= t[1] ? 2 : 1;
+    };
+    return {
+        timingbar: (s) => (s.misses === 0 && s.perfectShare >= 0.8) ? 3 : s.misses <= 1 ? 2 : 1,
+        stack: (s) => (s.lost === 0 && s.align >= 0.8) ? 3 : s.align >= 0.7 ? 2 : 1,
+        orbital: (s) => s.breaches === 0 ? 3 : s.breaches <= 1 ? 2 : 1,
+        signal: bySeconds({ 'EASY': [38, 36], 'NORMAL': [33, 31], 'HARD': [30, 22], 'VERY HARD': [30, 20], 'EXPERT': [20, 12] }),
+        route: bySeconds({ 'EASY': [30, 20], 'NORMAL': [35, 15], 'HARD': [45, 20] })
+    };
+})();
+
+/** Stars (1..3) for a cleared stage. */
+CAMPAIGN.starsFor = function (game, tier, stats, revived) {
+    const rule = CAMPAIGN.starRules[game];
+    if (revived || !rule || !stats) return 1;
+    return Math.max(1, Math.min(3, rule(stats, tier)));
+};
+
 if (typeof module !== 'undefined' && module.exports) module.exports = CAMPAIGN;

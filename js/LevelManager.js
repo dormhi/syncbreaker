@@ -61,6 +61,8 @@ class LevelManager {
         this.maxLives = level.lives || 3;
         this.lives = this.maxLives;
         this.hitCount = 0;
+        this.perfectCount = 0;
+        this.misses = 0;
         this.barPosition = 0;
         this.barSpeed = level.barSpeed;
         this.barDirection = 1;
@@ -132,6 +134,7 @@ class LevelManager {
                 this.combo++;
                 this.score += 100 * this.combo;
                 this.lastHitResult = 'perfect';
+                this.perfectCount++;
                 this._spawnParticles(pos, theme.hitColors.perfect, 8);
                 Sound.playPerfect(theme);
                 this.hitFlashTimer = 1;
@@ -148,6 +151,7 @@ class LevelManager {
         } else {
             this.combo = 0;
             this.lives--;
+            this.misses++;
             this.lastHitResult = 'miss';
             this._spawnParticles(pos, theme.hitColors.miss, 6);
             Sound.playMiss();
@@ -165,6 +169,11 @@ class LevelManager {
         this.barSpeed = Math.min(this.barSpeed + 0.01, 1.9);
         this._generateTargetZone();
         this._checkEnd();
+    }
+
+    /** End-of-stage numbers for the star rules (CAMPAIGN.starRules.timingbar). */
+    starStats() {
+        return { misses: this.misses, perfectShare: this.hitCount ? this.perfectCount / this.hitCount : 0 };
     }
 
     _checkEnd() {

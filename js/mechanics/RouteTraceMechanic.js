@@ -305,6 +305,11 @@ class RouteTraceMechanic extends _MechanicBaseRT {
         this.scrambleAt = Infinity;
     }
 
+    /** End-of-stage numbers for the star rules. */
+    starStats() {
+        return { timeLeft: this.timeLeft };
+    }
+
     computeScore() {
         return this.solved * 400 + Math.floor(this.timeLeft) * 20;
     }

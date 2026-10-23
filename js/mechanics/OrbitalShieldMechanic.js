@@ -202,6 +202,11 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         this._planAhead();
     }
 
+    /** End-of-stage numbers for the star rules. */
+    starStats() {
+        return { breaches: this.breaches };
+    }
+
     computeScore() {
         return this.blocked * 100 + this.lives * 250;
     }

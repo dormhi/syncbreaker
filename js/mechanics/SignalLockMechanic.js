@@ -172,6 +172,11 @@ class SignalLockMechanic extends _MechanicBaseSL {
         }
     }
 
+    /** End-of-stage numbers for the star rules. */
+    starStats() {
+        return { timeLeft: this.timeLeft };
+    }
+
     computeScore() {
         return this.locked * 300 + Math.floor(this.timeLeft) * 20;
     }

@@ -2569,6 +2569,114 @@ suite('Clearance, integrity + layer atmosphere', () => {
 function GM_T(mod) { return mod.GameManager.LADDER_DELAY + mod.GameManager.LADDER_FILL; }
 
 // ─────────────────────────────────────────────
+suite('Stage stars (UI-5)', () => {
+    const mod = loadGameManager({
+        // A save from before stars existed: cleared stages carry no stars.
+        sb_campaign_v1: JSON.stringify({ v: 1, stages: { 1: [{ completed: true, best: 500 }, { completed: false, best: 0 }] }, gates: [] })
+    });
+    const C = mod.CAMPAIGN;
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const P = gm.progress;
+
+    // Rules
+    const tb = (misses, perfectShare) => C.starsFor('timingbar', 'EASY', { misses, perfectShare }, false);
+    ok('timing bar: no miss + 80% perfect = 3', tb(0, 0.8) === 3 && tb(0, 0.79) === 2);
+    ok('timing bar: one miss = 2, two = 1', tb(1, 1) === 2 && tb(2, 1) === 1);
+    ok('stack rules', C.starsFor('stack', 'EASY', { lost: 0, align: 0.85 }) === 3 && C.starsFor('stack', 'EASY', { lost: 1, align: 0.85 }) === 2 &&
+        C.starsFor('stack', 'EASY', { lost: 0, align: 0.69 }) === 1);
+    ok('orbital rules', C.starsFor('orbital', 'HARD', { breaches: 0 }) === 3 && C.starsFor('orbital', 'HARD', { breaches: 1 }) === 2 &&
+        C.starsFor('orbital', 'HARD', { breaches: 3 }) === 1);
+    ok('signal: seconds left per tier', C.starsFor('signal', 'HARD', { timeLeft: 30 }) === 3 && C.starsFor('signal', 'HARD', { timeLeft: 22 }) === 2 &&
+        C.starsFor('signal', 'HARD', { timeLeft: 21.9 }) === 1 && C.starsFor('signal', 'EXPERT', { timeLeft: 20 }) === 3);
+    ok('route: seconds left per tier', C.starsFor('route', 'NORMAL', { timeLeft: 35 }) === 3 && C.starsFor('route', 'NORMAL', { timeLeft: 15 }) === 2 &&
+        C.starsFor('route', 'NORMAL', { timeLeft: 14 }) === 1);
+    ok('a revive caps the run at one star', C.starsFor('orbital', 'EASY', { breaches: 0 }, true) === 1);
+    ok('unknown game or no stats = one star', C.starsFor('nope', 'EASY', {}) === 1 && C.starsFor('orbital', 'EASY', null) === 1);
+    ok('every campaign tier of the timed games has thresholds', C.acts.filter(a => a.game === 'signal' || a.game === 'route')
+        .every(a => a.stages.every(st => C.starsFor(a.game, st.tier, { timeLeft: 999 }) === 3)));
+
+    // Save
+    ok('old clears count as one star', P.stageStars(1, 0) === 1 && P.stageStars(1, 1) === 0);
+    P.completeStage(1, 1, 100, 2);
+    P.completeStage(1, 1, 50, 1);
+    ok('best stars are kept', P.stageStars(1, 1) === 2);
+    P.completeStage(1, 1, 50, 3);
+    ok('a better run raises them', P.stageStars(1, 1) === 3);
+    ok('act star total', P.actStars(1).got === 4 && P.actStars(1).max === 12);
+
+    // Timing Bar stage: the clear computes stars from misses and PERFECT share.
+    settle(gm, S.ACT);
+    gm._startStage(1, 2);
+    settle(gm, S.LEVEL);
+    const lm = gm.levels;
+    ok('timing bar counts misses and perfects', lm.misses === 0 && lm.perfectCount === 0);
+    lm.hitCount = 10; lm.perfectCount = 9; lm.misses = 0;
+    lm.levelComplete = true;
+    gm.state._handlers[S.LEVEL].update(1 / 60);
+    ok('flawless timing bar clear = 3 stars', gm._resultStars && gm._resultStars.n === 3 && P.stageStars(1, 2) === 3);
+    const texts = [];
+    const spy = makeFakeCtx(canvas);
+    spy.fillText = (t) => { texts.push(String(t)); return spy; };
+    gm.state._handlers[S.LEVEL].render(spy, 0);
+    ok('the result overlay renders', texts.includes('NODE CLEANED!'));
+
+    // Minigame stage: stars after the result, stage holds longer, NEW BEST shows.
+    gm.progress.completeStage(1, 3, 100);
+    gm.progress.openGate(1);
+    for (let i = 0; i < 3; i++) P.completeStage(2, i, 100, 1);
+    gm.progress.openGate(2);
+    settle(gm, S.ACT);
+    gm._startStage(3, 0);
+    const cfg = gm.state.pendingContext;
+    settle(gm, S.MINIGAME);
+    gm.state._handlers[S.MINIGAME].enter(cfg);
+    const m = gm._activeMinigame;
+    m.blocked = m.blocksNeeded - 1;
+    m.breaches = 0;
+    m.result = 'success';
+    m.score = 999;
+    const H = gm.state._handlers[S.MINIGAME];
+    H.update(1 / 60);
+    ok('cleared minigame stage reveals stars', gm._resultStars && gm._resultStars.n === 3);
+    ok('and stays up long enough to see them', gm._mgEndTimer > 1.8);
+    for (let k = 0; k < 2.5 * 60 && gm._activeMinigame; k++) H.update(1 / 60);
+    ok('stars saved after the stage', P.stageStars(3, 0) === 3);
+
+    // A revived Orbital run earns one star.
+    settle(gm, S.ACT);
+    gm._startStage(3, 1);
+    const cfg2 = gm.state.pendingContext;
+    settle(gm, S.MINIGAME);
+    gm.state._handlers[S.MINIGAME].enter(cfg2);
+    const m2 = gm._activeMinigame;
+    gm._stageRevives = 1;
+    m2.breaches = 0;
+    m2.result = 'success';
+    H.update(1 / 60);
+    ok('a revived run shows one star', gm._resultStars.n === 1);
+
+    // Replaying with a better result shows NEW BEST.
+    gm._stage = { actId: 2, index: 0 };
+    gm._stageRevives = 0;
+    gm._beginResultStars({ starStats: () => ({ lost: 0, align: 0.9 }) });
+    ok('improving a stage is a new best', gm._resultStars.n === 3 && gm._resultStars.newBest === true);
+    gm._resultStars.t = 5;
+    const t2 = [];
+    const spy2 = makeFakeCtx(canvas);
+    spy2.fillText = (t) => { t2.push(String(t)); return spy2; };
+    gm._drawResultStars(spy2, 480, 400);
+    ok('NEW BEST is shown', t2.includes('NEW BEST'));
+
+    // Stack alignment is a 0..1 share.
+    const so = new mod.StackOverflowMechanic({ rng: makeRng(5) });
+    so.init({ width: 960, height: 640 });
+    ok('empty stack has no alignment', so.starStats().align === 0 && so.starStats().lost === 0);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

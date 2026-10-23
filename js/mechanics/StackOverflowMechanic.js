@@ -196,6 +196,19 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         return top;
     }
 
+    /**
+     * End-of-stage numbers for the star rules: frames lost and alignment
+     * (1 = every frame centred on the one below, 0 = half a frame off).
+     */
+    starStats() {
+        let off = 0;
+        this.placed.forEach((p, i) => {
+            const below = i === 0 ? this.cx : this.placed[i - 1].body.position.x;
+            off += Math.min(1, Math.abs(p.body.position.x - below) / (p.w / 2));
+        });
+        return { lost: this.lost, align: this.placed.length ? 1 - off / this.placed.length : 0 };
+    }
+
     computeScore() {
         return this.placed.length * 100 + this.lives * 250 + (this.maxDrops - this.drops) * 50;
     }

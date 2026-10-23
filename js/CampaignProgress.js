@@ -84,7 +84,9 @@ class CampaignProgress {
             const out = [];
             for (let i = 0; i < act.stages.length; i++) {
                 const s = list[i] || {};
-                out.push({ completed: !!s.completed, best: Math.max(0, Number(s.best) || 0) });
+                // Stars came later: a stage cleared before them counts as 1 star.
+                const stars = s.completed ? Math.max(1, Math.min(3, Math.floor(Number(s.stars) || 0))) : 0;
+                out.push({ completed: !!s.completed, best: Math.max(0, Number(s.best) || 0), stars });
             }
             d.stages[act.id] = out;
         }
@@ -119,10 +121,20 @@ class CampaignProgress {
 
     stage(actId, i) {
         const list = this.data.stages[actId];
-        return (list && list[i]) || { completed: false, best: 0 };
+        return (list && list[i]) || { completed: false, best: 0, stars: 0 };
     }
 
     isStageCompleted(actId, i) { return this.stage(actId, i).completed; }
+
+    /** Best stars of a stage (0 = not cleared yet). */
+    stageStars(actId, i) { return this.stage(actId, i).stars || 0; }
+
+    /** Stars earned in an act and the most it can hold. */
+    actStars(actId) {
+        const a = this.act(actId);
+        const list = this.data.stages[actId] || [];
+        return { got: list.reduce((n, s) => n + (s.stars || 0), 0), max: a ? a.stages.length * 3 : 0 };
+    }
 
     isStageUnlocked(actId, i) {
         const a = this.act(actId);
@@ -187,13 +199,15 @@ class CampaignProgress {
      * @returns {{actCompleted:boolean, endlessUnlocked:boolean}} what this
      *          clear newly achieved (both false on a replay).
      */
-    completeStage(actId, i, score) {
+    /** Record a clear; `stars` (1..3) keeps the best result. */
+    completeStage(actId, i, score, stars = 1) {
         if (!this.isStageUnlocked(actId, i)) return { actCompleted: false, endlessUnlocked: false };
         const wasActComplete = this.isActComplete(actId);
         const wasEndless = this.isEndlessUnlocked();
         const s = this.data.stages[actId][i];
         s.completed = true;
         s.best = Math.max(s.best, Math.max(0, Math.round(Number(score) || 0)));
+        s.stars = Math.max(s.stars || 0, Math.max(1, Math.min(3, Math.floor(Number(stars) || 1))));
         const actCompleted = !wasActComplete && this.isActComplete(actId);
         const nowEndless = this.isEndlessUnlocked();
         if (nowEndless) this.data.endlessUnlocked = true;
