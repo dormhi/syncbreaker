@@ -389,6 +389,8 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
   - Bu oyuncular siteyi açınca HUB **Endless kartında** açılıyor. Bir act'e girip dönünce o act'te, Endless'tan dönünce yine Endless'ta açılıyor.
   - Kart **Endless lobisini** açıyor (`ENDLESS_HUB`): büyük ∞ amblemi, en iyi skor, **START RUN** ve **LEADERBOARD**. Leaderboard artık Endless'ın içinde. Koşu bitince ya da leaderboard'dan geri dönünce yine lobiye gelinir.
   - Lobi, çok oyunlu yeni sonsuz mod için hazırlandı: oyun seçimi ileride buraya gelecek.
+- **Endless açanlara özel giriş ekranı (2026-10-23):** Hikaye yazısı yok. Ortada büyük, altın ışıltılı SYNCBREAKER, altında "∞ ENDLESS OPERATOR". Altın çerçeveli kısa bir STATUS REPORT var: bütün düğümler temiz, oyun artık sonsuz, ∞ halkası haritanın sonunda. En iyi Endless skoru da gösteriliyor. Buton: altın renkli "▶ ENTER". Bozulma efekti bu ekranda yok.
+- **Tebrik penceresi (kampanya bitince bir kez):** Başlık "CONTROL RETURNED". 10 act'in hikayesi kısaca anlatılıyor ve PERIMETER / INTERNAL / CORE / HANDOVER statülerinin hepsi ✓ olarak gösteriliyor. Altında yetki seviyesi (L10 GUARDIAN), altın bir "ENDLESS MODE UNLOCKED" bandı (∞ halkasına ve içindeki leaderboard'a yönlendiriyor) ve toplam yıldız / en iyi skor var.
 - Yeni oyunlar tasarlanırken sonsuz bir modda da çalışabilecekleri göz önünde tutulmalı. Yani zorluğun sürekli artırılabilir olması ve skor üretebilmeleri gerekiyor.
 
 ## 9. Kararlar

@@ -120,14 +120,25 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.startAmbient();
                 const cx = VIEW.W / 2;
-                this.ui.addButton('start', '▶  START MISSION', cx, 520, 240, 48,
-                    () => this.state.change(S.HUB));
+                // Players who unlocked Endless get their own welcome screen.
+                if (this.progress.isEndlessUnlocked()) {
+                    this.ui.addButton('start', '▶  ENTER', cx, 520, 240, 48,
+                        () => this.state.change(S.HUB), { color: '#facc15' });
+                } else {
+                    this.ui.addButton('start', '▶  START MISSION', cx, 520, 240, 48,
+                        () => this.state.change(S.HUB));
+                }
                 this._setBrandLink(true);
             },
             render: (ctx) => {
                 const W = VIEW.W;
                 const H = VIEW.H;
                 const cx = W / 2;
+                if (this.progress.isEndlessUnlocked()) {
+                    this._renderEndlessWelcome(ctx);
+                    this._renderMenuFooter(ctx);
+                    return;
+                }
                 // The menu reflects system integrity: corrupted and red at first,
                 // calm once the system is clean.
                 const integrity = this.progress.integrity();
@@ -234,35 +245,7 @@ class GameManager {
                 // Buton
                 this.ui.renderButtons();
 
-                // Version + author
-                ctx.fillStyle = 'rgba(100,116,139,0.6)';
-                ctx.font = '400 14px Rajdhani';
-                ctx.textAlign = 'center';
-                ctx.fillText('v3.0 · Written by dormhi', cx, H - 16);
-
-                // Credits
-                ctx.fillStyle = 'rgba(148,163,184,0.55)';
-                ctx.font = '300 14px Rajdhani';
-                ctx.textAlign = 'right';
-                ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
-                ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
-
-                // Back pressed once on the menu: warn before leaving the site.
-                if (this._exitArmed > 0) {
-                    ctx.save();
-                    ctx.globalAlpha = Math.min(1, this._exitArmed * 2);
-                    ctx.fillStyle = 'rgba(15,23,42,0.92)';
-                    ctx.strokeStyle = 'rgba(245,158,11,0.6)';
-                    Utils.roundRect(ctx, cx - 190, H - 104, 380, 34, 17);
-                    ctx.fill();
-                    ctx.stroke();
-                    ctx.fillStyle = '#f59e0b';
-                    ctx.font = '600 16px Rajdhani';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('Press back again to leave SyncBreaker', cx, H - 87);
-                    ctx.restore();
-                }
+                this._renderMenuFooter(ctx);
             },
             update: (dt) => {
                 if (this._exitArmed > 0) this._exitArmed -= dt;
@@ -1051,9 +1034,9 @@ class GameManager {
                 this.progress.markCongratsSeen();
                 const cx = VIEW.W / 2;
                 const cy = VIEW.H / 2;
-                this.ui.addButton('congrats-continue', '▶  CONTINUE', cx, cy + 240, 260, 46,
+                this.ui.addButton('congrats-continue', '▶  CONTINUE', cx, cy + 252, 260, 46,
                     () => this._finishCongrats(),
-                    { color: '#22c55e' });
+                    { color: '#facc15' });
             },
             render: (ctx) => this._renderCongrats(ctx),
             exit: () => this.ui.clearButtons(),
@@ -1284,11 +1267,15 @@ class GameManager {
         }
     }
 
+    /**
+     * Campaign complete: the story of the 10 acts (layers cleared, control
+     * handed back), the operator's final clearance and the Endless unlock.
+     */
     _renderCongrats(ctx) {
         const W = VIEW.W;
         const H = VIEW.H;
         const cx = W / 2;
-        const cy = H / 2;
+        const gold = '#facc15';
 
         // Dim the game behind the panel
         ctx.save();
@@ -1296,72 +1283,74 @@ class GameManager {
         ctx.fillRect(0, 0, W, H);
         ctx.restore();
 
-        const pw = 720;
-        const ph = 430;
-        const px = cx - pw / 2;
-        const py = cy - ph / 2 - 16;
-
+        const pw = 760, ph = 500, px = cx - pw / 2, py = 26;
         ctx.save();
-        ctx.fillStyle = 'rgba(12,18,30,0.97)';
-        ctx.strokeStyle = '#22c55e';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = '#22c55e';
-        ctx.shadowBlur = 26;
-        Utils.roundRect(ctx, px, py, pw, ph, 12);
-        ctx.fill();
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        UITheme.panel(ctx, px, py, pw, ph, { chamfer: 18, stroke: '#22c55e', lineWidth: 2, fill: 'rgba(12,18,30,0.97)', glow: '#22c55e' });
 
         // Header
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#22c55e';
         ctx.font = '900 34px Orbitron';
-        ctx.fillText('SYSTEM SECURED', cx, py + 60);
-
+        ctx.fillText('CONTROL RETURNED', cx, py + 58);
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '600 16px Rajdhani';
-        ctx.fillText(`ALL ${CAMPAIGN.acts.length} ACTS COMPLETE — THE CYBER ATTACK IS REPELLED`, cx, py + 86);
+        ctx.fillText(`ALL ${CAMPAIGN.acts.length} ACTS COMPLETE  ·  CLEARANCE ${UITheme.clearanceLabel(this.progress.clearanceLevel())}`, cx, py + 86);
 
-        // Story body
+        // Story
         const lines = [
-            'Congratulations, Operator. You held the line.',
-            'The malware is purged, the firewall stands, the ports are sealed,',
-            'credentials are reset and the attacker is cut off.',
-            '',
-            'You defended the system — and earned ENDLESS MODE.',
+            'Congratulations, Operator. The attacker is out.',
+            'You purged the malware, rebuilt the firewall and sealed the ports,',
+            'traced the attacker through the logs and cut their access,',
+            'defused the payload, restored the core and passed the final audit.',
+            'Then you handed the system back to its owner — and taught them to keep it safe.'
         ];
-        ctx.font = '400 16px Rajdhani';
         ctx.fillStyle = '#cbd5e1';
-        let ly = py + 122;
+        ctx.font = '400 16px Rajdhani';
+        let ly = py + 124;
         for (const line of lines) {
-            if (line === '') { ly += 8; continue; }
             ctx.fillText(line, cx, ly);
             ly += 24;
         }
 
-        // Endless banner
-        const by = py + 250;
-        ctx.fillStyle = 'rgba(245,158,11,0.12)';
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 1.5;
-        Utils.roundRect(ctx, px + 44, by, pw - 88, 84, 8);
-        ctx.fill();
-        ctx.stroke();
+        // Every status cleared: PERIMETER, INTERNAL, CORE, HANDOVER
+        const chips = UITheme.layers;
+        const cw = 150, gap = 14;
+        const x0 = cx - (chips.length * cw + (chips.length - 1) * gap) / 2;
+        chips.forEach((layer, k) => {
+            const x = x0 + k * (cw + gap), y = py + 262;
+            UITheme.panel(ctx, x, y, cw, 30, { chamfer: 8, stroke: layer.color, lineWidth: 1.2 });
+            ctx.fillStyle = layer.color;
+            ctx.font = UITheme.font('label', 700);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`✓ ${layer.key}`, x + cw / 2, y + 16);
+        });
+        ctx.textBaseline = 'alphabetic';
 
-        ctx.fillStyle = '#f59e0b';
+        // Endless banner (gold, like the Endless node)
+        const by = py + 318;
+        UITheme.panel(ctx, px + 44, by, pw - 88, 100, { chamfer: 12, stroke: gold, lineWidth: 1.5, fill: 'rgba(250,204,21,0.08)' });
+        this._drawInfinityEmblem(ctx, px + 92, by + 50, 22, UITheme.reducedMotion ? 0 : (this.bgTime || 0));
+        ctx.textAlign = 'left';
+        ctx.fillStyle = gold;
         ctx.font = '700 19px Orbitron';
-        ctx.fillText('∞  ENDLESS MODE UNLOCKED', cx, by + 28);
-
+        ctx.fillText('ENDLESS MODE UNLOCKED', px + 132, by + 34);
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '400 14px Rajdhani';
-        ctx.fillText('Survive unlimited waves and compete against other operators', cx, by + 52);
-        ctx.fillText('on the online leaderboard — play as long as you like.', cx, by + 70);
+        ctx.font = '400 16px Rajdhani';
+        ctx.fillText('The attacker never stops coming back. Find the ∞ ring at the end', px + 132, by + 60);
+        ctx.fillText('of the operation map — runs and the leaderboard live inside.', px + 132, by + 82);
 
-        // Total best score
-        const totalBest = this._totalBest();
+        // Totals
+        let stars = 0, maxStars = 0;
+        for (const a of this.progress.acts) {
+            const t = this.progress.actStars(a.id);
+            stars += t.got;
+            maxStars += t.max;
+        }
+        ctx.textAlign = 'center';
         ctx.fillStyle = '#64748b';
         ctx.font = '500 14px Rajdhani';
-        ctx.fillText(`TOTAL BEST SCORE  ${totalBest}`, cx, py + ph - 24);
+        ctx.fillText(`★ ${stars}/${maxStars}   ·   TOTAL BEST SCORE  ${this._totalBest()}`, cx, py + ph - 26);
 
         ctx.restore();
 
@@ -2091,6 +2080,107 @@ class GameManager {
         ctx.font = UITheme.font('label', 600);
         ctx.fillText('Timing Bar for now — more campaign games are coming to Endless', cx, 548);
         ctx.restore();
+    }
+
+    /** Menu footer (version, credits) and the "press back again" warning. */
+    _renderMenuFooter(ctx) {
+        const W = VIEW.W;
+        const H = VIEW.H;
+        const cx = W / 2;
+        // Version + author
+        ctx.fillStyle = 'rgba(100,116,139,0.6)';
+        ctx.font = '400 14px Rajdhani';
+        ctx.textAlign = 'center';
+        ctx.fillText('v3.0 · Written by dormhi', cx, H - 16);
+
+        // Credits
+        ctx.fillStyle = 'rgba(148,163,184,0.55)';
+        ctx.font = '300 14px Rajdhani';
+        ctx.textAlign = 'right';
+        ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
+        ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
+
+        // Back pressed once on the menu: warn before leaving the site.
+        if (this._exitArmed > 0) {
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, this._exitArmed * 2);
+            ctx.fillStyle = 'rgba(15,23,42,0.92)';
+            ctx.strokeStyle = 'rgba(245,158,11,0.6)';
+            Utils.roundRect(ctx, cx - 190, H - 104, 380, 34, 17);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = '600 16px Rajdhani';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Press back again to leave SyncBreaker', cx, H - 87);
+            ctx.restore();
+        }
+    }
+
+    /**
+     * Welcome screen for players who unlocked Endless: a big SYNCBREAKER,
+     * no story, and a short gold status report (the campaign is behind them).
+     */
+    _renderEndlessWelcome(ctx) {
+        const W = VIEW.W, cx = W / 2;
+        const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);
+        const gold = '#facc15';
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+
+        // Big title with a slow gold glow
+        ctx.font = '900 68px Orbitron';
+        ctx.shadowColor = gold;
+        ctx.shadowBlur = 18 + 8 * Math.sin(time * 1.5);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText('SYNCBREAKER', cx, 168);
+        ctx.shadowBlur = 0;
+        const titleW = ctx.measureText('SYNCBREAKER').width || 560;
+        ctx.font = '700 18px Orbitron';
+        ctx.fillStyle = '#22c55e';
+        ctx.textAlign = 'left';
+        ctx.fillText('(v3)', cx + titleW / 2 + 14, 132);
+        ctx.textAlign = 'center';
+
+        // Endless badge under the title: the infinity sign left of the label
+        ctx.font = UITheme.font('body', 700, 'Orbitron');
+        const badgeW = ctx.measureText('ENDLESS OPERATOR').width || 190;
+        const labelX = cx + 20;
+        this._drawInfinityEmblem(ctx, labelX - badgeW / 2 - 28, 206, 16, time);
+        ctx.fillStyle = gold;
+        ctx.fillText('ENDLESS OPERATOR', labelX, 212);
+
+        // Gold status report
+        const pw = 560, ph = 170, px = cx - pw / 2, py = 262;
+        UITheme.panel(ctx, px, py, pw, ph, { chamfer: 14, stroke: gold, lineWidth: 1.6, fill: 'rgba(20,16,6,0.82)', glow: gold });
+        ctx.textAlign = 'left';
+        ctx.fillStyle = gold;
+        ctx.font = '700 16px Orbitron';
+        ctx.fillText('> STATUS REPORT', px + 22, py + 32);
+        ctx.strokeStyle = 'rgba(250,204,21,0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(px + 18, py + 44); ctx.lineTo(px + pw - 18, py + 44); ctx.stroke();
+        const lines = [
+            { text: '[SECURE] Every node is clean. The campaign is complete.', color: '#22c55e', bold: true },
+            { text: 'The attacker keeps coming back — from now on the game is endless.', color: '#e2e8f0' },
+            { text: 'Find the ∞ ring at the end of the operation map.', color: '#94a3b8' }
+        ];
+        let y = py + 72;
+        for (const l of lines) {
+            ctx.fillStyle = l.color;
+            ctx.font = (l.bold ? '600' : '400') + ' 16px Rajdhani';
+            ctx.fillText(l.text, px + 22, y);
+            y += 26;
+        }
+        const best = this.levels._loadEndlessBest();
+        ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText(best > 0 ? `BEST ENDLESS RUN  ${best}` : 'NO ENDLESS RUN YET', px + 22, py + ph - 18);
+        ctx.restore();
+
+        this.ui.renderButtons();
     }
 
     /** Greedy word wrap; the last allowed line is ellipsised if needed. */

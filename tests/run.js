@@ -2860,6 +2860,47 @@ suite('Endless slot + lobby (only after the final act)', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Endless welcome menu + campaign-complete screen', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    const textsOf = (state) => {
+        const out = [];
+        const spy = makeFakeCtx(canvas);
+        spy.fillText = (t) => { out.push(String(t)); return spy; };
+        spy.measureText = () => ({ width: 100 });
+        gm.state._handlers[state].render(spy, 0);
+        return out;
+    };
+    const enter = (state) => { settle(gm, state); gm.ui.clearButtons(); gm.state._handlers[state].enter(); };
+
+    enter(S.MENU);
+    let t = textsOf(S.MENU);
+    ok('new players get the story menu', t.some(x => /\[WARNING\]/.test(x)) && btn('start').label.indexOf('START MISSION') >= 0);
+
+    gm.progress.data.endlessUnlocked = true;
+    enter(S.MENU);
+    t = textsOf(S.MENU);
+    ok('Endless players get the welcome screen', t.includes('SYNCBREAKER') && t.includes('ENDLESS OPERATOR') && t.includes('> STATUS REPORT'));
+    ok('no story on the welcome screen', !t.some(x => /\[WARNING\]|YOUR MISSION|infiltrated/.test(x)));
+    ok('status says the game is endless now', t.some(x => /game is endless/.test(x)) && t.some(x => /Every node is clean/.test(x)));
+    ok('gold ENTER button', /ENTER/.test(btn('start').label) && btn('start').color === '#facc15');
+    ok('footer still shown', t.includes('v3.0 · Written by dormhi'));
+    btn('start').onClick();
+    ok('ENTER goes to the act map', gm.state.pendingState === S.HUB);
+
+    enter(S.CONGRATS);
+    t = textsOf(S.CONGRATS);
+    ok('congrats tells the 10-act story', t.includes('CONTROL RETURNED') && t.some(x => /ALL 10 ACTS COMPLETE/.test(x)) &&
+        t.some(x => /handed the system back to its owner/.test(x)));
+    ok('every status cleared', ['PERIMETER', 'INTERNAL', 'CORE', 'HANDOVER'].every(k => t.includes('✓ ' + k)));
+    ok('points to the Endless ring', t.includes('ENDLESS MODE UNLOCKED') && t.some(x => /∞ ring/.test(x)));
+    ok('stars and best score totals', t.some(x => /★ \d+\/\d+/.test(x) && /TOTAL BEST SCORE/.test(x)));
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);
