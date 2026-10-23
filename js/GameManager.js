@@ -2980,6 +2980,7 @@ class GameManager {
         if (act.game === 'orbital') return `${p.blocksNeeded} PACKETS · ${p.ports} PORTS`;
         if (act.game === 'signal') return `${p.keys} KEYS · ${p.timeLimit}s`;
         if (act.game === 'route') return `${p.traces} TRACES · ${p.size}×${p.size} · ${p.timeLimit}s`;
+        if (act.game === 'cut') return `${p.networks} NETWORKS · ${p.lives}♥`;
         return '';
     }
 
@@ -3415,6 +3416,8 @@ class GameManager {
         }
 
         const mechanic = game.create(stage.params);
+        // Games that teach themselves: tutorial on the first stage, one-time tips.
+        if (mechanic.useCoach) mechanic.useCoach(this._coachStore(act.game), index === 0);
         this._stageRevives = 0;
         const cfg = {
             mechanic,
@@ -3477,6 +3480,20 @@ class GameManager {
             this._hubMessageTimer = 3.5;
         }
         later(delayMs, () => this.state.change(S.ACT, { actId: st.actId }));
+    }
+
+    /** Remembers which tutorial steps a game has shown (localStorage sb_coach_<game>). */
+    _coachStore(game) {
+        const key = `sb_coach_${game}`;
+        let seen = {};
+        try { seen = JSON.parse(localStorage.getItem(key)) || {}; } catch (e) { seen = {}; }
+        return {
+            seen: (k) => !!seen[k],
+            mark: (k) => {
+                seen[k] = true;
+                try { localStorage.setItem(key, JSON.stringify(seen)); } catch (e) { }
+            }
+        };
     }
 
     /** Stars for the stage just cleared, from the game's end-of-stage numbers. */
@@ -3976,6 +3993,7 @@ GameManager.GUIDE_PAGES = [
             ['Orbital Shield', '← / →  or  A / D', 'Tap a port'],
             ['Signal Lock', 'Hold SPACE or mouse', 'Hold anywhere'],
             ['Route Trace', 'Click a tile · arrows + SPACE', 'Tap a tile'],
+            ['Network Cut', 'Click twice · arrows + SPACE', 'Tap a cable twice'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -3989,6 +4007,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'ORBITAL SHIELD', text: 'A port blinks, then a packet flies at it. Snap the shield to that port to block it. Pink packets hop to a neighbouring port.' },
             { head: 'SIGNAL LOCK', text: 'Hold to raise your signal, release to lower it. Keep it on the target until SYNC fills to lock a key, before time runs out.' },
             { head: 'ROUTE TRACE', text: 'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.' },
+            { head: 'NETWORK CUT', text: 'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue owner lines cost a life; thick cables need two cuts.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },

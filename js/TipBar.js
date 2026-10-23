@@ -116,6 +116,14 @@ TipBar.ACT = {
         'Tiles with a padlock cannot be rotated',
         'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
     ],
+    cut: [
+        'Red cables are the ones the attacker reaches — cut them before they touch the CORE',
+        'Look for the narrowest point between ATK and CORE: fewer cuts there',
+        'Blue cables are the owner\'s own line — cutting one costs a life',
+        'Thick cables are armored and need two cuts',
+        'A dashed purple cable wakes when the cable with the same letter is cut',
+        'Out of lives? The recovery protocol (1⚡) gives one back'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',

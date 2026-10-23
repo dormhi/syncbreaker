@@ -596,7 +596,8 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('8 gates (one between every pair of acts)', CAMPAIGN.gates.length === 8);
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
-    ok('acts 6-9 are in development', acts.slice(5).every(a => !a.available && a.stages.length === 0));
+    ok('act 6 is playable with 4 stages', acts[5].available && acts[5].game === 'cut' && acts[5].stages.length === 4);
+    ok('acts 7-10 are in development', acts.slice(6).every(a => !a.available && a.stages.length === 0));
     const themes = loadLevelManager().LEVEL_THEMES;
     ok('every act has its own theme', acts.every(a => !!themes[a.themeId]) &&
         new Set(acts.map(a => a.themeId)).size === acts.length);
@@ -633,7 +634,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(6) && !P.isActAvailable(6));
+    ok('dev acts are never unlocked', !P.isActUnlocked(7) && !P.isActAvailable(7));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -659,9 +660,12 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate 4 playable once act 4 is done (act 5 exists)', P.isActComplete(4) && P.isGatePlayable(4));
     P.openGate(4);
     for (let i = 0; i < 3; i++) P.completeStage(5, i, 10);
-    ok('gate 5 not playable while act 6 is in development', P.isActComplete(5) && !P.isGatePlayable(5));
-    ok('endless still locked (act 6 not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 5);
+    ok('gate 5 playable once act 5 is done (act 6 exists)', P.isActComplete(5) && P.isGatePlayable(5));
+    P.openGate(5);
+    for (let i = 0; i < 4; i++) P.completeStage(6, i, 10);
+    ok('gate 6 not playable while act 7 is in development', P.isActComplete(6) && !P.isGatePlayable(6));
+    ok('endless still locked (final act not done)', !P.isEndlessUnlocked());
+    ok('current act points at the last open act', P.currentActId() === 6);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -803,8 +807,8 @@ suite('Act map HUB + gates', () => {
 
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    gm._mapGo(5);
-    btn('act6').onClick();
+    gm._mapGo(6);
+    btn('act7').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
     gm._mapGo(1);
     btn('act2').onClick();
@@ -847,7 +851,13 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 3; i++) gm.progress.completeStage(5, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(5);
-    ok('gate 5 waits for act 6', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('gate 5 starts once act 5 is done', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic.speedScale === mod.CAMPAIGN.gates[4].speedScale);
+    gm.progress.openGate(5);
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(6, i, 100);
+    settle(gm, S.HUB);
+    gm._tryStartGate(6);
+    ok('gate 6 waits for act 7', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -2928,8 +2938,253 @@ suite('Menu status report follows progress', () => {
     clear(4); clear(5);
     t = text();
     ok('long lists keep the latest four', t.some(x => x === 'Secured so far: …, firewall rebuilt, ports sealed, credentials reset, attacker traced.'));
-    ok('next act still in development', t.some(x => /ACT 6 · CUT_ACCESS is still in development/.test(x)));
+    ok('act 6 is next once gate 5 is open', t.some(x => /ACT 6 · CUT_ACCESS \(NETWORK CUT\) — 0\/4 stages cleared/.test(x)));
     ok('the report fits the menu panel', gm._menuStatusLines().length <= 13);
+});
+
+// ─────────────────────────────────────────────
+suite('Network Cut (Act 6) — puzzles, rules, flow', () => {
+    const mod = loadGameManager();
+    const { NetworkCutMechanic: NC, CAMPAIGN } = mod;
+    const tiers = CAMPAIGN.acts[5].stages.map(st => st.params);
+    const make = (params, seed) => {
+        const m = new NC(Object.assign({ rng: makeRng(seed) }, params));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+
+    // Independent brute force: the cheapest set of cuts (failovers included).
+    const brute = (m) => {
+        const E = m.edges, n = m.nodes.length;
+        const cuttable = E.map((e, i) => i).filter(i => !E[i].owner);
+        let best = Infinity;
+        const check = (set) => {
+            for (const i of set) if (E[i].dormant && !set.has(E[i].trigger)) return;   // asleep: cannot be cut
+            const live = E.filter((e, i) => !set.has(i) && (!e.dormant || set.has(e.trigger)));
+            if (!NC.reach(n, live, 0).has(1)) {
+                let cost = 0;
+                for (const i of set) cost += E[i].hp;
+                best = Math.min(best, cost);
+            }
+        };
+        const rec = (k, set, cost) => {
+            if (cost >= best || cost > 6) return;
+            check(set);
+            for (let j = k; j < cuttable.length; j++) {
+                set.add(cuttable[j]); rec(j + 1, set, cost + E[cuttable[j]].hp); set.delete(cuttable[j]);
+            }
+        };
+        rec(0, new Set(), 0);
+        return best;
+    };
+
+    tiers.forEach((p, t) => {
+        let inRange = true, solvable = true, fresh = true, matches = true, features = true;
+        for (let seed = 1; seed <= 12; seed++) {
+            const m = make(p, seed * 31 + t);
+            if (m.minCost < p.minCutMin || m.minCost > p.minCutMax) inRange = false;
+            if (m.budget !== m.minCost + p.slack) solvable = false;
+            if (!m.coreReached) fresh = false;
+            if (seed <= 6 && brute(m) !== m.minCost) matches = false;
+            const own = m.edges.filter(e => e.owner).length, arm = m.edges.filter(e => e.armor > 1).length;
+            const dor = m.edges.filter(e => e.dormant).length;
+            if ((p.ownerMax && (own < p.ownerMin || own > p.ownerMax)) || (!p.ownerMax && own) ||
+                arm < (p.armoredMin || 0) || arm > (p.armoredMax || 0) ||
+                dor < (p.failoverMin || 0) || dor > (p.failoverMax || 0)) features = false;
+        }
+        const tag = CAMPAIGN.acts[5].stages[t].tier;
+        ok(`${tag}: cheapest cut in the tier range`, inRange);
+        ok(`${tag}: scissors = cheapest cut + slack`, solvable);
+        ok(`${tag}: the attacker reaches the core at the start`, fresh);
+        ok(`${tag}: solver agrees with brute force`, matches);
+        ok(`${tag}: owner lines, armor and failovers as configured`, features);
+    });
+
+    // Select, then cut.
+    const m = make(tiers[0], 5);
+    const first = NC.cheapestCut(m.nodes.length, m.edges)[0];
+    const s0 = m.scissors;
+    m.tapEdge(first);
+    ok('first tap selects without cutting', m.selected === first && m.scissors === s0 && !m.edges[first].cut);
+    m.tapEdge(null);
+    ok('tapping empty space clears the selection', m.selected === null);
+    m.tapEdge(first); m.tapEdge(first);
+    ok('second tap on the same cable cuts it', m.edges[first].cut && m.scissors === s0 - 1 && m.selected === null);
+    ok('a cut cable cannot be selected', m.tapEdge(first) === false && m.selected === null);
+
+    // Pointer: tap near the middle of a cable.
+    const m2 = make(tiers[0], 6);
+    const k = NC.cheapestCut(m2.nodes.length, m2.edges)[0];
+    const mid = m2.edgeMid(k);
+    m2.handlePointer(mid.x + 3, mid.y - 3, 'down');
+    ok('a tap near a cable selects it', m2.selected === k);
+    m2.handlePointer(mid.x, mid.y, 'down');
+    ok('and a second tap cuts it', m2.edges[k].cut);
+
+    // Solving with the cheapest cut clears the network, then a new one comes.
+    const m3 = make(tiers[0], 7);
+    NC.cheapestCut(m3.nodes.length, m3.edges).forEach(i => m3.cut(i));
+    ok('cheapest cut severs the link', !m3.coreReached && m3.solved === 1 && m3.pause > 0 && m3.wasted === 0);
+    const oldStart = m3.start;
+    for (let i = 0; i < 60; i++) m3.update(1 / 60);
+    ok('a fresh network follows', m3.start !== oldStart && m3.coreReached && m3.scissors === m3.budget);
+    for (let n = 1; n < m3.networks; n++) {
+        NC.cheapestCut(m3.nodes.length, m3.edges).forEach(i => m3.cut(i));
+        for (let i = 0; i < 60; i++) m3.update(1 / 60);
+    }
+    ok('all networks: success with a score', m3.result === 'success' && m3.score === m3.computeScore() && m3.score > 0);
+    ok('star stats', m3.starStats().livesLost === 0 && m3.starStats().wasted === 0);
+
+    // Running out of scissors costs a life and rebuilds the same network.
+    const m4 = make(tiers[0], 8);
+    const useless = () => m4.edges.map((e, i) => i).filter(i => m4.cuttable(i) && !m4.edges[i].owner &&
+        NC.minCost(m4.nodes.length, m4.edges.map((x, j) => j === i ? Object.assign({}, x, { cut: true }) : x)) >= m4.minCost);
+    const startNet = m4.start;
+    let guard = 0;
+    while (m4.lives === 3 && guard++ < 20) {
+        const u = useless().find(i => i !== undefined);
+        if (u === undefined) break;
+        m4.cut(u);
+    }
+    ok('out of scissors: a life lost, same network rebuilt', m4.lives === 2 && m4.start === startNet && m4.scissors === m4.budget &&
+        m4.edges.every(e => !e.cut));
+
+    // Owner lines, armor and failovers.
+    const hard = make(tiers[3], 9);
+    hard.scissors = 10;   // room to try things without running out
+    const ownerIdx = hard.edges.findIndex(e => e.owner);
+    const sc = hard.scissors;
+    hard.cut(ownerIdx);
+    ok('cutting an owner line costs a life; the line is repaired', hard.lives === 2 && !hard.edges[ownerIdx].cut && hard.scissors === sc - 1);
+    const armIdx = hard.edges.findIndex(e => e.armor > 1 && !e.dormant);
+    hard.cut(armIdx);
+    ok('armored cable cracks on the first cut', !hard.edges[armIdx].cut && hard.edges[armIdx].hp === 1);
+    hard.cut(armIdx);
+    ok('and breaks on the second', hard.edges[armIdx].cut === true);
+    const vh = make(tiers[3], 10);
+    const d = vh.edges.find(e => e.dormant);
+    ok('dormant cable cannot be selected', vh.tapEdge(vh.edges.indexOf(d)) === false);
+    vh.cut(d.trigger);
+    ok('cutting its trigger wakes the failover line', d.awake === true && vh.cuttable(vh.edges.indexOf(d)));
+
+    // Lives run out -> fail; revive gives one back on the same network.
+    const m5 = make(tiers[1], 11);
+    const own = m5.edges.findIndex(e => e.owner);
+    while (m5.result === null) { m5.cut(own); if (m5.scissors === 0) m5._resetNetwork(); }
+    ok('no lives left fails the stage', m5.result === 'fail' && m5.lives === 0);
+    m5.revive();
+    ok('revive: one life, same network, game on', m5.result === null && m5.lives === 1 && m5.scissors === m5.budget);
+
+    // Keyboard
+    const m6 = make(tiers[0], 12);
+    m6.handleKey('ArrowRight');
+    const kSel = m6.selected;
+    ok('arrows select a cable', kSel !== null && m6.cuttable(kSel));
+    m6.handleKey('ArrowDown');
+    m6.handleKey('Space');
+    ok('SPACE cuts the selection', m6.edges.some(e => e.cut));
+
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try { [m, m3, hard, vh].forEach(x => x.render(ctx, 960, 640)); } catch (e) { threw = e.message; }
+    ok('renders every state', threw === null, threw);
+
+    // In the campaign
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    const S = gm.state.STATES;
+    for (const [a, n] of [[1, 4], [2, 3], [3, 4], [4, 5], [5, 3]]) {
+        for (let i = 0; i < n; i++) gm.progress.completeStage(a, i, 100);
+        gm.progress.openGate(a);
+    }
+    ok('act 6 opens after gate 5', gm.progress.isActUnlocked(6));
+    ok('stage summary', gm._stageSummary(gm.progress.act(6), gm.progress.act(6).stages[0]) === '3 NETWORKS · 3♥');
+    gm._coachStore('cut').mark('tutorial');   // the tutorial has its own suite
+    settle(gm, S.ACT);
+    gm._startStage(6, 0);
+    const cfg = gm.state.pendingContext;
+    ok('stage runs Network Cut', cfg.mechanic instanceof NC && /tap again to cut/.test(cfg.footHint.touch));
+    ok('the host enables coaching on the first stage', cfg.mechanic.coachStore !== null && cfg.mechanic.firstStage === true);
+    settle(gm, S.MINIGAME);
+    gm.state._handlers[S.MINIGAME].enter(cfg);
+    const mm = cfg.mechanic;
+    const ki = NC.cheapestCut(mm.nodes.length, mm.edges)[0];
+    const pm = mm.edgeMid(ki);
+    gm._hitTestUI(pm.x, pm.y, 'click');
+    ok('a click on a cable reaches the game', mm.selected === ki);
+    mm.lives = 1;
+    mm.cut(mm.edges.findIndex(e => e.owner) >= 0 ? mm.edges.findIndex(e => e.owner) : ki);
+    mm.result = 'fail';
+    for (let i = 0; i < 100 && gm.state.pendingState !== S.GAME_OVER; i++) gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('losing offers the recovery protocol', gm.state.pendingState === S.GAME_OVER && gm.state.pendingContext.noRevive === false);
+});
+
+// ─────────────────────────────────────────────
+suite('Network Cut teaches itself (tutorial + one-time tips)', () => {
+    const mod = loadGameManager();
+    const { NetworkCutMechanic: NC, CAMPAIGN } = mod;
+    const tiers = CAMPAIGN.acts[5].stages.map(st => st.params);
+    const store = () => { const s = {}; return { s, seen: k => !!s[k], mark: k => { s[k] = true; } }; };
+    const tap = (m) => m.handlePointer(0, 0, 'down');
+
+    const st = store();
+    const m = new NC(Object.assign({ rng: makeRng(3) }, tiers[0]));
+    m.useCoach(st, true);
+    m.init({ width: 960, height: 640 });
+    ok('first stage starts with the tutorial network', m.nodes.length === 6 && m.edges.length === 6 && m.minCost === 2);
+    ok('it opens with an info bubble that pauses the game', m.coach && m.coach.kind === 'info' && m.coachBlocks);
+    ok('cutting is blocked while a bubble is up', m.cut(1) === false && !m.edges[1].cut);
+    tap(m); tap(m);
+    ok('two taps later it asks for a selection', m.coach.kind === 'select');
+    m.tapEdge(1);
+    ok('selecting moves on to "tap again to cut"', m.coach.kind === 'cut' && m.selected === 1);
+    m.tapEdge(1);
+    ok('cutting moves on to the second route', m.coach.kind === 'solve' && m.edges[1].cut);
+    m.tapEdge(4); m.tapEdge(4);
+    ok('solving shows the wrap-up bubble', m.coach && m.coach.kind === 'info' && m.solved === 1);
+    for (let i = 0; i < 120; i++) m.update(1 / 60);
+    ok('the next network waits for the bubble', m.edges.length === 6 && m.pause > 0);
+    tap(m);
+    ok('dismissing marks the tutorial seen', st.s.tutorial === true && m.coach === null);
+    for (let i = 0; i < 60; i++) m.update(1 / 60);
+    ok('then a generated network follows', m.solved === 1 && m.start.length !== 6 || m.nodes.length !== 6);
+
+    const again = new NC(Object.assign({ rng: makeRng(4) }, tiers[0]));
+    again.useCoach(st, true);
+    again.init({ width: 960, height: 640 });
+    ok('no tutorial once seen', !again.tutorial && again.coach === null);
+    const later = new NC(Object.assign({ rng: makeRng(4) }, tiers[0]));
+    later.useCoach(store(), false);
+    later.init({ width: 960, height: 640 });
+    ok('no tutorial outside the first stage', !later.tutorial);
+
+    // One-time explanations for the new cable kinds
+    const s2 = store();
+    const vh = new NC(Object.assign({ rng: makeRng(9) }, tiers[3]));
+    vh.useCoach(s2, false);
+    vh.init({ width: 960, height: 640 });
+    const keys = [];
+    while (vh.coach) { keys.push(vh.coach.key); tap(vh); }
+    ok('owner, armored and failover each explained once', keys.join(',') === 'owner,armored,failover' && s2.s.owner && s2.s.armored && s2.s.failover);
+    const vh2 = new NC(Object.assign({ rng: makeRng(10) }, tiers[3]));
+    vh2.useCoach(s2, false);
+    vh2.init({ width: 960, height: 640 });
+    ok('and not again', vh2.coach === null);
+    const plain = new NC(Object.assign({ rng: makeRng(3) }, tiers[0]));
+    plain.init({ width: 960, height: 640 });
+    ok('without a coach store: no bubbles (tests, bots)', plain.coach === null && !plain.tutorial);
+
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try { m.render(ctx, 960, 640); vh.render(ctx, 960, 640); const t = new NC(Object.assign({ rng: makeRng(3) }, tiers[0])); t.useCoach(store(), true); t.init({ width: 960, height: 640 }); t.render(ctx, 960, 640); } catch (e) { threw = e.message; }
+    ok('coach bubbles and legend render', threw === null, threw);
+
+    // The host hands out a store that survives in localStorage.
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    const cs = gm._coachStore('cut');
+    cs.mark('tutorial');
+    ok('host coach store persists', gm._coachStore('cut').seen('tutorial') && JSON.parse(mod.storage.getItem('sb_coach_cut')).tutorial === true);
 });
 
 // ─────────────────────────────────────────────

@@ -26,7 +26,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
-| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | 📝 Planlandı, 4 aşama (Faz 5) |
+| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | 🧪 Erken yayında, 4 aşama, taslak sayılar (Faz 5) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
@@ -257,6 +257,12 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - **Zırhlı kablo (Zor ve üstü):** Kalın çizilmiş kablolar. Kesmek için **iki makas** gerekir: ilk kesimde çatlar, ikincide kopar. Ucuz bir yol yerine bazen zırhlıyı kesmek gerekir.
 - **Yedek hat / failover (Çok zor):** Uykuda duran, soluk ve kesik çizgili kablolar. Belirli bir kablo kesilince saldırgan trafiği yedeğe aktarır ve yedek uyanır. Her yedeğin ucundaki küçük bir işaret, onu hangi kablonun uyandıracağını gösterir. Bu yüzden kesme **sırası** önemlidir: oyuncu "bunu kesersem hangi yedek açılır?" diye plan yapar.
 
+**Oyun kendini öğretiyor (2026-10-24, ilk denemede "kimse anlamıyor" geri bildiriminden sonra):**
+- **Etkileşimli eğitim:** Act 6'nın ilk aşamasına ilk girişte ilk ağ elle kurulmuş basit bir eğitim ağıdır: iki ayrı yol, her biri tek kesimle kapanır. Baloncuklar sırayla anlatır: saldırgan ve çekirdek → kırmızı kablolar saldırganın yolları → "bu kabloya dokun" → "tekrar dokun, kes" → "diğer yolu da kes" → "erişim kesildi". Bilgi baloncukları oyunu durdurur ve dokununca geçer. Eylem adımları oyuncu yaptıkça ilerler.
+- **İlk karşılaşma açıklamaları:** Sahibin hattı, zırhlı kablo ve yedek hat ilk kez görüldüğünde oyun durur ve ne olduklarını tek cümleyle anlatır. Her biri bir kez gösterilir.
+- **Ekranda kalıcı:** tahtanın üstünde "GOAL: cut cables until no red line reaches the CORE", CORE'un altında "UNDER ATTACK" ya da "SAFE", tahtanın altında o ağda bulunan kablo türlerinin renk açıklaması. Yedek hat ile onu uyandıran kablonun harfleri soluk noktalı bir çizgiyle birbirine bağlıdır.
+- Görülenler tarayıcıda `sb_coach_cut` anahtarında tutulur (oyun başına `sb_coach_<oyun>`). Bu yapı ileride diğer oyunlar için de kullanılabilir.
+
 **Kontrol:**
 - Telefon ve fare: kabloya dokunmak ya da tıklamak seçer, seçili kabloya tekrar dokunmak keser. Dokunma alanı en az 44 nokta. Parmak iki kablonun arasına gelirse en yakın kablo seçilir.
 - Masaüstünde fareyle üzerine gelinen kablo hafifçe vurgulanır.
@@ -386,6 +392,8 @@ Göç tekrar çalıştırılsa sonuç değişmez. Reset butonu yeni anahtarı da
 
 **Zaman (karar 2026-10-23):** Sıfırlama **Act 6 ile birlikte** yayına girer (Faz 5).
 
+**Not (2026-10-24):** Act 6, denenmek için taslak kademe sayılarıyla ve sıfırlama **olmadan** erken yayına alındı. Sıfırlama, Act 6'nın kesin ayarıyla (kademe sayıları ve yıldız kuralları onaylandıktan sonra) yayına girecek.
+
 **Kapsam (karar 2026-10-23):**
 - **Leaderboard sıfırlanır:** sunucudaki bütün Endless skorları silinir.
 - **Operatör profilleri silinir:** isimler ve şifreler sunucudan silinir. Herkes Endless'ı yeniden açınca yeni bir operatör adı alır. Tarayıcıda sadece anonim Supabase oturumu durur. Profil sunucuda olmadığı için oyun yeni isim ister, tarayıcıda ek temizlik gerekmez.
@@ -444,7 +452,7 @@ Her fazın kabul şartları:
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
-| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | Planlandı |
+| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | 🧪 Erken yayında (2026-10-24, taslak sayılar). Kalan: kademe ayarı onayı, yıldız kuralları, sıfırlama. |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |

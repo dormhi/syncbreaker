@@ -46,6 +46,14 @@ const GameRegistry = {
         create: (params) => new RouteTraceMechanic(Object.assign({}, params))
     },
 
+    cut: {
+        kind: 'mechanic',
+        revive: true,
+        reviveLabel: '+1 LIFE',
+        title: 'NETWORK CUT',
+        create: (params) => new NetworkCutMechanic(Object.assign({}, params))
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 

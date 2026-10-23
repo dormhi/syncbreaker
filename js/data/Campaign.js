@@ -120,7 +120,30 @@ const CAMPAIGN = {
                 { tier: 'HARD',      params: { size: 6, traces: 3, timeLimit: 85,  decoyRate: 0.7,  teeRate: 0.25, minPath: 9,  maxPath: 16, lockRate: 0.12 } }
             ]
         },
-        { id: 6, key: 'CUT_ACCESS', done: 'access cut',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] },
+        {
+            id: 6,
+            key: 'CUT_ACCESS', done: 'access cut',
+            story: 'Cut the attacker\'s cables and sever the link',
+            game: 'cut',
+            themeId: 6,
+            available: true,
+            controls: 'Tap a cable to select it, tap again to cut · arrows + SPACE',
+            hint: {
+                desktop: 'Click a cable to select it, click again to cut · cut every red path to the CORE',
+                touch: 'Tap a cable to select it, tap again to cut · cut every red path to the CORE'
+            },
+            // Lives + logic, no timer (docs/ACT_PLAN.md). Draft numbers from
+            // the plan; `minCut` is the cheapest solution in scissors and
+            // `slack` the spare scissors on top. Owner lines (blue) cost a
+            // life when cut, armored cables need two cuts, failover lines
+            // wake when their tagged cable is cut.
+            stages: [
+                { tier: 'EASY',      params: { networks: 3, relays: 6,  minCutMin: 2, minCutMax: 2, slack: 2, lives: 3 } },
+                { tier: 'NORMAL',    params: { networks: 3, relays: 8,  minCutMin: 2, minCutMax: 3, slack: 1, ownerMin: 2, ownerMax: 3, lives: 3 } },
+                { tier: 'HARD',      params: { networks: 4, relays: 10, minCutMin: 3, minCutMax: 3, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 1, armoredMax: 2, lives: 3 } },
+                { tier: 'VERY HARD', params: { networks: 4, relays: 12, minCutMin: 3, minCutMax: 4, slack: 0, ownerMin: 3, ownerMax: 4, armoredMin: 2, armoredMax: 2, failoverMin: 1, failoverMax: 2, lives: 3 } }
+            ]
+        },
         { id: 7, key: 'DEFUSE_PAYLOAD', done: 'payload defused', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },
         { id: 8, key: 'RESTORE_CORE', done: 'core restored',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
         // Act 9: a test of knowledge and reasoning — no timer, no lives.

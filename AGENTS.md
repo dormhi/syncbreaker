@@ -42,7 +42,7 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
   3. CLOSE_PORTS: Orbital Shield, 4 stages, 12/16/20/20 packets on 4/6/8/8 ports, lives 4/5/6/7 (`js/mechanics/OrbitalShieldMechanic.js`)
   4. RESET_CREDS: Signal Lock, 5 stages (EASY…EXPERT), 3/3/4/4/5 keys against a timer; revive = +20 s (`js/mechanics/SignalLockMechanic.js`)
   5. TRACE_LOGS: Route Trace, 3 stages (4×4 / 5×5 / 6×6 grids, 2/3/3 traces against a timer); revive = +20 s (`js/mechanics/RouteTraceMechanic.js`)
-  6. CUT_ACCESS: **Network Cut, planned** (docs/ACT_PLAN.md, not built yet): cut every attacker path to the CORE with a limited number of scissors; lives + logic, no timer; tiers add owner lines (cutting one costs a life), armored cables (two cuts) and failover lines
+  6. CUT_ACCESS: **Network Cut** (`js/mechanics/NetworkCutMechanic.js`, released early on 2026-10-24 with draft tier numbers; the tuning, its star rules and the progress reset are still pending): cut every attacker path to the CORE with a limited number of scissors; lives + logic, no timer; tiers add owner lines (cutting one costs a life), armored cables (two cuts) and failover lines
   7. DEFUSE_PAYLOAD: in development
   8. RESTORE_CORE: in development
   9. FINAL_AUDIT: in development. Decided: it tests **knowledge and reasoning only**, with no timer and no lives
@@ -61,6 +61,7 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
 - Polish: screen changes are a soft eased fade through dark with a thin centre line (`StateManager._renderTransition`, at most two fills a frame). A shutter + glitch wipe was tried and dropped on 2026-10-23: tiring to look at and it stuttered on phones; keep transitions calm and cheap. Stage clears stamp ACCESS GRANTED on the result panel; a freshly cleared act gets its SECURED stamp slammed on the HUB card (`_securedAnim`). Interface sounds: `Sound.playClick` (buttons, not the in-game pause), `playWhoosh` (screen change), `playStamp`, `playStar(k)`.
 - Reduced motion: `UITheme.reducedMotion` follows the OS `prefers-reduced-motion`. New effects must check it: no glitch, parallax, pops, slams or ladder fill; transitions become a plain fade; card animations freeze.
 - Network layers (PERIMETER 1–3 / INTERNAL 4–6 / CORE 7–9, then HANDOVER 10, `UITheme.layers`) tint the background: `_bgLayerTarget()` picks the layer of the screen (HUB = focused act, act screen and games = their act, menu = PERIMETER), `_bgLayer` eases toward it, and `<body data-layer>` lets CSS colour the page around the canvas.
+- Games can teach themselves: a mechanic with `useCoach(store, firstStage)` gets a per-game store from the host (`_coachStore`, localStorage `sb_coach_<game>`). Network Cut uses it for a scripted tutorial on its first stage and one-time explanations of new cable kinds. A new game that players may not understand should do the same.
 - Hold-to-play games set `wantsHold = true` and implement `handleKeyUp`, `handlePointer(…, 'up')` and `releaseAll()`. `InputManager` delivers key-up, mouse-down, pointer-up (also off-canvas) and window blur. The host never turns the click that follows a mouse hold into a new press.
 
 ## Leaderboard / Supabase
