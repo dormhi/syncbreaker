@@ -36,6 +36,7 @@ Saldırgan ağın derinine sızmış. Oyuncu dış katmandan çekirdeğe doğru 
 | **PERIMETER** (dış hat) | 1 · 2 · 3 | Soğuk mavi ve camgöbeği, geniş ızgara, sakin veri yağmuru |
 | **INTERNAL** (iç ağ) | 4 · 5 · 6 | Kehribar, devre izleri, daha yoğun ve hızlı veri akışı |
 | **CORE** (çekirdek) | 7 · 8 · 9 | Kırmızı ve mor, titreşen çekirdek ışığı, glitch ve tarama çizgileri |
+| **HANDOVER** (teslim, 2026-10-23) | 10 | Turkuaz ve sakin: sistem temizlendi, sahibine geri veriliyor. Katmanlardan bağımsız bir statü. |
 
 - Act renkleri (`themeId`) aynı kalıyor. Katman rengi sadece zemin ve çerçeve için kullanılıyor.
 - Katmanlar arasındaki kapılar (Kapı 3 ve Kapı 6) carousel'de daha büyük bir "katman duvarı" olarak çiziliyor. Bu sadece görsel bir fark, oynanış değişmiyor.

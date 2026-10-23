@@ -167,6 +167,22 @@ const LevelIcons = {
     },
 
     // 999 — ENDLESS: infinity
+    // 10 — RETURN_CONTROL: an open padlock (access handed back)
+    lvl10(ctx, s) {
+        const w = s * 0.5, h = s * 0.38, top = -s * 0.02;
+        ctx.beginPath();
+        ctx.rect(-w / 2, top, w, h);
+        ctx.stroke();
+        // Shackle swung open to the right
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.3, top);
+        ctx.lineTo(-w * 0.3, -s * 0.18);
+        ctx.arc(w * 0.05, -s * 0.18, w * 0.35, Math.PI, 0, false);
+        ctx.lineTo(w * 0.4, -s * 0.1);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, top + h * 0.5, s * 0.05, 0, Math.PI * 2); ctx.fill();
+    },
+
     lvl999(ctx, s) {
         const h = s * 0.5, w = s * 0.5;
         ctx.beginPath();

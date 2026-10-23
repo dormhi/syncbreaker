@@ -171,6 +171,22 @@ const LEVEL_THEMES = {
 
 const DEFAULT_THEME = LEVEL_THEMES[1];
 
+// Act 10: RETURN_CONTROL — calm teal, the system handed back
+LEVEL_THEMES[10] = {
+    icon: '⚿', iconSize: 26,
+    zoneColor: '#2dd4bf',
+    zoneBg: 'rgba(45,212,191,0.15)',
+    barGlow: '#2dd4bf',
+    indicatorColor: '#2dd4bf',
+    particleSymbols: ['⚿', '✓', '+', '·'],
+    hitWords: { perfect: 'RESTORED', good: 'RETURNED', miss: 'DENIED' },
+    hitColors: { perfect: '#2dd4bf', good: '#5eead4', miss: '#ef4444' },
+    soundType: 'sine', soundFreq: 520,
+    bgType: 'password',
+    bgColor: '#2dd4bf',
+    bgChars: 'OWNER✓KEY+',
+};
+
 function getLevelTheme(levelId) {
     return LEVEL_THEMES[levelId] || DEFAULT_THEME;
 }

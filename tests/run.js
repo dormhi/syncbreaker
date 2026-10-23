@@ -589,10 +589,10 @@ suite('PacketPurgeMechanic — two waves, infected are faster', () => {
 suite('Campaign data — acts, stages, tuning', () => {
     const { CAMPAIGN } = loadGameManager();
     const acts = CAMPAIGN.acts;
-    ok('9 acts', acts.length === 9);
+    ok('10 acts', acts.length === 10);
     ok('act names follow the story',
-        acts.map(a => a.key).join(',') === 'REMOVE_MALWARE,REBUILD_FIREWALL,CLOSE_PORTS,RESET_CREDS,TRACE_LOGS,CUT_ACCESS,DEFUSE_PAYLOAD,RESTORE_CORE,FINAL_AUDIT');
-    ok('final act is 9', CAMPAIGN.finalAct === 9);
+        acts.map(a => a.key).join(',') === 'REMOVE_MALWARE,REBUILD_FIREWALL,CLOSE_PORTS,RESET_CREDS,TRACE_LOGS,CUT_ACCESS,DEFUSE_PAYLOAD,RESTORE_CORE,FINAL_AUDIT,RETURN_CONTROL');
+    ok('final act is 10 (in development)', CAMPAIGN.finalAct === 10 && acts[9].available === false);
     ok('8 gates (one between every pair of acts)', CAMPAIGN.gates.length === 8);
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
@@ -748,7 +748,17 @@ suite('Act map HUB + gates', () => {
     // Carousel: the focused act in the centre, neighbours peeking, a rail on top.
     ok('carousel starts on the current act', gm._mapIndex === 0 && !!btn('act1') && !!btn('act2') && !btn('act3'));
     ok('no previous chevron on act 1', !btn('map-prev') && !!btn('map-next'));
-    ok('rail has a node per act', [1, 2, 3, 4, 5, 6, 7, 8, 9].every(n => !!btn('rail' + n)));
+    ok('rail has a node per act', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].every(n => !!btn('rail' + n)));
+    ok('Endless node at the end of the rail', !!btn('rail-endless') && btn('rail-endless').x > btn('rail10').x &&
+        btn('rail-endless').y === btn('rail10').y);
+    btn('rail-endless').onClick();
+    ok('locked Endless node explains itself', gm.state.pendingState === null && /Complete ACT 10/.test(gm._hubMessage));
+    gm.progress.data.endlessUnlocked = true;
+    btn('rail-endless').onClick();
+    ok('unlocked Endless node moves the carousel to the Endless slot', gm._mapIndex === 10 && !!btn('endless-card'));
+    gm.progress.data.endlessUnlocked = false;
+    gm._mapGo(0);
+    settle(gm, S.HUB);
     ok('gate next to the focused act', !!btn('gate1') && btn('gate1').w >= 44 && btn('gate1').h >= 44);
     const overlap = (a, b) => Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h;
     const noClash = () => {
@@ -765,9 +775,10 @@ suite('Act map HUB + gates', () => {
     ok('no HUB tap targets overlap (middle act)', noClash() === null, noClash());
     ok('all HUB tap targets inside the canvas (middle act)', inside());
     ok('both chevrons in the middle', !!btn('map-prev') && !!btn('map-next') && !!btn('gate4') && !!btn('gate5'));
-    gm._mapGo(8);
+    gm._mapGo(9);
     ok('no next chevron on the last act', !btn('map-next') && !!btn('map-prev'));
-    ok('endless locked for a new player', btn('endless').disabled === true && !btn('leaderboard'));
+    ok('no Endless or leaderboard on the HUB for a new player', !btn('endless') && !btn('leaderboard') && !btn('endless-card') &&
+        gm._mapCount() === 10);
 
     // Rail node jumps; side card scrolls; chevron scrolls.
     btn('rail1').onClick();
@@ -2352,7 +2363,7 @@ suite('Act screen ladder + unlock effect', () => {
             }
         }
     }
-    ok('final act has no gate', !gm._actHasGate(9) && gm._actHasGate(1) && gm._actHasGate(8));
+    ok('final act has no gate; gate 9 comes with Act 10', !gm._actHasGate(10) && !gm._actHasGate(9) && gm._actHasGate(1) && gm._actHasGate(8));
 
     // Fresh player: stage 1 is next, the rest locked.
     const act1 = gm.progress.act(1);
@@ -2503,14 +2514,15 @@ suite('Clearance, integrity + layer atmosphere', () => {
 
     ok('fresh player: L0, integrity 0', P.clearanceLevel() === 0 && P.integrity() === 0);
     ok('clearance labels', T.clearanceLabel(0) === 'L0 GUEST' && T.clearanceLabel(4) === 'L4 OPERATOR' &&
-        T.clearanceLabel(9) === 'L9 ROOT' && T.clearanceLabel(42) === 'L9 ROOT');
+        T.clearanceLabel(9) === 'L9 ROOT' && T.clearanceLabel(10) === 'L10 GUARDIAN' && T.clearanceLabel(42) === 'L10 GUARDIAN');
     ok('integrity colours', T.integrityColor(0.2) === T.color.danger && T.integrityColor(0.6) === T.color.warn && T.integrityColor(1) === T.color.ok);
     P.completeStage(1, 0, 100);
     P.completeStage(1, 1, 100);
-    ok('half an act = half of one ninth', Math.abs(P.integrity() - 0.5 / 9) < 1e-9 && P.clearanceLevel() === 0);
+    ok('half an act = half of one tenth', Math.abs(P.integrity() - 0.5 / 10) < 1e-9 && P.clearanceLevel() === 0);
     P.completeStage(1, 2, 100);
     P.completeStage(1, 3, 100);
-    ok('a cleared act raises clearance', P.clearanceLevel() === 1 && Math.abs(P.integrity() - 1 / 9) < 1e-9);
+    ok('a cleared act raises clearance', P.clearanceLevel() === 1 && Math.abs(P.integrity() - 1 / 10) < 1e-9);
+    ok('act 10 has its own HANDOVER status', T.layerOf(10).key === 'HANDOVER' && T.layerOf(9).key === 'CORE');
     ok('colour mix', T.mix('#000000', '#ffffff', 0.5).join(',') === '128,128,128' && T.rgba([1, 2, 3], 0.5) === 'rgba(1,2,3,0.5)');
 
     // Background layer follows the screen: menu = perimeter, HUB = focused act, act screen = its act.
@@ -2778,6 +2790,73 @@ suite('Polish: transitions, stamps, sounds, reduced motion (UI-6)', () => {
     H.update(1 / 60);
     ok('reduced motion: no parallax', gm._bgShift === 0);
     T.reducedMotion = false;
+});
+
+// ─────────────────────────────────────────────
+suite('Endless slot + lobby (only after the final act)', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    const go = (state, c) => { settle(gm, state); gm.state._handlers[state].enter(c); };
+
+    // Locked: the lobby bounces back to the HUB.
+    go(S.ENDLESS_HUB);
+    ok('locked lobby sends you back', gm.state.pendingState === S.HUB);
+
+    gm.progress.data.endlessUnlocked = true;
+    go(S.HUB);
+    ok('Endless players land on the Endless slot', gm._mapIndex === 10 && gm._mapCount() === 11 && !!btn('endless-card'));
+    ok('no Endless buttons under the cards', !btn('endless') && !btn('leaderboard'));
+    ok('previous act peeks on the left, nothing on the right', !!btn('act10') && !btn('map-next') && !!btn('map-prev'));
+    gm.render(ctx, 0);
+    gm.state._handlers[S.HUB].render(ctx, 0);
+    ok('HUB with the Endless card renders', true);
+    gm._mapGo(9);
+    ok('act 10 has the Endless card peeking on its right', !!btn('endless-side') && !!btn('map-next'));
+    gm._mapGo(10);
+    btn('endless-card').onClick();
+    ok('the card opens the Endless lobby', gm.state.pendingState === S.ENDLESS_HUB);
+
+    // Lobby: play, leaderboard, back.
+    go(S.ENDLESS_HUB);
+    ok('lobby has play, leaderboard and back', !!btn('endless-play') && !!btn('endless-board') && !!btn('back'));
+    ok('play is focused', gm.ui.focusId === 'endless-play');
+    gm.state._handlers[S.ENDLESS_HUB].render(ctx, 0);
+    btn('endless-play').onClick();
+    ok('play starts a run', gm.state.pendingState === S.ENDLESS);
+    go(S.ENDLESS_HUB);
+    btn('endless-board').onClick();
+    ok('leaderboard opens from the lobby', gm.state.pendingState === S.LEADERBOARD);
+
+    // Everything Endless returns to the lobby.
+    go(S.LEADERBOARD);
+    btn('leaderboard-hub').onClick();
+    ok('leaderboard back goes to the lobby', gm.state.pendingState === S.ENDLESS_HUB);
+    go(S.ENDLESS_OVER, { score: 10, wave: 2, hitCount: 3, noRevive: true });
+    btn('hub').onClick();
+    ok('run over goes back to the lobby', gm.state.pendingState === S.ENDLESS_HUB);
+    settle(gm, S.LEADERBOARD);
+    gm.handleBrowserBack();
+    ok('back gesture: leaderboard -> lobby', gm.state.pendingState === S.ENDLESS_HUB);
+    settle(gm, S.ENDLESS_HUB);
+    gm.handleBrowserBack();
+    ok('back gesture: lobby -> HUB', gm.state.pendingState === S.HUB);
+
+    // HUB focus follows where you were: an act after visiting it, Endless after the lobby.
+    go(S.ACT, { actId: 3 });
+    go(S.HUB);
+    ok('after an act the HUB shows that act', gm._mapIndex === 2);
+    go(S.ENDLESS_HUB);
+    go(S.HUB);
+    ok('after the lobby the HUB shows Endless again', gm._mapIndex === 10);
+
+    // Keyboard: Enter on the Endless slot opens the lobby.
+    gm.ui.focusId = null;
+    gm._handleUiNavKey('Enter');
+    ok('Enter opens the lobby', gm.state.pendingState === S.ENDLESS_HUB);
 });
 
 // ─────────────────────────────────────────────

@@ -14,6 +14,7 @@ class StateManager {
             LOCKPICK: 'LOCKPICK',
             MINIGAME: 'MINIGAME',
             GAME_OVER: 'GAME_OVER',
+            ENDLESS_HUB: 'ENDLESS_HUB',
             ENDLESS: 'ENDLESS',
             ENDLESS_OVER: 'ENDLESS_OVER',
             CONGRATS: 'CONGRATS',

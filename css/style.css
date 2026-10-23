@@ -42,6 +42,7 @@ body {
 body[data-layer="perimeter"] { background-color: #06111b; }
 body[data-layer="internal"]  { background-color: #130e06; }
 body[data-layer="core"]      { background-color: #16070c; }
+body[data-layer="handover"]  { background-color: #061513; }
 
 /* Faint grid continuing the canvas background into the side bars. */
 body::before {

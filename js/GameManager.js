@@ -26,6 +26,9 @@ class GameManager {
         this._actView = this.progress.currentActId();
         // Act map carousel: focused act index and its eased scroll position.
         this._mapIndex = this._actView - 1;
+        // Players who unlocked Endless land on its slot of the act map until
+        // they open an act (and again after visiting Endless).
+        this._hubEndlessFocus = true;
         this._mapScroll = this._mapIndex;
         this._wheelCooldown = 0;
 
@@ -279,7 +282,10 @@ class GameManager {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.startAmbient();
-                this._mapIndex = (this._actView || this.progress.currentActId()) - 1;
+                // Endless players land on the Endless slot; everyone else on their act.
+                this._mapIndex = this.progress.isEndlessUnlocked() && this._hubEndlessFocus
+                    ? this.progress.acts.length
+                    : (this._actView || this.progress.currentActId()) - 1;
                 this._mapScroll = this._mapIndex;
                 if (this._securedAnim) this._securedAnim.t = -0.5;   // after the screen change
                 this._buildActMapButtons();
@@ -353,6 +359,7 @@ class GameManager {
                 this.ui.clearButtons();
                 Sound.startAmbient();
                 if (context && context.actId) this._actView = context.actId;
+                this._hubEndlessFocus = false;
                 this._buildActButtons();
                 const act = this.progress.act(this._actView);
                 this.tipBar.setTips('act' + this._actView,
@@ -933,11 +940,11 @@ class GameManager {
                     { color: '#3b82f6' }
                 );
 
-                // Back to hub
-                this.ui.addButton('hub', '← NODE SELECT', cx, cy + 155, 200, 40,
+                // Back to the Endless lobby
+                this.ui.addButton('hub', '← ENDLESS', cx, cy + 155, 200, 40,
                     () => {
                         this.levels.endlessMode = false;
-                        this.state.change(S.HUB);
+                        this.state.change(S.ENDLESS_HUB);
                     },
                     { color: '#64748b' }
                 );
@@ -989,7 +996,50 @@ class GameManager {
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
+                if (e.code === 'Escape') {
+                    this.levels.endlessMode = false;
+                    this.state.change(S.ENDLESS_HUB);
+                }
+            }
+        });
+
+        // ── ENDLESS HUB (lobby: play + leaderboard; only after the final act) ──
+        this.state.register(S.ENDLESS_HUB, {
+            enter: () => {
+                this.ui.clearButtons();
+                if (!this.progress.isEndlessUnlocked()) { this.state.change(S.HUB); return; }
+                Sound.startAmbient();
+                this._hubEndlessFocus = true;
+                const cx = VIEW.W / 2;
+                this.ui.addButton('endless-play', '▶  START RUN', cx, 418, 260, 50,
+                    () => {
+                        this.levels.endlessMode = false;
+                        this.state.change(S.ENDLESS);
+                    },
+                    { color: '#facc15' });
+                this.ui.addButton('endless-board', '🏆  LEADERBOARD', cx, 482, 260, 46,
+                    () => this.state.change(S.LEADERBOARD), { color: '#38bdf8' });
+                this.ui.addButton('back', '← ACTS', 70, VIEW.H - 35, 100, 32,
+                    () => this.state.change(S.HUB), { color: '#475569' });
+                this._addGuideButton();
+                this.ui.focus('endless-play');
+            },
+            update: (dt) => {
+                if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
+            },
+            render: (ctx) => {
+                this.ui.renderEnergyBar({
+                    current: this.energy.currentEnergy,
+                    max: this.energy.maxEnergy,
+                    nextRegenIn: this.energy.getTimeToNextRegen()
+                });
+                this._renderEndlessHub(ctx);
+                this.ui.renderButtons();
+            },
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.HUB);
+                if (e.code === 'KeyH') this._openGuide();
             }
         });
 
@@ -1061,8 +1111,8 @@ class GameManager {
                 this._leaderboardStatus = 'Connecting...';
                 this.ui.addButton('leaderboard-retry', '↻ REFRESH', cx - 115, H - 45, 180, 36,
                     () => this._loadLeaderboard(), { color: '#3b82f6' });
-                this.ui.addButton('leaderboard-hub', '← NODE SELECT', cx + 115, H - 45, 180, 36,
-                    () => this.state.change(S.HUB), { color: '#64748b' });
+                this.ui.addButton('leaderboard-hub', '← ENDLESS', cx + 115, H - 45, 180, 36,
+                    () => this.state.change(S.ENDLESS_HUB), { color: '#64748b' });
 
                 this.leaderboard.initialize().then((profile) => {
                     if (this.state.currentState !== S.LEADERBOARD) return;
@@ -1078,7 +1128,7 @@ class GameManager {
             },
             render: (ctx) => this._renderLeaderboard(ctx),
             exit: () => this.ui.clearButtons(),
-            onKey: (e) => { if (e.code === 'Escape') this.state.change(S.HUB); }
+            onKey: (e) => { if (e.code === 'Escape') this.state.change(S.ENDLESS_HUB); }
         });
 
         // Enter initial state
@@ -1332,8 +1382,7 @@ class GameManager {
             cardW: 360, cardH: 230,
             spacing: 410, sideScale: 0.78,
             railY: 100, railStep: 64,
-            chevronW: 44, chevronH: 70,
-            endlessY: 470
+            chevronW: 44, chevronH: 70
         };
     }
 
@@ -1343,19 +1392,38 @@ class GameManager {
         return L.cx + (i - scroll) * L.spacing;
     }
 
+    /** Rail x of act index i; index acts.length is the Endless node at the end. */
     _mapRailX(i) {
         const L = this._actMapLayout();
         const n = this.progress.acts.length;
-        return L.cx + (i - (n - 1) / 2) * L.railStep;
+        return L.cx + (i - n / 2) * L.railStep;
+    }
+
+    /** The Endless node: open once unlocked, otherwise say how to get there. */
+    _openEndlessNode() {
+        if (this.progress.isEndlessUnlocked()) {
+            this._mapGo(this.progress.acts.length);
+        } else {
+            this._hubMessage = `Complete ACT ${CAMPAIGN.finalAct} to unlock Endless Mode`;
+            this._hubMessageTimer = 2.5;
+        }
     }
 
     /** Focus act index i (clamped) and rebuild the map buttons. */
+    /** Carousel slots: every act, plus Endless at the end once it is unlocked. */
+    _mapCount() {
+        return this.progress.acts.length + (this.progress.isEndlessUnlocked() ? 1 : 0);
+    }
+
+    _isEndlessSlot(i) {
+        return i === this.progress.acts.length;
+    }
+
     _mapGo(i) {
-        const n = this.progress.acts.length;
-        const next = Math.max(0, Math.min(n - 1, i));
+        const next = Math.max(0, Math.min(this._mapCount() - 1, i));
         if (next === this._mapIndex) return false;
         this._mapIndex = next;
-        this._actView = next + 1;
+        if (!this._isEndlessSlot(next)) this._actView = next + 1;
         this.ui.clearButtons();
         this._buildActMapButtons();
         return true;
@@ -1377,7 +1445,7 @@ class GameManager {
         const d = this._mapDrag;
         if (!d) return;
         const L = this._actMapLayout();
-        const last = this.progress.acts.length - 1;
+        const last = this._mapCount() - 1;
         let s = d.scroll0 - (x - d.x0) / L.spacing;
         if (s < 0) s *= 0.35;
         if (s > last) s = last + (s - last) * 0.35;
@@ -1406,7 +1474,7 @@ class GameManager {
         const v = now - d.lastT > 120 ? 0 : d.v;
         const s = this._mapScroll;
         const target = Math.abs(v) > 1.2 ? Math.round(s + Math.sign(v) * 0.5) : Math.round(s);
-        const last = this.progress.acts.length - 1;
+        const last = this._mapCount() - 1;
         this._mapGo(Math.max(0, Math.min(last, target)));
     }
 
@@ -1445,16 +1513,22 @@ class GameManager {
                 () => this._mapGo(this._mapIndex - 1),
                 { draw: (ctx, btn, hovered) => this._drawChevron(ctx, btn, hovered, -1) });
         }
-        if (i < acts.length - 1) {
+        const count = this._mapCount();
+        if (i < count - 1) {
             this.ui.addButton('map-next', '›', W - L.chevronW / 2 - 4, L.cy, L.chevronW, L.chevronH,
                 () => this._mapGo(this._mapIndex + 1),
                 { draw: (ctx, btn, hovered) => this._drawChevron(ctx, btn, hovered, 1) });
         }
 
-        // Focused card (opens the act). Drawn by _renderActMap, so hidden here.
-        const act = acts[i];
-        this.ui.addButton(`act${act.id}`, act.key, L.cx, L.cy, L.cardW, L.cardH,
-            () => this._openMapAct(act), { hidden: true });
+        // Focused card (opens the act, or the Endless lobby). Drawn by _renderActMap, so hidden here.
+        if (this._isEndlessSlot(i)) {
+            this.ui.addButton('endless-card', 'ENDLESS MODE', L.cx, L.cy, L.cardW, L.cardH,
+                () => this.state.change(this.state.STATES.ENDLESS_HUB), { hidden: true });
+        } else {
+            const act = acts[i];
+            this.ui.addButton(`act${act.id}`, act.key, L.cx, L.cy, L.cardW, L.cardH,
+                () => this._openMapAct(act), { hidden: true });
+        }
 
         // Side cards: tapping the visible part scrolls to them.
         const sideW = L.cardW * L.sideScale, sideH = L.cardH * L.sideScale;
@@ -1464,9 +1538,10 @@ class GameManager {
             this.ui.addButton(`act${acts[i - 1].id}`, acts[i - 1].key, (left + right) / 2, L.cy, right - left, sideH,
                 () => this._mapGo(this._mapIndex - 1), { hidden: true });
         }
-        if (i < acts.length - 1) {
+        if (i < count - 1) {
             const left = L.cx + L.spacing - sideW / 2, right = W - inner;
-            this.ui.addButton(`act${acts[i + 1].id}`, acts[i + 1].key, (left + right) / 2, L.cy, right - left, sideH,
+            const id = this._isEndlessSlot(i + 1) ? 'endless-side' : `act${acts[i + 1].id}`;
+            this.ui.addButton(id, '', (left + right) / 2, L.cy, right - left, sideH,
                 () => this._mapGo(this._mapIndex + 1), { hidden: true });
         }
 
@@ -1483,23 +1558,12 @@ class GameManager {
                 () => this._mapGo(k),
                 { draw: (ctx, btn, hovered) => this._drawRailNode(ctx, btn, hovered, a, k) });
         });
+        // Endless Mode: its own node at the very end of the rail.
+        this.ui.addButton('rail-endless', '', this._mapRailX(acts.length), L.railY, 48, 48,
+            () => this._openEndlessNode(),
+            { draw: (ctx, btn, hovered) => this._drawEndlessNode(ctx, btn, hovered) });
 
-        // Endless Mode (after the final act; kept for players who already had it)
-        if (this.progress.isEndlessUnlocked()) {
-            const bestScore = this.levels._loadEndlessBest();
-            const endlessSubtitle = bestScore > 0 ? `Best: ${bestScore}` : 'Unlimited challenge, unlimited fun';
-            this.ui.addButton('endless', '∞ ENDLESS MODE', W / 2 - 125, L.endlessY, 230, 46,
-                () => this.state.change(this.state.STATES.ENDLESS),
-                { color: '#f59e0b', subtitle: endlessSubtitle });
-            this.ui.addButton('leaderboard', '🏆 LEADERBOARD', W / 2 + 125, L.endlessY, 230, 46,
-                () => this.state.change(this.state.STATES.LEADERBOARD),
-                { color: '#f59e0b' });
-        } else {
-            this.ui.addButton('endless', '🔒 ENDLESS MODE', W / 2, L.endlessY, 240, 46,
-                () => { },
-                { color: '#475569', disabled: true, subtitle: `Complete ACT ${CAMPAIGN.finalAct} to unlock` });
-        }
-
+        // Endless Mode and its leaderboard live behind the Endless node only.
         this._addHubChrome(W, H);
     }
 
@@ -1807,6 +1871,228 @@ class GameManager {
         ctx.restore();
     }
 
+    /**
+     * Endless Mode node: a slowly turning dashed gold ring around an infinity
+     * sign shaded gold to cyan, with a spark running along the loop. Locked,
+     * it is grey with a small padlock. Reduced motion stops the ring and spark.
+     */
+    _drawEndlessNode(ctx, btn, hovered) {
+        const open = this.progress.isEndlessUnlocked();
+        const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);
+        const x = btn.x, y = btn.y, r = 16;
+        const gold = '#facc15';
+        // Lemniscate point for parameter t (width ~2a).
+        const a = 11;
+        const at = (t) => {
+            const d = 1 + Math.sin(t) * Math.sin(t);
+            return [x + a * Math.cos(t) / d, y + a * Math.sin(t) * Math.cos(t) / d];
+        };
+
+        ctx.save();
+        // Disc
+        ctx.fillStyle = 'rgba(15,23,42,0.96)';
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = hovered ? 2.4 : 1.8;
+        if (open) {
+            const ring = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+            ring.addColorStop(0, '#f59e0b');
+            ring.addColorStop(1, '#38bdf8');
+            ctx.strokeStyle = ring;
+            ctx.shadowColor = gold;
+            ctx.shadowBlur = hovered ? 14 : 8;
+        } else {
+            ctx.strokeStyle = UITheme.color.locked;
+        }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Outer dashed ring, slowly turning
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(time * 0.6);
+        ctx.setLineDash([4, 5]);
+        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = open ? gold : 'rgba(71,85,105,0.6)';
+        ctx.globalAlpha = open ? 0.7 : 0.5;
+        ctx.beginPath(); ctx.arc(0, 0, r + 5, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+
+        // Infinity sign
+        ctx.beginPath();
+        for (let k = 0; k <= 48; k++) {
+            const p = at(k / 48 * Math.PI * 2);
+            if (k === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+        }
+        ctx.closePath();
+        if (open) {
+            const g = ctx.createLinearGradient(x - a, y, x + a, y);
+            g.addColorStop(0, '#f59e0b');
+            g.addColorStop(0.5, gold);
+            g.addColorStop(1, '#38bdf8');
+            ctx.strokeStyle = g;
+        } else {
+            ctx.strokeStyle = UITheme.color.locked;
+        }
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        if (open) {
+            // Spark running along the loop
+            const sp = at(time * 2.2);
+            ctx.fillStyle = '#fff';
+            ctx.shadowColor = gold;
+            ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.arc(sp[0], sp[1], 1.8, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+        } else {
+            this.ui._drawLockGlyph(ctx, x + 8, y + 9, 8, UITheme.color.textDim);
+        }
+
+        if (this._isEndlessSlot(this._mapIndex)) {
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.arc(x, y, r + 9, 0, Math.PI * 2); ctx.stroke();
+        }
+
+        ctx.fillStyle = open ? gold : '#64748b';
+        ctx.font = '600 14px Rajdhani';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('ENDLESS', x, y + 27);
+        ctx.restore();
+    }
+
+    /** The Endless slot of the act map (only shown once Endless is unlocked). */
+    _drawEndlessCard(ctx, highlighted) {
+        const L = this._actMapLayout();
+        const w = L.cardW, h = L.cardH, left = -w / 2, top = -h / 2;
+        const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);
+        const gold = '#facc15';
+        ctx.save();
+        UITheme.panel(ctx, left, top, w, h, {
+            chamfer: 16, stroke: gold, lineWidth: highlighted ? 2.4 : 1.6,
+            fill: highlighted ? UITheme.color.panelHi : UITheme.color.panel, glow: gold
+        });
+        // Stage area: gold wash and the emblem
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(left + 10, top + 10, w - 20, 96);
+        ctx.clip();
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = gold;
+        ctx.fillRect(left + 10, top + 10, w - 20, 96);
+        ctx.globalAlpha = 1;
+        this._drawInfinityEmblem(ctx, 0, top + 58, 44, time);
+        ctx.restore();
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = gold;
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText('AFTER THE CAMPAIGN', left + 20, top + 30);
+        ctx.fillStyle = UITheme.color.text;
+        ctx.font = '700 21px Orbitron';
+        ctx.fillText('ENDLESS MODE', left + 22, top + 136);
+        ctx.fillStyle = UITheme.color.textDim;
+        ctx.font = UITheme.font('body', 500);
+        ctx.fillText(this.ui._fitText('The attack never ends. Climb the leaderboard.', w - 44), left + 22, top + 160);
+
+        const best = this.levels._loadEndlessBest();
+        ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
+        ctx.font = UITheme.font('label', 700);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(best > 0 ? `BEST ${best}` : 'NO RUN YET', left + 22, top + 192);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = highlighted ? gold : UITheme.color.textMute;
+        ctx.font = '700 14px Orbitron';
+        ctx.fillText('OPEN ▸', left + w - 22, top + h - 14);
+        ctx.restore();
+    }
+
+    /** Infinity sign (lemniscate) path centred on (x, y), half-width a. */
+    _infinityPath(ctx, x, y, a) {
+        ctx.beginPath();
+        for (let k = 0; k <= 64; k++) {
+            const t = k / 64 * Math.PI * 2;
+            const d = 1 + Math.sin(t) * Math.sin(t);
+            const px = x + a * Math.cos(t) / d, py = y + a * Math.sin(t) * Math.cos(t) / d;
+            if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+    }
+
+    /** Big gold-to-cyan infinity emblem with a spark running along it. */
+    _drawInfinityEmblem(ctx, x, y, a, time) {
+        const g = ctx.createLinearGradient(x - a, y, x + a, y);
+        g.addColorStop(0, '#f59e0b');
+        g.addColorStop(0.5, '#facc15');
+        g.addColorStop(1, '#38bdf8');
+        ctx.save();
+        ctx.lineJoin = 'round';
+        // Soft halo, then the sign itself
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = g;
+        ctx.lineWidth = a * 0.28;
+        this._infinityPath(ctx, x, y, a);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = a * 0.11;
+        ctx.shadowColor = '#facc15';
+        ctx.shadowBlur = 16;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        const t = time * 1.6;
+        const d = 1 + Math.sin(t) * Math.sin(t);
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = '#facc15';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(x + a * Math.cos(t) / d, y + a * Math.sin(t) * Math.cos(t) / d, a * 0.06, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    /** Endless lobby: emblem, title, best run and what is coming. */
+    _renderEndlessHub(ctx) {
+        const W = VIEW.W, cx = W / 2;
+        const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#facc15';
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText(`AFTER ACT ${CAMPAIGN.finalAct} · NO FINISH LINE`, cx, 40);
+        ctx.fillStyle = UITheme.color.text;
+        ctx.font = '900 34px Orbitron';
+        ctx.fillText('ENDLESS MODE', cx, 82);
+        ctx.fillStyle = UITheme.color.textDim;
+        ctx.font = UITheme.font('body', 500);
+        ctx.fillText('The attacker never stops. Hold the line as long as you can.', cx, 110);
+
+        // Emblem in a slowly turning dashed ring
+        const ey = 232;
+        ctx.save();
+        ctx.translate(cx, ey);
+        ctx.rotate(time * 0.25);
+        ctx.setLineDash([6, 8]);
+        ctx.strokeStyle = 'rgba(250,204,21,0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        this._drawInfinityEmblem(ctx, cx, ey, 78, time);
+
+        const best = this.levels._loadEndlessBest();
+        ctx.fillStyle = best > 0 ? '#facc15' : UITheme.color.textMute;
+        ctx.font = UITheme.font('title', 700, 'Orbitron');
+        ctx.fillText(best > 0 ? `BEST ${best}` : 'NO RUN YET', cx, 365);
+        ctx.fillStyle = UITheme.color.textMute;
+        ctx.font = UITheme.font('label', 600);
+        ctx.fillText('Timing Bar for now — more campaign games are coming to Endless', cx, 548);
+        ctx.restore();
+    }
+
     /** Greedy word wrap; the last allowed line is ellipsised if needed. */
     _wrapText(ctx, text, maxW, maxLines) {
         const width = (t) => {
@@ -1902,10 +2188,12 @@ class GameManager {
         ctx.setLineDash([]);
 
         // Far cards first, the focused one last (on top).
-        const order = acts.map((a, k) => k)
+        const slots = Array.from({ length: this._mapCount() }, (_, k) => k);
+        const order = slots
             .filter(k => Math.abs(k - scroll) < 1.7)
             .sort((a, b) => Math.abs(b - scroll) - Math.abs(a - scroll));
-        const focusBtn = this.ui.buttons.find(b => b.id === `act${acts[this._mapIndex].id}`);
+        const focusBtn = this.ui.buttons.find(b => b.id === (this._isEndlessSlot(this._mapIndex)
+            ? 'endless-card' : `act${acts[this._mapIndex].id}`));
         for (const k of order) {
             const d = Math.min(1, Math.abs(k - scroll));
             const scale = 1 - (1 - L.sideScale) * d;
@@ -1914,7 +2202,8 @@ class GameManager {
             ctx.translate(this._mapX(k, scroll), L.cy);
             ctx.scale(scale, scale);
             const hl = k === this._mapIndex && d < 0.05 && focusBtn && this.ui.isHovered(focusBtn);
-            this._drawActCard(ctx, acts[k], this._actStatus(acts[k].id), hl);
+            if (this._isEndlessSlot(k)) this._drawEndlessCard(ctx, hl);
+            else this._drawActCard(ctx, acts[k], this._actStatus(acts[k].id), hl);
             ctx.restore();
         }
 
@@ -1944,6 +2233,14 @@ class GameManager {
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.moveTo(x1 + 14, L.railY); ctx.lineTo(x2 - 14, L.railY); ctx.stroke();
         }
+        // Dotted gold lead from the final act to the Endless node.
+        ctx.strokeStyle = this.progress.isEndlessUnlocked() ? 'rgba(250,204,21,0.75)' : 'rgba(250,204,21,0.25)';
+        ctx.setLineDash([2, 5]);
+        ctx.beginPath();
+        ctx.moveTo(this._mapRailX(n - 1) + 14, L.railY);
+        ctx.lineTo(this._mapRailX(n) - 22, L.railY);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
         // Network layers above the rail: a bracket and a name per group of acts.
         ctx.font = UITheme.font('label', 700);
@@ -2188,7 +2485,12 @@ class GameManager {
             case S.ACT: this.state.change(S.HUB); return true;
             case S.HUB: this.state.change(S.MENU); return true;
             case S.GAME_OVER: this._backToAct(); return true;
-            case S.ENDLESS_OVER: case S.LEADERBOARD: this.state.change(S.HUB); return true;
+            case S.ENDLESS_OVER:
+                this.levels.endlessMode = false;
+                this.state.change(S.ENDLESS_HUB);
+                return true;
+            case S.LEADERBOARD: this.state.change(S.ENDLESS_HUB); return true;
+            case S.ENDLESS_HUB: this.state.change(S.HUB); return true;
             case S.PROFILE_SETUP: this.state.change(this._profileReturnState || S.HUB); return true;
             case S.CONGRATS: this._finishCongrats(); return true;
             case S.MENU:
@@ -2301,7 +2603,7 @@ class GameManager {
         const S = this.state.STATES;
         const from = this.state.currentState;
         this.state.change(S.GUIDE, {
-            returnState: from === S.ACT ? S.ACT : S.HUB,
+            returnState: from === S.ACT || from === S.ENDLESS_HUB ? from : S.HUB,
             returnContext: from === S.ACT ? { actId: this._actView } : null,
             page
         });
@@ -3220,7 +3522,7 @@ class GameManager {
     /** Arrow keys + Enter drive the on-screen buttons on menu-like screens. */
     _handleUiNavKey(code) {
         const S = this.state.STATES;
-        const nav = [S.MENU, S.HUB, S.ACT, S.GAME_OVER, S.ENDLESS_OVER, S.CONGRATS, S.LEADERBOARD];
+        const nav = [S.MENU, S.HUB, S.ACT, S.ENDLESS_HUB, S.GAME_OVER, S.ENDLESS_OVER, S.CONGRATS, S.LEADERBOARD];
         if (this.state.transitioning || nav.indexOf(this.state.currentState) < 0) return false;
         const dirs = {
             ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
@@ -3237,7 +3539,8 @@ class GameManager {
             }
             if (enter) {
                 if (this.ui.activateFocus()) return true;
-                this._openMapAct(this.progress.acts[this._mapIndex]);
+                if (this._isEndlessSlot(this._mapIndex)) this.state.change(S.ENDLESS_HUB);
+                else this._openMapAct(this.progress.acts[this._mapIndex]);
                 return true;
             }
         }
@@ -3475,8 +3778,8 @@ class GameManager {
         }
         ctx.restore();
 
-        // 5. CORE: faint scanlines and a slow interference band.
-        const core = Utils.clamp(f - 1, 0, 1);
+        // 5. CORE (layer 2) only: faint scanlines and a slow interference band.
+        const core = Utils.clamp(1 - Math.abs(f - 2), 0, 1);
         if (core > 0 && !UITheme.reducedMotion) {
             ctx.save();
             ctx.globalAlpha = 0.05 * core;

@@ -60,15 +60,17 @@ const UITheme = {
         return UITheme.tiers.find(t => t.key === key) || UITheme.tiers[0];
     },
 
-    // Network layers the acts belong to (outer perimeter -> core).
+    // Network layers the acts belong to (outer perimeter -> core), then the
+    // final act's HANDOVER status: outside the network, the system handed back.
     layers: [
         { key: 'PERIMETER', acts: [1, 2, 3], color: '#38bdf8' },
         { key: 'INTERNAL',  acts: [4, 5, 6], color: '#f59e0b' },
-        { key: 'CORE',      acts: [7, 8, 9], color: '#ef4444' }
+        { key: 'CORE',      acts: [7, 8, 9], color: '#ef4444' },
+        { key: 'HANDOVER',  acts: [10],      color: '#2dd4bf' }
     ],
 
     // Operator clearance names, one per level (level = acts fully cleared).
-    clearance: ['GUEST', 'USER', 'TECH', 'ANALYST', 'OPERATOR', 'ENGINEER', 'ADMIN', 'SECOPS', 'SYSADMIN', 'ROOT'],
+    clearance: ['GUEST', 'USER', 'TECH', 'ANALYST', 'OPERATOR', 'ENGINEER', 'ADMIN', 'SECOPS', 'SYSADMIN', 'ROOT', 'GUARDIAN'],
 
     /** 'L4 OPERATOR' style label for a clearance level. */
     clearanceLabel(level) {

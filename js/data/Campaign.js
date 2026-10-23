@@ -122,11 +122,15 @@ const CAMPAIGN = {
         { id: 6, key: 'CUT_ACCESS',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] },
         { id: 7, key: 'DEFUSE_PAYLOAD', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },
         { id: 8, key: 'RESTORE_CORE',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
-        // Final act: a test of knowledge and reasoning — no timer, no lives.
-        { id: 9, key: 'FINAL_AUDIT',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] }
+        // Act 9: a test of knowledge and reasoning — no timer, no lives.
+        { id: 9, key: 'FINAL_AUDIT',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] },
+        // Final act (HANDOVER status, outside the network layers): give control
+        // back to the rightful owner and teach them to keep it. Educational.
+        { id: 10, key: 'RETURN_CONTROL', story: 'Hand the system back to its owner — and teach them to keep it safe', game: null, themeId: 10, available: false, stages: [] }
     ],
 
     // gates[n - 1] opens act n + 1. Packet Purge tuning; gate 1 = original.
+    // Gate 9 (act 9 -> 10) is tuned together with Act 10 (docs/ACT_PLAN.md).
     gates: [
         { id: 1, waves: 2, speedScale: 1.00 },
         { id: 2, waves: 2, speedScale: 1.08 },
@@ -140,7 +144,7 @@ const CAMPAIGN = {
 
     // Lockpick revive difficulty is the act number (1-6).
     maxStages: 5,
-    finalAct: 9
+    finalAct: 10
 };
 
 // Stage stars (bot-swept, approved 2026-10-23; docs/UI_PLAN.md 3e).

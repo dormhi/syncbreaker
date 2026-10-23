@@ -1,13 +1,13 @@
 # SyncBreaker: Act Yapısı Planı
 
-> Durum: Act 1–4 oynanabilir (Faz 1–3 uygulandı). Kampanya **9 act**'e çıktı (2026-10-21).
-> Act 5–9'un oyun mekanikleri sırası gelince birlikte kararlaştırılacak.
+> Durum: Act 1–5 oynanabilir (Faz 1–4 uygulandı). Kampanya **10 act**'e çıktı (9'a 2026-10-21'de, 10'a 2026-10-23'te).
+> Act 6–10'un oyun mekanikleri sırası gelince birlikte kararlaştırılacak.
 
 ## 1. Hedef
 
 Oyun 6 düğümlük düz bir listeden **act tabanlı bir kampanyaya** geçiyor:
 
-- Toplam **9 act** var, her birinin hikayeye uygun bir adı var. İlk planda 6 act vardı, 2026-10-21'de 9'a çıkarıldı.
+- Toplam **10 act** var, her birinin hikayeye uygun bir adı var. İlk planda 6 act vardı, 2026-10-21'de 9'a, 2026-10-23'te 10'a çıkarıldı. 10. act final act'tir.
 - **Her act tek bir oyundur.** Act'in aşamaları o oyunun artan zorluk kademeleridir.
 - **Aşama sayısı oyuna göre 3 ile 5 arasında değişir.** Bazı oyunların doğal olarak daha fazla zorluk kademesi oluyor.
 - Bir act'in bütün aşamalarını bitiren oyuncu o act'in görevini tamamlamış olur.
@@ -17,7 +17,7 @@ Oyun 6 düğümlük düz bir listeden **act tabanlı bir kampanyaya** geçiyor:
 
 ## 2. Hikaye ve act'ler
 
-Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizliyor, sonra savunmayı yeniden kuruyor, sonra saldırganın izini sürüp bağlantısını kesiyor. Ardından saldırganın geride bıraktığı bombayı etkisiz hale getiriyor, sistemi temiz yedeklerden geri yüklüyor ve son bir denetimle sistemin temiz olduğunu kanıtlıyor.
+Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizliyor, sonra savunmayı yeniden kuruyor, sonra saldırganın izini sürüp bağlantısını kesiyor. Ardından saldırganın geride bıraktığı bombayı etkisiz hale getiriyor, sistemi temiz yedeklerden geri yüklüyor ve son bir denetimle sistemin temiz olduğunu kanıtlıyor. Finalde sistemin kontrolünü asıl sahibine geri veriyor ve ona sistemi güvende tutmayı öğretiyor.
 
 | Act | Ad | Hikaye | Oyun | Durum |
 |---|---|---|---|---|
@@ -30,6 +30,10 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
+| 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Eğitici final** (bölüm 3) | 🛠 Geliştiriliyor |
+
+- Act 10, PERIMETER / INTERNAL / CORE katmanlarından **bağımsız** bir statüde: **HANDOVER**. Haritada kendi rengi (turkuaz) ve kendi etiketi var.
+- **Endless Mode** rayın en sonunda, Act 10'dan sonra kendi düğümünde duruyor (bölüm 6).
 
 Notlar:
 - Ad değişiklikleri: CLEAR_LOGS → TRACE_LOGS ve FIREWALL → REBUILD_FIREWALL. Diğer isimler aynı kaldı.
@@ -234,11 +238,30 @@ Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir
 - **Cable Cut (Act 6):** Matter.js ile kablo kesme bulmacası. Fare, parmakla kaydırma ya da 1–3 tuşları.
 - Act 7 (DEFUSE_PAYLOAD) ve Act 8 (RESTORE_CORE) için henüz fikir yok.
 
-### Act 9: FINAL_AUDIT, son act 🛠
+### Act 9: FINAL_AUDIT 🛠
 
-**Kesin olan (2026-10-21):** Son act **süre ya da can üzerine değil, tamamen bilgi ve zihin becerisi** üzerine kurulu olacak.
+**Kesin olan (2026-10-21):** Act 9 **süre ya da can üzerine değil, tamamen bilgi ve zihin becerisi** üzerine kurulu olacak. (Bu karar verildiğinde Act 9 son act'ti. 2026-10-23'te final act olarak Act 10 eklendi, karar Act 9 için geçerli kalıyor.)
 - Refleks, zamanlama ya da el becerisi istemez. Oyuncunun bilgisini ve akıl yürütmesini sınar: mantık, çıkarım, örüntü ya da bilgi soruları gibi.
 - Süre sınırı yok, can yok. Kesin format birlikte belirlenecek.
+
+### Act 10: RETURN_CONTROL, final act 🛠 (plan, 2026-10-23)
+
+**Tema:** Saldırgan temizlendi ve sistem doğrulandı. Şimdi erişim **asıl sahibine geri veriliyor**. Oyuncu artık savunan kişi değil, sistemi sahibine teslim eden ve ona sistemi güvende tutmayı öğreten kişi.
+
+**Kesin olanlar:**
+- **Final act** budur. `CAMPAIGN.finalAct = 10`. Endless Mode bu act bitince açılır (önceden açmış olanlarda açık kalır).
+- **Eğitici içerik ağırlıklı.** Oyuncu oynarken gerçek hayatta işine yarayacak güvenlik alışkanlıklarını öğrenmeli.
+- **Bağımsız statü: HANDOVER.** PERIMETER / INTERNAL / CORE katmanlarının dışında. Haritadaki üst rayda kendi parantezi ve etiketi var, rengi turkuaz (`#2dd4bf`). Arka plan atmosferi sakin: sistem artık temiz.
+- Kodda şimdilik "IN DEVELOPMENT" olarak duruyor (`available: false`): tema ve ikon (açık kilit) hazır, oyun yok.
+- Yetki seviyesi: Act 10 bitince oyuncu **L10 GUARDIAN** olur.
+- **Kapı 9** (Act 9 → 10) Packet Purge ayarı Act 10 ile birlikte belirlenecek.
+
+**Birlikte karar verilecekler (sırası gelince):**
+- Oyunun formatı ve mekaniği. Act 9 zaten bilgi ve mantık sınavı olduğu için Act 10'un ondan farkı net olmalı: Act 9 **sınar**, Act 10 **öğretir**.
+- Öğretilecek konular. Örnek fikirler: güçlü parola ve parola yöneticisi, iki aşamalı doğrulama, oltalama (phishing) e-postasını tanıma, güncellemeler, yedekleme, şüpheli bağlantı ve dosyalar.
+- Süre ve can olup olmayacağı. Aşama sayısı (3–5).
+- Yıldız kuralları (UI-5'teki gibi bot taramasıyla ya da eğitici içeriğe uygun başka bir ölçüyle).
+- Sonsuz moda nasıl uyacağı (bölüm 8b).
 
 ## 4. İlerleme kuralları
 
@@ -327,7 +350,8 @@ Her fazın kabul şartları:
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
 | 5 | Act 6 ve Kapı 5 | Bekliyor |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
-| 8 | Act 9 (bilgi ve zihin oyunu), Kapı 8 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
+| 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
+| 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
 
 ## 7b. Duraklatma ve geri gitme (2026-10-21)
 
@@ -358,7 +382,13 @@ Oyun şu an **yatay** bir canvas'ta çalışıyor (960×640, 3:2). Telefon dik t
 Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:** hedef, kampanyadaki **bütün oyunları destekleyen** bir sonsuz mod. Detaylar daha sonra ayrıca planlanacak.
 
 Şimdilik kesin olan:
-- Endless'ın açılma koşulu (Act 6) ve leaderboard sistemi (isim + şifre) aynı kalıyor.
+- Endless son act bitince açılır (şu an Act 10). Leaderboard sistemi (isim + şifre) aynı kalıyor.
+- **HUB'da Endless düğümü (2026-10-23):** Üst rayın en sonunda, Act 10'dan sonra kendi düğümü var. Numarası yok, altında "ENDLESS" yazıyor. Tasarımı: dönen kesikli altın halka, içinde altından maviye renk geçişli ∞ işareti ve ∞ üzerinde dolaşan bir ışık. Kilitliyken gri ve küçük bir kilit simgesi var. Act 10'dan ona noktalı altın bir çizgi gidiyor. Kilitliyken dokununca nasıl açılacağı yazıyor.
+- **Endless sadece son act'i bitirenlere (2026-10-23):** Endless Mode ve leaderboard HUB'da başka hiçbir yerde görünmüyor, sadece raydaki Endless halkası var. Kartların altındaki ENDLESS MODE ve LEADERBOARD butonları kaldırıldı. Daha önce Endless'ı açmış oyuncular için açık kalıyor.
+  - Kilidi açanlar için carousel'in sonunda bir **Endless kartı** var. Halkaya dokununca carousel bu karta kayıyor.
+  - Bu oyuncular siteyi açınca HUB **Endless kartında** açılıyor. Bir act'e girip dönünce o act'te, Endless'tan dönünce yine Endless'ta açılıyor.
+  - Kart **Endless lobisini** açıyor (`ENDLESS_HUB`): büyük ∞ amblemi, en iyi skor, **START RUN** ve **LEADERBOARD**. Leaderboard artık Endless'ın içinde. Koşu bitince ya da leaderboard'dan geri dönünce yine lobiye gelinir.
+  - Lobi, çok oyunlu yeni sonsuz mod için hazırlandı: oyun seçimi ileride buraya gelecek.
 - Yeni oyunlar tasarlanırken sonsuz bir modda da çalışabilecekleri göz önünde tutulmalı. Yani zorluğun sürekli artırılabilir olması ve skor üretebilmeleri gerekiyor.
 
 ## 9. Kararlar
