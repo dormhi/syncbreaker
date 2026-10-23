@@ -256,9 +256,13 @@ class GameManager {
             update: (dt) => {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
                 if (this._wheelCooldown > 0) this._wheelCooldown -= dt;
-                // Ease the carousel toward the focused act.
-                this._mapScroll += (this._mapIndex - this._mapScroll) * Math.min(1, dt * 10);
-                if (Math.abs(this._mapIndex - this._mapScroll) < 0.001) this._mapScroll = this._mapIndex;
+                // Ease the carousel toward the focused act (the finger leads while dragging).
+                if (!this._mapDrag) {
+                    this._mapScroll += (this._mapIndex - this._mapScroll) * Math.min(1, dt * 10);
+                    if (Math.abs(this._mapIndex - this._mapScroll) < 0.001) this._mapScroll = this._mapIndex;
+                }
+                // Background parallax follows the carousel.
+                this._bgShift = -this._mapScroll * 30;
                 // Catch-up: a finished campaign shows the celebration once.
                 if (this.progress.isCampaignComplete() && !this.progress.congratsSeen) {
                     this.progress.markCongratsSeen();
@@ -292,7 +296,10 @@ class GameManager {
                 this._renderHubMessage(ctx, W, H);
                 this.tipBar.render(ctx, W / 2, H - 20, this._inputMode(), 560);
             },
-            exit: () => this.ui.clearButtons(),
+            exit: () => {
+                this.ui.clearButtons();
+                this._mapDrag = null;
+            },
             onKey: (e) => {
                 if (e.code === 'Escape') this.state.change(S.MENU);
                 if (e.code === 'KeyH') this._openGuide();
@@ -1263,7 +1270,7 @@ class GameManager {
             W, cx: W / 2, cy: 300,
             cardW: 360, cardH: 230,
             spacing: 410, sideScale: 0.78,
-            railY: 92, railStep: 64,
+            railY: 100, railStep: 64,
             chevronW: 44, chevronH: 70,
             endlessY: 470
         };
@@ -1291,6 +1298,55 @@ class GameManager {
         this.ui.clearButtons();
         this._buildActMapButtons();
         return true;
+    }
+
+    // ── Carousel drag (touch) ──
+
+    /** Claim a touch that starts on the card band of the HUB as a drag. */
+    _mapDragStart(x, y, now = performance.now()) {
+        if (this.state.currentState !== this.state.STATES.HUB || this.state.transitioning) return false;
+        const L = this._actMapLayout();
+        if (Math.abs(y - L.cy) > L.cardH / 2) return false;
+        this._mapDrag = { x0: x, y0: y, scroll0: this._mapScroll, lastX: x, lastT: now, v: 0 };
+        return true;
+    }
+
+    /** The carousel follows the finger, with a soft stop past the ends. */
+    _mapDragMove(x, now = performance.now()) {
+        const d = this._mapDrag;
+        if (!d) return;
+        const L = this._actMapLayout();
+        const last = this.progress.acts.length - 1;
+        let s = d.scroll0 - (x - d.x0) / L.spacing;
+        if (s < 0) s *= 0.35;
+        if (s > last) s = last + (s - last) * 0.35;
+        this._mapScroll = s;
+        const dt = (now - d.lastT) / 1000;
+        if (dt > 0) {
+            // Velocity in cards per second, smoothed over the last moves.
+            const inst = -(x - d.lastX) / L.spacing / dt;
+            d.v = d.v * 0.6 + inst * 0.4;
+            d.lastX = x;
+            d.lastT = now;
+        }
+    }
+
+    /** Release: a tap opens what is under the finger, a drag snaps (a flick moves on). */
+    _mapDragEnd(tap, now = performance.now()) {
+        const d = this._mapDrag;
+        if (!d) return;
+        this._mapDrag = null;
+        if (tap) {
+            this._mapScroll = d.scroll0;
+            this._hitTestUI(d.x0, d.y0, 'touch');
+            return;
+        }
+        // A finger that stopped before lifting carries no flick.
+        const v = now - d.lastT > 120 ? 0 : d.v;
+        const s = this._mapScroll;
+        const target = Math.abs(v) > 1.2 ? Math.round(s + Math.sign(v) * 0.5) : Math.round(s);
+        const last = this.progress.acts.length - 1;
+        this._mapGo(Math.max(0, Math.min(last, target)));
     }
 
     /** Open the focused act (or explain why it is closed). */
@@ -1353,16 +1409,16 @@ class GameManager {
                 () => this._mapGo(this._mapIndex + 1), { hidden: true });
         }
 
-        // Gates on either side of the focused act (44 px tap targets).
+        // Gates on either side of the focused act (48 x 72 tap targets).
         [i, i + 1].forEach(n => {
             if (n < 1 || n > acts.length - 1) return;
-            this.ui.addButton(`gate${n}`, '', this._mapX(n - 0.5, i), L.cy, 44, 44,
+            this.ui.addButton(`gate${n}`, '', this._mapX(n - 0.5, i), L.cy, 48, 72,
                 () => this._tryStartGate(n), { hidden: true });
         });
 
         // Progress rail: one node per act, tap to jump there.
         acts.forEach((a, k) => {
-            this.ui.addButton(`rail${a.id}`, '', this._mapRailX(k), L.railY, 32, 32,
+            this.ui.addButton(`rail${a.id}`, '', this._mapRailX(k), L.railY, 48, 48,
                 () => this._mapGo(k),
                 { draw: (ctx, btn, hovered) => this._drawRailNode(ctx, btn, hovered, a, k) });
         });
@@ -1425,91 +1481,194 @@ class GameManager {
 
     /** Big act card centred on (0, 0) of the current transform. */
     _drawActCard(ctx, act, status, highlighted) {
-        const theme = getLevelTheme(act.themeId);
         const L = this._actMapLayout();
-        const w = L.cardW, h = L.cardH;
-        const left = -w / 2, top = -h / 2;
+        const w = L.cardW;
+        const h = L.cardH;
+        const left = -w / 2;
+        const top = -h / 2;
+        const theme = getLevelTheme(act.themeId);
+        const color = status === 'complete' ? UITheme.color.ok
+            : (status === 'locked' || status === 'dev') ? UITheme.color.locked
+            : theme.zoneColor;
         const dim = status === 'locked' || status === 'dev';
-        const color = status === 'complete' ? '#22c55e' : dim ? '#475569' : theme.zoneColor;
         const game = GameRegistry.get(act.game);
+        const time = this.bgTime || 0;
+        const layer = UITheme.layerOf(act.id);
+        const stage = { x: left + 10, y: top + 10, w: w - 20, h: 96 };
+        const cx = stage.x + stage.w / 2;
+        const cy = stage.y + stage.h / 2;
+        const seed = Math.floor(time * 6) * 7 + act.id * 13;
+        const hash = k => Math.abs((Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453) % 1);
 
         ctx.save();
-        ctx.fillStyle = highlighted ? 'rgba(30,41,59,0.97)' : 'rgba(15,23,42,0.94)';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = highlighted ? 2.2 : 1.4;
-        if (status === 'dev') ctx.setLineDash([8, 7]);
-        if (!dim) { ctx.shadowColor = color; ctx.shadowBlur = highlighted ? 22 : 10; }
-        Utils.roundRect(ctx, left, top, w, h, 14);
-        ctx.fill();
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.shadowBlur = 0;
+        UITheme.panel(ctx, left, top, w, h, {
+            chamfer: 16,
+            stroke: color,
+            lineWidth: highlighted ? 2.2 : 1.4,
+            fill: highlighted ? UITheme.color.panelHi : UITheme.color.panel,
+            glow: dim ? null : color,
+            dashed: status === 'dev'
+        });
+        if (dim) ctx.globalAlpha = 0.75;
 
-        // Icon badge
-        const ix = left + 46, iy = top + 48;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(ix, iy, 26, 0, Math.PI * 2); ctx.stroke();
-        ctx.save();
-        ctx.translate(ix, iy);
-        LevelIcons.draw(ctx, act.themeId, 30, color);
-        ctx.restore();
-
+        // Stage area
         ctx.save();
         ctx.beginPath();
-        ctx.rect(left + 6, top + 4, w - 12, h - 8);
+        ctx.rect(stage.x, stage.y, stage.w, stage.h);
         ctx.clip();
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.08;
+        ctx.fillRect(stage.x, stage.y, stage.w, stage.h);
+        ctx.globalAlpha = dim ? 0.08 : 0.18;
+        if (theme.bgType === 'scanlines') {
+            const off = (time * 20) % 6;
+            for (let y = stage.y - off; y < stage.y + stage.h; y += 6) {
+                ctx.fillRect(stage.x, y, stage.w, 1);
+            }
+        } else {
+            // Falling symbol columns, each row wrapping inside the stage area
+            const cols = 8;
+            const symbols = theme.particleSymbols;
+            const step = stage.w / cols;
+            const span = stage.h + 16;
+            const rows = Math.ceil(span / 16);
+            ctx.font = '600 12px monospace';
+            ctx.textAlign = 'center';
+            for (let col = 0; col < cols; col++) {
+                const fall = (14 + col * 3) * time;
+                const x = stage.x + col * step + step / 2;
+                for (let row = 0; row < rows; row++) {
+                    const y = stage.y + ((row * 16 + fall) % span);
+                    ctx.fillText(symbols[(col + row) % symbols.length], x, y);
+                }
+            }
+        }
+        ctx.globalAlpha = dim ? 0.75 : 1;
+
+        // Icon (acts in development show SIGNAL LOST instead) + stage headers
+        if (status !== 'dev') {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.save();
+            ctx.translate(cx, cy);
+            LevelIcons.draw(ctx, act.themeId, 34, color);
+            ctx.restore();
+        }
+
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = color;
-        ctx.font = '700 14px Orbitron';
-        ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, left + 86, top + 38);
-        ctx.fillStyle = dim ? '#64748b' : '#e2e8f0';
-        ctx.font = '700 21px Orbitron';
-        ctx.fillText(this.ui._fitText(act.key, w - 100), left + 86, top + 66);
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, stage.x + 10, stage.y + 20);
 
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '400 16px Rajdhani';
-        this._wrapText(ctx, act.story, w - 48, 2)
-            .forEach((line, k) => ctx.fillText(line, left + 24, top + 108 + k * 19));
-
-        // Stage pips + status
-        const py = top + 168;
-        if (status === 'dev') {
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '700 16px Rajdhani';
-            ctx.fillText('⚙ IN DEVELOPMENT', left + 24, py + 5);
-        } else {
-            const n = act.stages.length;
-            const done = this.progress.stagesDone(act.id);
-            for (let k = 0; k < n; k++) {
-                ctx.beginPath();
-                ctx.arc(left + 32 + k * 24, py, 7, 0, Math.PI * 2);
-                ctx.fillStyle = k < done ? color : 'rgba(71,85,105,0.45)';
-                ctx.fill();
-            }
-            const label = status === 'complete' ? 'COMPLETE'
-                : status === 'locked' ? 'LOCKED' : `${done}/${n} STAGES`;
-            ctx.textAlign = 'right';
-            ctx.fillStyle = status === 'complete' ? '#22c55e' : status === 'locked' ? '#94a3b8' : '#3b82f6';
-            ctx.font = '700 16px Rajdhani';
-            ctx.fillText(label, left + w - 24, py + 5);
-        }
-
-        // Footer: best score + open hint
-        const fy = top + h - 22;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = layer.color;
+        ctx.globalAlpha = 0.8;
+        ctx.font = UITheme.font('label', 700);
+        ctx.fillText(layer.key, stage.x + stage.w - 10, stage.y + 20);
+        ctx.globalAlpha = dim ? 0.75 : 1;
         ctx.textAlign = 'left';
-        ctx.fillStyle = '#475569';
-        ctx.font = '600 14px Rajdhani';
-        const best = this._actBest(act);
-        if (best > 0) ctx.fillText(`BEST ${best}`, left + 24, fy);
-        if (status === 'active' || status === 'complete') {
-            ctx.textAlign = 'right';
-            ctx.fillStyle = highlighted ? color : '#64748b';
-            ctx.font = '700 14px Orbitron';
-            ctx.fillText('OPEN ▸', left + w - 24, fy);
+
+        // Status overlay on stage
+        if (status === 'complete') {
+            // 'SECURED' stamp to the right of the icon
+            ctx.save();
+            ctx.translate(cx + 102, cy);
+            ctx.rotate(-0.12);
+            ctx.strokeStyle = UITheme.color.ok;
+            ctx.globalAlpha = 0.85;
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(-60, -16, 120, 32);
+            ctx.fillStyle = UITheme.color.ok;
+            ctx.font = '900 16px Orbitron';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('SECURED', 0, 1);
+            ctx.restore();
+        } else if (status === 'locked' || status === 'dev') {
+            ctx.strokeStyle = UITheme.color.textMute;
+            ctx.globalAlpha = 0.3;
+            ctx.lineWidth = 1;
+            for (let k = 0; k < 6; k++) {
+                const y = stage.y + 14 + hash(k) * 68;
+                const lineW = 30 + hash(k + 7) * 60;
+                ctx.beginPath();
+                ctx.moveTo(cx - lineW / 2, y);
+                ctx.lineTo(cx + lineW / 2, y);
+                ctx.stroke();
+            }
+            if (status === 'locked') {
+                ctx.globalAlpha = dim ? 0.75 : 1;
+                this.ui._drawLockGlyph(ctx, cx - 11, cy - 6, 22, UITheme.color.textDim);
+            } else {
+                ctx.save();
+                ctx.globalAlpha = 0.55 + 0.35 * Math.sin(time * 4);
+                ctx.fillStyle = UITheme.color.textDim;
+                ctx.font = UITheme.font('title', 700, 'Orbitron');
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('SIGNAL LOST', cx, cy);
+                ctx.restore();
+            }
         }
         ctx.restore();
+
+        // Act key + story
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = dim ? UITheme.color.textMute : UITheme.color.text;
+        ctx.font = '700 21px Orbitron';
+        ctx.fillText(this.ui._fitText(act.key, w - 44), left + 22, top + 136);
+
+        ctx.fillStyle = UITheme.color.textDim;
+        ctx.font = UITheme.font('body', 500);
+        ctx.fillText(this.ui._fitText(act.story, w - 44), left + 22, top + 160);
+
+        // Tier row / dev tag
+        if (status === 'dev') {
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = UITheme.color.textDim;
+            ctx.font = UITheme.font('label', 700);
+            ctx.fillText('⚙ IN DEVELOPMENT', left + 22, top + 192);
+        } else {
+            const done = this.progress.stagesDone(act.id);
+            const n = act.stages.length;
+            for (let k = 0; k < n; k++) {
+                UITheme.tierBadge(ctx, left + 22 + 17 + k * 40, top + 192, act.stages[k].tier, 22, { dim: k >= done });
+            }
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.font = UITheme.font('label', 700);
+            if (status === 'complete') {
+                ctx.fillStyle = UITheme.color.ok;
+                ctx.fillText('COMPLETE', left + w - 22, top + 192);
+            } else if (status === 'locked') {
+                ctx.fillStyle = UITheme.color.textDim;
+                ctx.fillText('LOCKED', left + w - 22, top + 192);
+            } else {
+                ctx.fillStyle = theme.zoneColor;
+                ctx.fillText(`${done}/${n} STAGES`, left + w - 22, top + 192);
+            }
+        }
+
+        // Footer
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+        if (this._actBest(act) > 0) {
+            ctx.fillStyle = UITheme.color.locked;
+            ctx.font = UITheme.font('label', 600);
+            ctx.fillText(`BEST ${this._actBest(act)}`, left + 22, top + h - 14);
+        }
+        ctx.textAlign = 'right';
+        if (status === 'active' || status === 'complete') {
+            ctx.fillStyle = highlighted ? color : UITheme.color.textMute;
+            ctx.font = '700 14px Orbitron';
+            ctx.fillText('OPEN ▸', left + w - 22, top + h - 14);
+        }
+
         ctx.restore();
     }
 
@@ -1539,7 +1698,7 @@ class GameManager {
         const theme = getLevelTheme(act.themeId);
         const focused = k === this._mapIndex;
         const color = status === 'complete' ? '#22c55e' : status === 'active' ? theme.zoneColor : '#475569';
-        const r = focused ? 10 : 8;
+        const r = focused ? 13 : 11;
         ctx.save();
         if (status === 'complete') {
             ctx.fillStyle = color;
@@ -1569,7 +1728,7 @@ class GameManager {
         ctx.font = '600 14px Rajdhani';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(act.id), btn.x, btn.y + 22);
+        ctx.fillText(String(act.id), btn.x, btn.y + 27);
         ctx.restore();
     }
 
@@ -1592,6 +1751,29 @@ class GameManager {
             lines.push(line);
         }
         return lines;
+    }
+
+    /** Firewall segments across the card band at gate n (open, breachable or locked). */
+    _drawGateWall(ctx, x, cy, n) {
+        const open = this.progress.isGateOpen(n);
+        const playable = this.progress.isGatePlayable(n);
+        const layerGate = UITheme.layerOf(n).key !== UITheme.layerOf(n + 1).key;
+        const color = open ? UITheme.color.ok : playable ? UITheme.color.warn : UITheme.color.locked;
+        const reach = layerGate ? 118 : 96;
+        const pulse = playable ? 0.5 + 0.5 * Math.sin((this.bgTime || 0) * 3) : 0;
+        ctx.save();
+        ctx.fillStyle = color;
+        // Open walls fade to a faint dotted line: the way is clear.
+        ctx.globalAlpha = open ? 0.3 : 0.45 + 0.4 * pulse;
+        const offsets = layerGate ? [-5, 5] : [0];
+        for (let y = cy - reach; y <= cy + reach - 8; y += 14) {
+            if (Math.abs(y + 4 - cy) < 30) continue;   // room for the gate node
+            for (const o of offsets) {
+                if (open) ctx.fillRect(x + o - 1, y + 2, 2, 4);
+                else ctx.fillRect(x + o - 2, y, 4, 8);
+            }
+        }
+        ctx.restore();
     }
 
     _drawGateNode(ctx, btn, hovered, n) {
@@ -1661,10 +1843,12 @@ class GameManager {
             ctx.restore();
         }
 
-        // Gates between neighbouring acts, moving with the track.
+        // Gates between neighbouring acts, moving with the track: a firewall
+        // across the band (double between network layers) with the gate node on it.
         for (let n = 1; n < acts.length; n++) {
             const x = this._mapX(n - 0.5, scroll);
             if (x < -30 || x > L.W + 30) continue;
+            this._drawGateWall(ctx, x, L.cy, n);
             const btn = this.ui.buttons.find(b => b.id === `gate${n}`);
             this._drawGateNode(ctx, { x, y: L.cy, w: 44, h: 44 }, !!btn && this.ui.isHovered(btn), n);
         }
@@ -1683,8 +1867,28 @@ class GameManager {
             const x1 = this._mapRailX(k), x2 = this._mapRailX(k + 1);
             ctx.strokeStyle = this.progress.isGateOpen(k + 1) ? 'rgba(34,197,94,0.7)' : 'rgba(71,85,105,0.5)';
             ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(x1 + 11, L.railY); ctx.lineTo(x2 - 11, L.railY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x1 + 14, L.railY); ctx.lineTo(x2 - 14, L.railY); ctx.stroke();
         }
+
+        // Network layers above the rail: a bracket and a name per group of acts.
+        ctx.font = UITheme.font('label', 700);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        for (const layer of UITheme.layers) {
+            const ks = layer.acts.map(id => id - 1).filter(k => k < n);
+            if (!ks.length) continue;
+            const x1 = this._mapRailX(ks[0]) - 14, x2 = this._mapRailX(ks[ks.length - 1]) + 14;
+            ctx.globalAlpha = 0.75;
+            ctx.strokeStyle = layer.color;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x1, L.railY - 20); ctx.lineTo(x1, L.railY - 25);
+            ctx.lineTo(x2, L.railY - 25); ctx.lineTo(x2, L.railY - 20);
+            ctx.stroke();
+            ctx.fillStyle = layer.color;
+            ctx.fillText(layer.key, (x1 + x2) / 2, L.railY - 31);
+        }
+        ctx.globalAlpha = 1;
 
         // Stages of acts still in development are unknown, so count cleared
         // stages instead of showing a misleading "x/x".
@@ -2805,7 +3009,10 @@ class GameManager {
             onMouseDown: (x, y) => this._handleMouseDown(x, y),
             onPointerUp: () => this._releaseHold('pointer'),
             onBlur: () => this._releaseHold('all'),
-            onWheel: (delta) => this._handleWheel(delta)
+            onWheel: (delta) => this._handleWheel(delta),
+            onDragStart: (x, y) => this._mapDragStart(x, y),
+            onDragMove: (x) => this._mapDragMove(x),
+            onDragEnd: (x, y, tap) => this._mapDragEnd(tap)
         });
     }
 
@@ -3002,12 +3209,16 @@ class GameManager {
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
+        // Parallax: layers further back move less (set by the HUB carousel).
+        const shift = this._bgShift || 0;
+        const wrap = (x) => ((x % W) + W) % W;
+
         // 2. Grid — CG: Coordinate system visualization
         ctx.save();
         ctx.strokeStyle = 'rgba(30, 41, 59, 0.2)';
         ctx.lineWidth = 0.5;
         const gridSize = 60;
-        for (let x = 0; x <= W; x += gridSize) {
+        for (let x = ((shift % gridSize) + gridSize) % gridSize; x <= W; x += gridSize) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, H);
@@ -3027,7 +3238,7 @@ class GameManager {
             ctx.globalAlpha = d.alpha;
             ctx.fillStyle = '#3b82f6';
             ctx.font = d.size + 'px monospace';
-            ctx.fillText(d.char, d.x, d.y);
+            ctx.fillText(d.char, wrap(d.x + shift * 0.6), d.y);
         }
         ctx.restore();
 
@@ -3037,7 +3248,7 @@ class GameManager {
             ctx.globalAlpha = p.alpha;
             ctx.fillStyle = '#e2e8f0';
             ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.arc(wrap(p.x + shift * 0.3), p.y, p.size, 0, Math.PI * 2);
             ctx.fill();
         }
         ctx.restore();

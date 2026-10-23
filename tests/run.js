@@ -2413,6 +2413,85 @@ suite('Act screen ladder + unlock effect', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('HUB carousel drag + game cards', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    // Open a few acts so the carousel has room on both sides.
+    for (const [a, k] of [[1, 4], [2, 3], [3, 4]]) {
+        for (let i = 0; i < k; i++) gm.progress.completeStage(a, i, 100);
+        gm.progress.openGate(a);
+    }
+    settle(gm, S.HUB);
+    const H = gm.state._handlers[S.HUB];
+    gm._actView = null;
+    H.enter();
+    const L = gm._actMapLayout();
+    const start = gm._mapIndex;
+    ok('HUB starts on the current act', start === 3);
+
+    ok('drag starts on the card band', gm._mapDragStart(480, L.cy, 0) === true);
+    gm._mapDragEnd(true, 10);
+    ok('a tap on the band opens the focused act', gm.state.pendingState === S.ACT && gm.state.pendingContext.actId === 4);
+    settle(gm, S.HUB);
+    H.enter();
+    ok('no drag above or below the band', gm._mapDragStart(480, 60, 0) === false && gm._mapDragStart(480, L.cy + L.cardH / 2 + 10, 0) === false);
+
+    // Slow drag a bit more than half a card to the left: snaps to the next act.
+    gm._mapDragStart(700, L.cy, 0);
+    for (let k = 1; k <= 30; k++) gm._mapDragMove(700 - k * 8, k * 50);
+    ok('the carousel follows the finger', Math.abs(gm._mapScroll - (start + 240 / L.spacing)) < 1e-9);
+    H.update(1 / 60);
+    ok('no easing while dragging', Math.abs(gm._mapScroll - (start + 240 / L.spacing)) < 1e-9);
+    gm._mapDragEnd(false, 30 * 50 + 300);
+    ok('slow drag past half snaps to the next act', gm._mapIndex === start + 1);
+
+    // Short quick flick to the right: moves back one act.
+    const at = gm._mapIndex;
+    gm._mapDragStart(400, L.cy, 0);
+    for (let k = 1; k <= 4; k++) gm._mapDragMove(400 + k * 15, k * 16);
+    gm._mapDragEnd(false, 70);
+    ok('a quick flick moves one act', gm._mapIndex === at - 1);
+
+    // A short slow drag snaps back (once the carousel has settled).
+    for (let k = 0; k < 120; k++) H.update(1 / 60);
+    const back = gm._mapIndex;
+    gm._mapDragStart(400, L.cy, 0);
+    for (let k = 1; k <= 10; k++) gm._mapDragMove(400 - k * 6, k * 60);
+    gm._mapDragEnd(false, 900);
+    ok('a short drag snaps back', gm._mapIndex === back);
+
+    // Past the ends the carousel resists and never leaves the range.
+    gm._mapGo(0);
+    gm._mapScroll = 0;
+    gm._mapDragStart(300, L.cy, 0);
+    gm._mapDragMove(700, 500);
+    ok('rubber band at the first act', gm._mapScroll < 0 && gm._mapScroll > -400 / L.spacing);
+    gm._mapDragEnd(false, 1200);
+    ok('snaps back to the first act', gm._mapIndex === 0);
+
+    // Background parallax follows the carousel; leaving the HUB drops a drag.
+    for (let k = 0; k < 120; k++) H.update(1 / 60);
+    ok('parallax tracks the carousel', gm._bgShift === -gm._mapScroll * 30);
+    gm._mapDragStart(480, L.cy, 0);
+    H.exit();
+    ok('leaving the HUB drops the drag', gm._mapDrag === null);
+
+    // Every act status renders (complete, active, locked, dev) without errors.
+    settle(gm, S.HUB);
+    H.enter();
+    let threw = null;
+    try {
+        for (let k = 0; k < 9; k++) { gm._mapGo(k); gm._mapScroll = k; H.render(ctx, 0); }
+    } catch (e) { threw = e.message; }
+    ok('all act cards render', threw === null, threw);
+    ok('rail nodes are 48 px', btn('rail1').w === 48 && btn('rail1').h === 48);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

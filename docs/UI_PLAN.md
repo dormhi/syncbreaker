@@ -144,7 +144,7 @@ Yeni bir `js/UITheme.js` dosyası (global nesne) bütün ekranların ortak değe
 |---|---|---|
 | **UI-1 Temel** ✅ 2026-10-22 | Keskin görüntü (DPR), `UITheme.js`, ortak parçalar (panel, buton, rozet), en küçük yazı ve dokunma boyutları | Bütün ekranlar telefonda okunur ve keskin. Testler geçiyor. |
 | **UI-2 Act ekranı** ✅ 2026-10-23 | Yükselen merdiven ve dolan hat (taslak A), kademe rozetleri, yeni aşama açılma animasyonu. Başlık aynı kalıyor. | 3, 4 ve 5 aşamalı act'ler 960×640'ta ve 844×390'da düzgün sığıyor. |
-| **UI-3 HUB carousel** | Oyun kartları, kapı duvarları, büyük ray düğümleri, sürükleyerek kaydırma, paralaks | Geri tuşu, Esc, oklar ve tekerlek eskisi gibi çalışıyor. Sürükleme telefonda akıcı. |
+| **UI-3 HUB carousel** ✅ 2026-10-23 | Oyun kartları, kapı duvarları, büyük ray düğümleri, sürükleyerek kaydırma, paralaks | Geri tuşu, Esc, oklar ve tekerlek eskisi gibi çalışıyor. Sürükleme telefonda akıcı. |
 | **UI-4 Kademe atmosferi** | Katman arka planları, yan boşlukların doldurulması, yetki seviyesi rozeti ve yükselme anı, sistem bütünlüğü göstergesi, giriş menüsünün bütünlüğe göre yenilenmesi | Kayıttan doğru hesaplanıyor ve testleri var. |
 | **UI-5 Yıldızlar** | Mekanik başına performans oranı, 1–3 yıldız eşikleri, sonuç ekranında ve kartlarda yıldızlar | Eşikler bot taramasıyla doğrulanmış. |
 | **UI-6 Cila** | Ekran geçişleri, damga animasyonları, sesler, hareketi azaltma desteği | Telefonda 60 fps'e yakın çalışıyor. |

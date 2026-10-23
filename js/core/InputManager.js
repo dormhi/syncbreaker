@@ -94,8 +94,17 @@ class InputManager {
                 startX: e.clientX,
                 startY: e.clientY,
                 id: e.pointerId,
-                ui: false
+                ui: false,
+                drag: false
             };
+
+            // The host may claim this touch as a drag (e.g. the HUB carousel).
+            // Then UI taps are resolved on release, if the finger barely moved.
+            if (H.onDragStart && H.onDragStart(x, y)) {
+                this._touch.drag = true;
+                e.preventDefault();
+                return;
+            }
 
             if (H.hitTestUI(x, y, 'touch')) {
                 this._touch.ui = true;
@@ -117,6 +126,13 @@ class InputManager {
             window.addEventListener('blur', () => { if (H.onBlur) H.onBlur(); });
         }
 
+        canvas.addEventListener('pointermove', (e) => {
+            const t = this._touch;
+            if (!t || !t.drag || t.id !== e.pointerId || !H.onDragMove) return;
+            const { x, y } = this._coords(e.clientX, e.clientY);
+            H.onDragMove(x, y);
+        });
+
         canvas.addEventListener('pointerup', (e) => {
             if (e.pointerType !== 'mouse' && H.onPointerUp) H.onPointerUp();
             if (e.pointerType === 'mouse' || !this._touch || this._touch.id !== e.pointerId) return;
@@ -127,6 +143,13 @@ class InputManager {
 
             const dx = e.clientX - t.startX;
             const dy = e.clientY - t.startY;
+            if (t.drag) {
+                // Under ~10 CSS px of travel the drag was really a tap.
+                e.preventDefault();
+                const { x, y } = this._coords(e.clientX, e.clientY);
+                H.onDragEnd(x, y, Math.abs(dx) < 10 && Math.abs(dy) < 10);
+                return;
+            }
             const threshold = 30;
             if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
 
@@ -138,6 +161,7 @@ class InputManager {
         }, { passive: false });
 
         canvas.addEventListener('pointercancel', () => {
+            if (this._touch && this._touch.drag && H.onDragEnd) H.onDragEnd(0, 0, false);
             this._touch = null;
             if (H.onPointerUp) H.onPointerUp();
         });
