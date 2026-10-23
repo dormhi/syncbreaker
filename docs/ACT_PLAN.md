@@ -300,6 +300,32 @@ Mevcut oyuncular ilerlemelerini kaybetmemeli. Yeni kayıt anahtarı `sb_campaign
 
 Göç tekrar çalıştırılsa sonuç değişmez. Reset butonu yeni anahtarı da siler.
 
+### 5b. Herkesin ilerlemesi sıfırlanacak (karar 2026-10-23, henüz uygulanmadı)
+
+**Karar:** Bütün oyuncuların geçmişi sıfırlanacak, herkes oyuna sıfırdan başlayacak. Yukarıdaki göç (eski ilerlemenin taşınması) ve "Endless'ı zaten açmış olanlarda açık kalır" kuralı bu sıfırlamayla birlikte geçerliliğini yitirir.
+
+**Önerilen uygulama:** Bir kayıt dönemi (`sb_save_epoch`) eklenir. Oyun açılınca kayıttaki dönem eskiyse ilerleme anahtarları bir kez silinir ve yeni dönem yazılır. Böylece her oyuncu tam bir kez sıfırlanır, sonrasında ilerlemesi normal şekilde birikir.
+
+| Tarayıcıda silinecek (ilerleme) | Tarayıcıda korunacak (tercih) |
+|---|---|
+| `sb_campaign_v1` (act, aşama, yıldız, kapı, Endless kilidi) | `sb_muted` (ses tercihi) |
+| `sb_progress`, `sb_group2_unlocked`, `sb_congrats_seen` (eski kayıt) | `sb_guide_seen` (kılavuz bir kez açıldı mı) |
+| `sb_gate_*`, `sb_packetpurge`, `sb_dualring` (deneme sayaçları) | |
+| `sb_energy` (enerji tam doluyla başlar) | |
+| `sb_endless_best`, `sb_endless_pending_submission` | |
+
+**Zaman (karar 2026-10-23):** Sıfırlama **Act 6 ile birlikte** yayına girer (Faz 5).
+
+**Kapsam (karar 2026-10-23):**
+- **Leaderboard sıfırlanır:** sunucudaki bütün Endless skorları silinir.
+- **Operatör profilleri silinir:** isimler ve şifreler sunucudan silinir. Herkes Endless'ı yeniden açınca yeni bir operatör adı alır. Tarayıcıda sadece anonim Supabase oturumu durur. Profil sunucuda olmadığı için oyun yeni isim ister, tarayıcıda ek temizlik gerekmez.
+- **Bildirim yok:** oyun sessizce baştan başlar.
+
+**Yayın adımları (Act 6 sürümünde):**
+1. İstemci: kayıt dönemi (`sb_save_epoch`) ile ilerleme anahtarlarını bir kez silmek. Testleriyle birlikte.
+2. Sunucu: skorları ve operatör profillerini silen bir SQL dosyası (`supabase/` altında). Önce yerel bir Postgres'te denenir, canlı projede **kullanıcı** çalıştırır.
+3. İkisi aynı anda yayına girer: önce SQL, hemen ardından `v2` push'u.
+
 ## 6. HUB tasarımı
 
 HUB iki ekrandan oluşur:
@@ -348,7 +374,7 @@ Her fazın kabul şartları:
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
-| 5 | Act 6 ve Kapı 5 | Bekliyor |
+| 5 | Act 6 ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | Bekliyor |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
@@ -390,6 +416,12 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
   - Kart **Endless lobisini** açıyor (`ENDLESS_HUB`): büyük ∞ amblemi, en iyi skor, **START RUN** ve **LEADERBOARD**. Leaderboard artık Endless'ın içinde. Koşu bitince ya da leaderboard'dan geri dönünce yine lobiye gelinir.
   - Lobi, çok oyunlu yeni sonsuz mod için hazırlandı: oyun seçimi ileride buraya gelecek.
 - **Endless açanlara özel giriş ekranı (2026-10-23):** Hikaye yazısı yok. Ortada büyük, altın ışıltılı SYNCBREAKER, altında "∞ ENDLESS OPERATOR". Altın çerçeveli kısa bir STATUS REPORT var: bütün düğümler temiz, oyun artık sonsuz, ∞ halkası haritanın sonunda. En iyi Endless skoru da gösteriliyor. Buton: altın renkli "▶ ENTER". Bozulma efekti bu ekranda yok.
+- **Giriş ekranındaki STATUS REPORT ilerlemeye göre (2026-10-23):** Hiç aşama bitirmemiş oyuncu giriş hikayesini okur. İlk aşamadan sonra rapor oyuncunun durumunu anlatır:
+  - Saldırganın bulunduğu katmana göre uyarı: PERIMETER'da `[WARNING]`, INTERNAL ve CORE'da `[ALERT]`, HANDOVER'da `[SECURE]`.
+  - Kaç act bitti ve kaç yıldız toplandı.
+  - Şimdiye kadar güvenceye alınanlar ("malware purged, firewall rebuilt…"; en fazla son dördü).
+  - **NEXT:** sıradaki aşama (oyun adı ve kaç aşama kaldığıyla), girilecek kapı ya da geliştirilen act.
+  - Her act'in rapordaki adı `Campaign.js`'teki `done` alanında.
 - **Tebrik penceresi (kampanya bitince bir kez):** Başlık "CONTROL RETURNED". 10 act'in hikayesi kısaca anlatılıyor ve PERIMETER / INTERNAL / CORE / HANDOVER statülerinin hepsi ✓ olarak gösteriliyor. Altında yetki seviyesi (L10 GUARDIAN), altın bir "ENDLESS MODE UNLOCKED" bandı (∞ halkasına ve içindeki leaderboard'a yönlendiriyor) ve toplam yıldız / en iyi skor var.
 - Yeni oyunlar tasarlanırken sonsuz bir modda da çalışabilecekleri göz önünde tutulmalı. Yani zorluğun sürekli artırılabilir olması ve skor üretebilmeleri gerekiyor.
 
@@ -402,7 +434,7 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 4. Act 2: Stack Overflow, 3 aşama. Zorluk kule yüksekliği ve mikro artan vinç hızıyla belirleniyor.
 5. Kapı 2–5: giderek zorlaşan Packet Purge.
 6. Lockpick sadece revive için ve biraz kolaylaştırıldı.
-7. Endless son act bitince açılır, zaten açmış olanlarda açık kalır. (Son act o zaman 6'ydı, 2026-10-21'den itibaren 9.)
+7. Endless son act bitince açılır, zaten açmış olanlarda açık kalır. (Son act o zaman 6'ydı, 2026-10-21'den itibaren 9, 2026-10-23'ten itibaren 10. "Açık kalır" kuralı planlanan sıfırlamayla sona erer, bkz. 5b.)
 8. Act 3–6 "IN DEVELOPMENT" olarak gösterilir. Mekanikleri birlikte kararlaştırılacak.
 10. **Endless Mode değişecek:** bütün oyunları destekleyen bir sonsuz mod olacak. Henüz planlanmadı, sonra ayrıca planlanacak (bölüm 8b).
 11. **Act 4 (Faz 3):** Signal Lock. Basılı tut / bırak ile frekans ayarlanıyor. Kaybetme koşulu süre sınırı, can yok. 5 aşama: Kolay, Orta, Zor, Çok zor, Uzman. **Revive +20 saniye** veriyor ve oyun aynı yerden devam ediyor. Uzman zor ama oynanabilir olmalı.
@@ -413,3 +445,8 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 15. **Act 5:** Route Trace (2026-10-21). Karoları döndürerek YOU ile ATTACKER düğümlerini bağlamak. Süre oyunu, can yok, revive +20 saniye. İlk planda 4 aşamaydı, oyun testinden sonra 3 aşamaya indi: 4×4, 5×5, 6×6.
 16. **Act haritası** kayan bir kampanya şeridine geçti: üstte ilerleme rayı, ortada büyük kart. Amaç ilerlemeyi görünür kılmak.
 17. **Dik ekran** (2026-10-21): önce "telefonu çevir" ekranı eklendi (oyun duraklar), dik tasarım sonra ayrı bir faz olarak yapılacak (bölüm 8a).
+
+**2026-10-23**
+18. **Kampanya 10 act.** Act 10 RETURN_CONTROL final act: erişim asıl sahibine geri veriliyor, içerik eğitici. Kendi statüsü HANDOVER (bölüm 3). Endless bu act'ten sonra açılıyor.
+19. **Endless sadece halkadan:** Endless ve leaderboard HUB'da sadece raydaki ∞ halkasının arkasında. Kilidi açanlar için HUB Endless kartında açılıyor, ayrıca kendilerine özel bir giriş ekranı var (bölüm 8b).
+20. **Herkesin ilerlemesi sıfırlanacak**, herkes sıfırdan başlayacak. **Act 6 ile birlikte** yayına girer. Leaderboard skorları ve operatör profilleri de silinir, oyunculara bildirim gösterilmez (bölüm 5b).

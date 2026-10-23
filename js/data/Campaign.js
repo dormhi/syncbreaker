@@ -11,13 +11,14 @@
    - Stage `params` are handed to the game as-is.
    - `hint` is the faint in-game controls line shown on an act's FIRST
      stage only, with a desktop and a touch variant.
+   - `done` is how the main menu's status report names a cleared act.
    ========================================= */
 
 const CAMPAIGN = {
     acts: [
         {
             id: 1,
-            key: 'REMOVE_MALWARE',
+            key: 'REMOVE_MALWARE', done: 'malware purged',
             story: 'Purge the infected nodes before the malware spreads',
             game: 'timingbar',
             themeId: 3,
@@ -36,7 +37,7 @@ const CAMPAIGN = {
         },
         {
             id: 2,
-            key: 'REBUILD_FIREWALL',
+            key: 'REBUILD_FIREWALL', done: 'firewall rebuilt',
             story: 'Stack the firewall back up, block by block',
             game: 'stack',
             themeId: 5,
@@ -54,7 +55,7 @@ const CAMPAIGN = {
         },
         {
             id: 3,
-            key: 'CLOSE_PORTS',
+            key: 'CLOSE_PORTS', done: 'ports sealed',
             story: 'Block the attack packets hammering the open ports',
             game: 'orbital',
             themeId: 2,
@@ -78,7 +79,7 @@ const CAMPAIGN = {
         },
         {
             id: 4,
-            key: 'RESET_CREDS',
+            key: 'RESET_CREDS', done: 'credentials reset',
             story: 'Re-sync the compromised credential keys',
             game: 'signal',
             themeId: 4,
@@ -100,7 +101,7 @@ const CAMPAIGN = {
         },
         {
             id: 5,
-            key: 'TRACE_LOGS',
+            key: 'TRACE_LOGS', done: 'attacker traced',
             story: 'Follow the log stream back to the attacker',
             game: 'route',
             themeId: 1,
@@ -119,14 +120,14 @@ const CAMPAIGN = {
                 { tier: 'HARD',      params: { size: 6, traces: 3, timeLimit: 85,  decoyRate: 0.7,  teeRate: 0.25, minPath: 9,  maxPath: 16, lockRate: 0.12 } }
             ]
         },
-        { id: 6, key: 'CUT_ACCESS',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] },
-        { id: 7, key: 'DEFUSE_PAYLOAD', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },
-        { id: 8, key: 'RESTORE_CORE',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
+        { id: 6, key: 'CUT_ACCESS', done: 'access cut',   story: 'Cut the attacker\'s cables and sever the link',      game: null, themeId: 6, available: false, stages: [] },
+        { id: 7, key: 'DEFUSE_PAYLOAD', done: 'payload defused', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },
+        { id: 8, key: 'RESTORE_CORE', done: 'core restored',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
         // Act 9: a test of knowledge and reasoning — no timer, no lives.
-        { id: 9, key: 'FINAL_AUDIT',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] },
+        { id: 9, key: 'FINAL_AUDIT', done: 'audit passed',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] },
         // Final act (HANDOVER status, outside the network layers): give control
         // back to the rightful owner and teach them to keep it. Educational.
-        { id: 10, key: 'RETURN_CONTROL', story: 'Hand the system back to its owner — and teach them to keep it safe', game: null, themeId: 10, available: false, stages: [] }
+        { id: 10, key: 'RETURN_CONTROL', done: 'control returned', story: 'Hand the system back to its owner — and teach them to keep it safe', game: null, themeId: 10, available: false, stages: [] }
     ],
 
     // gates[n - 1] opens act n + 1. Packet Purge tuning; gate 1 = original.

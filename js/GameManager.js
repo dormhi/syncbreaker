@@ -201,28 +201,7 @@ class GameManager {
                 ctx.stroke();
 
                 // Story text
-                const alert = integrity >= 1
-                    ? { text: '[SECURE] System integrity restored. The attacker is locked out.', color: '#22c55e', bold: true }
-                    : integrity >= 0.5
-                        ? { text: '[ALERT] The attacker is falling back toward the core.', color: '#f59e0b', bold: true }
-                        : { text: '[WARNING] Your system is under cyber attack!', color: '#ef4444', bold: true };
-                const lines = [
-                    alert,
-                    { text: '', color: '' },
-                    { text: 'An unknown attacker has infiltrated your network.', color: '#e2e8f0' },
-                    { text: 'Malicious code has been injected into critical system files.', color: '#e2e8f0' },
-                    integrity >= 1
-                        ? { text: 'No attacker activity detected.', color: '#22c55e' }
-                        : { text: 'The attacker is still active and spreading.', color: '#f59e0b' },
-                    { text: '', color: '' },
-                    { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
-                    { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
-                    { text: `${CAMPAIGN.acts.length} acts stand between the attacker and full control of the system.`, color: '#e2e8f0' },
-                    { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#e2e8f0' },
-                    { text: '', color: '' },
-                    { text: '> CAUTION: Energy resources are limited. Each operation costs charges.', color: '#f59e0b' },
-                    { text: '  Do not stop until the system is fully cleansed!', color: '#64748b' },
-                ];
+                const lines = this._menuStatusLines();
 
                 let lineY = panelY + 65;
                 const lineHeight = 22;
@@ -2080,6 +2059,87 @@ class GameManager {
         ctx.font = UITheme.font('label', 600);
         ctx.fillText('Timing Bar for now — more campaign games are coming to Endless', cx, 548);
         ctx.restore();
+    }
+
+    /**
+     * Status report lines for the main menu. A brand-new player reads the
+     * intro story; after the first cleared stage the report follows their
+     * progress: where the attacker is, what is secured and what comes next.
+     */
+    _menuStatusLines() {
+        const P = this.progress;
+        const acts = P.acts;
+        const blank = { text: '', color: '' };
+        const caution = [
+            { text: '> CAUTION: Energy resources are limited. Each operation costs charges.', color: '#f59e0b' },
+            { text: '  Do not stop until the system is fully cleansed!', color: '#64748b' }
+        ];
+        const cleared = acts.reduce((n, a) => n + P.stagesDone(a.id), 0);
+        if (cleared === 0) {
+            return [
+                { text: '[WARNING] Your system is under cyber attack!', color: '#ef4444', bold: true },
+                blank,
+                { text: 'An unknown attacker has infiltrated your network.', color: '#e2e8f0' },
+                { text: 'Malicious code has been injected into critical system files.', color: '#e2e8f0' },
+                { text: 'The attacker is still active and spreading.', color: '#f59e0b' },
+                blank,
+                { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
+                { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
+                { text: `${acts.length} acts stand between the attacker and full control of the system.`, color: '#e2e8f0' },
+                { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#e2e8f0' },
+                blank
+            ].concat(caution);
+        }
+
+        const cur = P.act(P.currentActId());
+        const layer = UITheme.layerOf(cur.id).key;
+        const alert = {
+            PERIMETER: { text: '[WARNING] The attacker is still inside the PERIMETER.', color: '#ef4444' },
+            INTERNAL: { text: '[ALERT] Perimeter secured. The attacker fell back into the INTERNAL network.', color: '#f59e0b' },
+            CORE: { text: '[ALERT] The attacker is cornered in the CORE.', color: '#f59e0b' },
+            HANDOVER: { text: '[SECURE] The system is clean. Time to hand it back to its owner.', color: '#22c55e' }
+        }[layer];
+
+        // Secured so far: the most recent cleared acts (older ones elided).
+        const done = acts.filter(a => P.isActComplete(a.id)).map(a => a.done);
+        const shown = done.length > 4 ? ['…'].concat(done.slice(-4)) : done;
+        const secured = done.length
+            ? { text: `Secured so far: ${shown.join(', ')}.`, color: '#e2e8f0' }
+            : { text: `First stages cleared in ACT ${cur.id} — keep going.`, color: '#e2e8f0' };
+        const attacker = layer === 'HANDOVER'
+            ? { text: 'No attacker activity detected.', color: '#22c55e' }
+            : { text: `The attacker is still active in the ${layer} layer.`, color: '#f59e0b' };
+
+        const stars = acts.reduce((t, a) => {
+            const s = P.actStars(a.id);
+            return { got: t.got + s.got, max: t.max + s.max };
+        }, { got: 0, max: 0 });
+
+        // What to do next
+        let next;
+        const n = cur.stages.length, got = P.stagesDone(cur.id);
+        const game = GameRegistry.get(cur.game);
+        if (!P.isActComplete(cur.id)) {
+            next = `ACT ${cur.id} · ${cur.key}${game ? ' (' + game.title + ')' : ''} — ${got}/${n} stages cleared`;
+        } else if (P.isGatePlayable(cur.id)) {
+            next = `Breach GATE ${cur.id} to reach ACT ${cur.id + 1}.`;
+        } else if (cur.id < acts.length && !P.isActAvailable(cur.id + 1)) {
+            next = `ACT ${cur.id + 1} · ${P.act(cur.id + 1).key} is still in development — stay tuned.`;
+        } else {
+            next = 'Clear every stage of an act, then breach the gate to the next one.';
+        }
+        return [
+            Object.assign({ bold: true }, alert),
+            blank,
+            { text: `${P.clearanceLevel()} of ${acts.length} acts cleared · ★ ${stars.got}/${stars.max} stars earned.`, color: '#e2e8f0' },
+            secured,
+            attacker,
+            blank,
+            { text: '> NEXT:', color: '#3b82f6', bold: true },
+            { text: next, color: '#e2e8f0' },
+            { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#94a3b8' },
+            blank
+        ].concat(caution);
     }
 
     /** Menu footer (version, credits) and the "press back again" warning. */

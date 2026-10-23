@@ -2901,6 +2901,38 @@ suite('Endless welcome menu + campaign-complete screen', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Menu status report follows progress', () => {
+    const mod = loadGameManager();
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    const P = gm.progress;
+    const text = () => gm._menuStatusLines().map(l => l.text);
+
+    ok('a new player reads the intro story', text().some(t => /under cyber attack/.test(t)) && text().some(t => /YOUR MISSION/.test(t)));
+    P.completeStage(1, 0, 100, 2);
+    let t = text();
+    ok('after a first clear: perimeter warning', /inside the PERIMETER/.test(t[0]) && !t.some(x => /YOUR MISSION/.test(x)));
+    ok('first stages line and next stage', t.some(x => /First stages cleared in ACT 1/.test(x)) &&
+        t.some(x => /ACT 1 · REMOVE_MALWARE \(TIMING BAR\) — 1\/4 stages cleared/.test(x)));
+    ok('stars counted', t.some(x => /0 of 10 acts cleared · ★ 2\//.test(x)));
+    for (let i = 1; i < 4; i++) P.completeStage(1, i, 100);
+    t = text();
+    ok('cleared act is listed and the gate is next', t.some(x => x === 'Secured so far: malware purged.') && t.some(x => /Breach GATE 1 to reach ACT 2/.test(x)));
+    // Through act 4: the INTERNAL layer, then a breachable gate 4.
+    const clear = (a) => { P.act(a).stages.forEach((st, i) => P.completeStage(a, i, 100)); P.openGate(a); };
+    P.openGate(1); clear(2); clear(3);
+    P.act(4).stages.forEach((st, i) => P.completeStage(4, i, 100));
+    t = text();
+    ok('internal layer alert', /INTERNAL network/.test(t[0]));
+    ok('four acts secured', t.some(x => x === 'Secured so far: malware purged, firewall rebuilt, ports sealed, credentials reset.'));
+    clear(4); clear(5);
+    t = text();
+    ok('long lists keep the latest four', t.some(x => x === 'Secured so far: …, firewall rebuilt, ports sealed, credentials reset, attacker traced.'));
+    ok('next act still in development', t.some(x => /ACT 6 · CUT_ACCESS is still in development/.test(x)));
+    ok('the report fits the menu panel', gm._menuStatusLines().length <= 13);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);
