@@ -42,12 +42,12 @@ Full plan and decisions: **`docs/ACT_PLAN.md`**. Read it before touching progres
   3. CLOSE_PORTS: Orbital Shield, 4 stages, 12/16/20/20 packets on 4/6/8/8 ports, lives 4/5/6/7 (`js/mechanics/OrbitalShieldMechanic.js`)
   4. RESET_CREDS: Signal Lock, 5 stages (EASY…EXPERT), 3/3/4/4/5 keys against a timer; revive = +20 s (`js/mechanics/SignalLockMechanic.js`)
   5. TRACE_LOGS: Route Trace, 3 stages (4×4 / 5×5 / 6×6 grids, 2/3/3 traces against a timer); revive = +20 s (`js/mechanics/RouteTraceMechanic.js`)
-  6. CUT_ACCESS: in development
+  6. CUT_ACCESS: **Network Cut, planned** (docs/ACT_PLAN.md, not built yet): cut every attacker path to the CORE with a limited number of scissors; lives + logic, no timer; tiers add owner lines (cutting one costs a life), armored cables (two cuts) and failover lines
   7. DEFUSE_PAYLOAD: in development
   8. RESTORE_CORE: in development
   9. FINAL_AUDIT: in development. Decided: it tests **knowledge and reasoning only**, with no timer and no lives
   10. RETURN_CONTROL: the **final act**, in development. Planned (docs/ACT_PLAN.md): hand control back to the rightful owner; **educational** content (act 9 tests, act 10 teaches). Its own HANDOVER status outside PERIMETER / INTERNAL / CORE (`UITheme.layers`). Gate 9 is tuned together with it.
-- The mechanics of acts 6–10 are **not decided yet** (beyond the notes above). They are designed together with the user, one phase at a time. Do not invent and ship them.
+- The mechanics of acts 7–10 are **not decided yet** (beyond the notes above). They are designed together with the user, one phase at a time. Do not invent and ship them.
 - The lockpick is used only for revives (Timing Bar, Orbital Shield, Signal Lock, Route Trace and Endless). A revivable mechanic game implements `revive()`; the run resumes in the MINIGAME host with `resume: true`. Endless unlocks after the final act (`CAMPAIGN.finalAct`, now 10); players who already unlocked it keep it until the planned progress reset.
 - **Endless Mode will change.** Today it is Timing Bar only. The goal is an endless mode that supports **all** campaign games. It is not planned yet and will be planned with the user later (plan section 8b). Meanwhile, design new games so their difficulty can keep ramping and they produce a score.
 - Data lives in `js/data/Campaign.js`. Progress, lock rules and the migration from the old save format live in `js/CampaignProgress.js` (save key `sb_campaign_v1`).

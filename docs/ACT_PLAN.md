@@ -26,7 +26,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
-| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | Öneri: Cable Cut | 🛠 Geliştiriliyor |
+| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | 📝 Planlandı, 4 aşama (Faz 5) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
@@ -231,12 +231,82 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 
 **Süreler nasıl belirlendi:** her aşamada 300 bulmaca üretildi ve çözüm için gereken döndürme sayısı ölçüldü. Basit bir çözme süresi modelinin (bakma süresi, karo başına süre, döndürme başına süre) yaklaşık 2–3 katı süre verildi. Gerçek oyuncunun hangi karonun yola ait olduğunu da düşünmesi gerektiği için bu pay bırakıldı. Oyun testine göre ayarlanacak.
 
-### Act 6–8: Geliştiriliyor 🛠
+### Act 6: Network Cut, 4 aşama 📝 (plan, 2026-10-23)
+
+**Fikir:** Act 5'te saldırganın rotası bulundu, Act 6'da o rota **kesiliyor**. Bir can ve mantık oyunu: süre yok, baskıyı canlar ve sınırlı sayıda makas sağlıyor.
+
+**Sahne:** Bir ağ haritası.
+- Solda saldırganın düğümü (**ATK**, kırmızı), sağda sistemin çekirdeği (**CORE**, turkuaz). Aradaki röle düğümleri kablolarla birbirine bağlı.
+- Saldırganın şu an ulaşabildiği kablolar **kırmızı** yanıyor. Bu, Act 5'teki yeşil yayılmanın tersi: oyuncu saldırganın erişimini her an görüyor.
+- Üst kademelerde ağda sahibin terminali (**OWNER**) ve onun **mavi** hatları da var.
+
+**Akış:**
+- **Önce seç, sonra kes (karar 2026-10-23):** İlk dokunuş (ya da tıklama) kabloyu seçer: kablo parlar ve üzerinde bir makas belirir. Aynı kabloya ikinci dokunuş onu keser ve bir **makas** harcar. Başka bir kabloya dokunmak seçimi oraya taşır, boş bir yere dokunmak seçimi kaldırır. Böylece yanlışlıkla bir dokunuş can götürmez.
+- Her kesimden sonra saldırganın erişimi yeniden hesaplanır, kırmızı yayılım güncellenir.
+- Saldırgan çekirdeğe ulaşamaz hale gelince ağ çözülmüş olur. Kısa bir duraklamadan sonra yeni bir ağ gelir.
+- **Kazanma:** aşamanın ağ sayısını çözmek.
+- **Kaybetme:** canların bitmesi.
+
+**Can kaybı:**
+- **Sahibin hattını (mavi) kesmek:** "OWNER LINE CUT". 1 can gider, kablo hemen onarılır. Harcanan makas geri gelmez.
+- **Makasların bitmesi:** makas bittiği halde saldırgan hâlâ çekirdeğe ulaşabiliyorsa 1 can gider ve aynı ağ baştan kurulur.
+- Mavi kabloların hiçbirine dokunmadan bir çözüm **her zaman** vardır.
+
+**Kademelerle gelen yenilikler:**
+- **Sahibin hattı (Orta ve üstü):** Mavi kablolar sahibin terminalini çekirdeğe bağlar. Bunları kesmek can götürür. Saldırganın yolları bazen bu hatların yanından geçtiği için oyuncu nereden keseceğini düşünmek zorunda kalır.
+- **Zırhlı kablo (Zor ve üstü):** Kalın çizilmiş kablolar. Kesmek için **iki makas** gerekir: ilk kesimde çatlar, ikincide kopar. Ucuz bir yol yerine bazen zırhlıyı kesmek gerekir.
+- **Yedek hat / failover (Çok zor):** Uykuda duran, soluk ve kesik çizgili kablolar. Belirli bir kablo kesilince saldırgan trafiği yedeğe aktarır ve yedek uyanır. Her yedeğin ucundaki küçük bir işaret, onu hangi kablonun uyandıracağını gösterir. Bu yüzden kesme **sırası** önemlidir: oyuncu "bunu kesersem hangi yedek açılır?" diye plan yapar.
+
+**Kontrol:**
+- Telefon ve fare: kabloya dokunmak ya da tıklamak seçer, seçili kabloya tekrar dokunmak keser. Dokunma alanı en az 44 nokta. Parmak iki kablonun arasına gelirse en yakın kablo seçilir.
+- Masaüstünde fareyle üzerine gelinen kablo hafifçe vurgulanır.
+- Klavye: ok tuşları seçimi kablolar arasında gezdirir (seçmek bu), Space ya da Enter seçili kabloyu keser.
+
+**Bulmaca garantisi:**
+- Düğümler kesişmeyen kablolarla yerleştirilir, böylece ağ okunur kalır.
+- Çözülebilirlik maksimum akış / minimum kesim ile kontrol edilir: sahibin hatları kesilemez (sonsuz kapasite), zırhlı kablo 2, normal kablo 1 makas sayılır.
+- Yedek hatlı ağlarda küçük ağ boyutu sayesinde bütün kesme sıraları denenir. Makas payı içinde bir çözüm olduğu doğrulanır.
+- Ağ hiçbir zaman çözülmüş halde gelmez: başta saldırgan her zaman çekirdeğe ulaşabilir.
+
+**Aşamalar (ilk taslak, bot taramasıyla kesinleşecek):**
+
+| | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| Ağ sayısı | 3 | 3 | 4 | 4 |
+| Düğüm | 6 | 8 | 10 | 12 |
+| En az gereken kesim | 2 | 2–3 | 3 | 3–4 |
+| Makas payı (en az kesimin üstüne) | +2 | +1 | +1 | +0 |
+| Sahibin hatları | – | 2–3 | 3–4 | 3–4 |
+| Zırhlı kablo | – | – | 1–2 | 2 |
+| Yedek hat | – | – | – | 1–2 |
+| Can | 3 | 3 | 3 | 3 |
+
+**Revive:** Lockpick ile, diğer can oyunları gibi. Başarılı olursa **+1 can** verilir ve aynı ağ baştan kurulur. Aşama başına 2 hak, her biri 1 enerji.
+
+**Skor:** çözülen ağ başına 300, aşama sonunda kalan her makas için 50, kalan her can için 250.
+
+**Yıldızlar (UI-5 gibi):** Eşikler bot taramasıyla belirlenip onaya sunulacak. Önerilen ölçü: kaybedilen can ve boşa harcanan makas.
+
+**Sonsuz mod uyumu:** Ağlar art arda sonsuza kadar gelebilir. Düğüm sayısı, sahibin hatları, zırhlı kablolar ve yedek hatlar giderek artırılabilir.
+
+**İlk aşamadaki silik ipucu:**
+- Masaüstü: "Click a cable to cut it · cut every red path to the CORE"
+- Telefon: "Tap a cable to cut it · cut every red path to the CORE"
+
+**Aynı sürümde:**
+- **Kapı 5** (Act 5 → 6): Packet Purge ayarı `Campaign.js`'te zaten var (3 dalga, hız 1.25).
+- **Herkesin ilerlemesinin sıfırlanması** bu sürümle yayına girer (bölüm 5b).
+
+**Uygularken birlikte karar verilecekler:**
+- Kesim animasyonu ve sesi: kıvılcım, kopan kablonun sarkması.
+- Ağ sayısı ve makas payı bot taramasından sonra.
+
+### Act 7–8: Geliştiriliyor 🛠
 
 Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir:
 
-- **Cable Cut (Act 6):** Matter.js ile kablo kesme bulmacası. Fare, parmakla kaydırma ya da 1–3 tuşları.
-- Act 7 (DEFUSE_PAYLOAD) ve Act 8 (RESTORE_CORE) için henüz fikir yok.
+- **Act 7 (DEFUSE_PAYLOAD):** Kural kartlı kablo kesme (2026-10-23'te Act 6 konuşulurken ayrıldı). Kutuda renkli ve etiketli kablolar ile bir kural kartı var, örneğin "kırmızı LED yanıyorsa son mavi kabloyu kes". Kural doğru uygulanır, yanlış kesim can götürür. Bomba imha oyunlarının klasik kurgusu.
+- Act 8 (RESTORE_CORE) için henüz fikir yok.
 
 ### Act 9: FINAL_AUDIT 🛠
 
@@ -374,7 +444,7 @@ Her fazın kabul şartları:
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
-| 5 | Act 6 ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | Bekliyor |
+| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | Planlandı |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
@@ -450,3 +520,4 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 18. **Kampanya 10 act.** Act 10 RETURN_CONTROL final act: erişim asıl sahibine geri veriliyor, içerik eğitici. Kendi statüsü HANDOVER (bölüm 3). Endless bu act'ten sonra açılıyor.
 19. **Endless sadece halkadan:** Endless ve leaderboard HUB'da sadece raydaki ∞ halkasının arkasında. Kilidi açanlar için HUB Endless kartında açılıyor, ayrıca kendilerine özel bir giriş ekranı var (bölüm 8b).
 20. **Herkesin ilerlemesi sıfırlanacak**, herkes sıfırdan başlayacak. **Act 6 ile birlikte** yayına girer. Leaderboard skorları ve operatör profilleri de silinir, oyunculara bildirim gösterilmez (bölüm 5b).
+21. **Act 6:** Network Cut. Saldırganı çekirdeğe bağlayan bütün yollar sınırlı makasla kesilir. Can + mantık oyunu, süre yok. Kademelerle sahibin hattı, zırhlı kablo ve yedek hat (failover) eklenir. Kural kartlı kablo fikri Act 7'ye ayrıldı (bölüm 3).
