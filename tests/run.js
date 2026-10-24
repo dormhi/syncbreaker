@@ -597,7 +597,8 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
     ok('act 6 is playable with 4 stages', acts[5].available && acts[5].game === 'cut' && acts[5].stages.length === 4);
-    ok('acts 7-10 are in development', acts.slice(6).every(a => !a.available && a.stages.length === 0));
+    ok('act 7 is playable with 4 stages', acts[6].available && acts[6].game === 'bomb' && acts[6].stages.length === 4);
+    ok('acts 8-10 are in development', acts.slice(7).every(a => !a.available && a.stages.length === 0));
     const themes = loadLevelManager().LEVEL_THEMES;
     ok('every act has its own theme', acts.every(a => !!themes[a.themeId]) &&
         new Set(acts.map(a => a.themeId)).size === acts.length);
@@ -634,7 +635,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(7) && !P.isActAvailable(7));
+    ok('dev acts are never unlocked', !P.isActUnlocked(8) && !P.isActAvailable(8));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -663,9 +664,12 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate 5 playable once act 5 is done (act 6 exists)', P.isActComplete(5) && P.isGatePlayable(5));
     P.openGate(5);
     for (let i = 0; i < 4; i++) P.completeStage(6, i, 10);
-    ok('gate 6 not playable while act 7 is in development', P.isActComplete(6) && !P.isGatePlayable(6));
+    ok('gate 6 playable once act 6 is done (act 7 exists)', P.isActComplete(6) && P.isGatePlayable(6));
+    P.openGate(6);
+    for (let i = 0; i < 4; i++) P.completeStage(7, i, 10);
+    ok('gate 7 not playable while act 8 is in development', P.isActComplete(7) && !P.isGatePlayable(7));
     ok('endless still locked (final act not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 6);
+    ok('current act points at the last open act', P.currentActId() === 7);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -807,8 +811,8 @@ suite('Act map HUB + gates', () => {
 
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    gm._mapGo(6);
-    btn('act7').onClick();
+    gm._mapGo(7);
+    btn('act8').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
     gm._mapGo(1);
     btn('act2').onClick();
@@ -857,7 +861,13 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 4; i++) gm.progress.completeStage(6, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(6);
-    ok('gate 6 waits for act 7', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('gate 6 starts once act 6 is done', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic.speedScale === mod.CAMPAIGN.gates[5].speedScale);
+    gm.progress.openGate(6);
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(7, i, 100);
+    settle(gm, S.HUB);
+    gm._tryStartGate(7);
+    ok('gate 7 waits for act 8', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -3211,6 +3221,320 @@ suite('Network Cut teaches itself (tutorial + one-time tips)', () => {
     const cs = gm._coachStore('cut');
     cs.mark('tutorial');
     ok('host coach store persists', gm._coachStore('cut').seen('tutorial') && JSON.parse(mod.storage.getItem('sb_coach_cut')).tutorial === true);
+});
+
+// ─────────────────────────────────────────────
+suite('Logic Bomb (Act 7) — modules, rules, flow', () => {
+    const mod = loadGameManager();
+    const { LogicBombMechanic: LB, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[6];
+    const tiers = act.stages.map(st => st.params);
+    const make = (params, seed, extra) => {
+        const m = new LB(Object.assign({ rng: makeRng(seed) }, params, extra || {}));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+    // Independent gate evaluator (not the mechanic's own).
+    const evalOut = (c, vals) => {
+        const L = c.inputs.length, v = [];
+        const get = r => r < L ? vals[r] : v[r - L];
+        c.gates.forEach(g => {
+            const a = get(g.a), b = g.op === 'NOT' ? null : get(g.b);
+            v.push({ AND: a && b, OR: a || b, XOR: a !== b, NOT: !a }[g.op] ? 1 : 0);
+        });
+        return v[v.length - 1];
+    };
+    const safe = (c, sw) => {
+        const clk = c.inputs.some(i => i.clock);
+        return clk ? evalOut(c, sw.concat([0])) === 0 && evalOut(c, sw.concat([1])) === 0 : evalOut(c, sw) === 0;
+    };
+
+    tiers.forEach((p, t) => {
+        const tag = act.stages[t].tier;
+        let kinds = true, wires = true, circuits = true, pads = true, buttons = true;
+        const depths = new Set();
+        for (let seed = 1; seed <= 14; seed++) {
+            const m = make(p, seed * 37 + t);
+            for (let pl = 0; pl < 2; pl++) {
+                if (pl) m._newPayload();
+                const ks = m.mods.map(x => x.kind);
+                if (ks.length !== p.modules || ks.some(k => p.kinds.indexOf(k) < 0)) kinds = false;
+                if (new Set(ks).size !== Math.min(p.modules, p.kinds.length)) kinds = false;   // every kind before repeats
+                for (const x of m.mods) {
+                    if (x.kind === 'wires') {
+                        if (x.wires.length < p.wireMin || x.wires.length > p.wireMax || x.rules.length !== p.rules) wires = false;
+                        if (!(x.answer >= 0 && x.answer < x.wires.length)) wires = false;
+                        if (x.rules[x.rules.length - 1].cond !== null) wires = false;
+                        const view = m._view({ colors: x.wires.map(q => q.color) });
+                        if (!x.rules.every(r => r.act.pick(view) >= 0)) wires = false;   // no line names a missing wire
+                        if (!p.edgework && x.edge) wires = false;
+                        depths.add(x.applied);
+                    } else if (x.kind === 'circuit') {
+                        const free = x.inputs.filter(i => !i.clock).length;
+                        const all = [];
+                        for (let k = 0; k < (1 << free); k++) all.push(Array.from({ length: free }, (z, b) => (k >> b) & 1));
+                        const ok1 = all.filter(sw => safe(x, sw));
+                        if (!ok1.length || ok1.length > all.length * 3 / 8) circuits = false;
+                        if (safe(x, x.switches)) circuits = false;                       // never starts defused
+                        if (x.gates.length !== p.gates) circuits = false;
+                        if (!!p.clock !== x.inputs.some(i => i.clock)) circuits = false;
+                        if (p.xor && !x.gates.some(g => g.op === 'XOR')) circuits = false;
+                        if (LB.circuitDepth(x) > 3) circuits = false;
+                        if (all.some(sw => LB.circuitSafe(x, sw) !== safe(x, sw))) circuits = false;
+                    } else if (x.kind === 'pad') {
+                        const holders = x.columns.filter(c => x.keys.every(k => c.indexOf(k) >= 0));
+                        if (holders.length !== 1 || holders[0] !== x.columns[x.col]) pads = false;
+                        const idx = x.order.map(k => x.columns[x.col].indexOf(k));
+                        if (idx.some((v, i) => i && v <= idx[i - 1])) pads = false;
+                        if (x.columns.length !== p.padColumns) pads = false;
+                    } else {
+                        const want = ['BLUE', 'WHITE', 'YELLOW'].indexOf(x.strip) >= 0 ? x.release[x.strip] : x.release.other;
+                        if (x.digit !== want || (x.answer !== 'tap' && x.answer !== 'hold')) buttons = false;
+                        if (new Set(x.rules.map(r => r.act.text)).size < 2) buttons = false;   // both tap and hold on the card
+                    }
+                }
+            }
+        }
+        ok(`${tag}: modules and kinds as configured`, kinds);
+        ok(`${tag}: line cards are well formed (first match, Otherwise last)`, wires);
+        ok(`${tag}: circuits start live, have rare safe settings, match an independent evaluator`, circuits);
+        ok(`${tag}: one cipher column holds all four keys, pressed top to bottom`, pads);
+        ok(`${tag}: kill switch digit follows its strip`, buttons);
+        if (p.kinds.indexOf('wires') >= 0) ok(`${tag}: the rule that applies sits at different depths`, depths.size >= Math.min(3, p.rules));
+    });
+
+    // A bot that plays the right moves through the public controls.
+    const solveModule = (m) => {
+        const x = m.current, s = LB.solve(x);
+        if (x.kind === 'wires') { m.tapWire(s.wire); m.tapWire(s.wire); return; }
+        if (x.kind === 'circuit') {
+            s.switches.forEach((v, k) => { if (x.switches[k] !== v && !x.done) m.toggleSwitch(k); });
+            return;
+        }
+        if (x.kind === 'pad') { for (const k of s.keys) m.pressKey(k); return; }
+        m.pressButton();
+        if (!s.hold) { m.handlePointer(0, 0, 'up'); return; }
+        for (let i = 0; i < 2400 && !(m.holding.t >= 0.6 && m.timerText().indexOf(String(s.digit)) >= 0); i++) m.update(1 / 60);
+        m.handlePointer(0, 0, 'up');
+    };
+    const playStage = (m) => {
+        for (let guard = 0; guard < 200 && m.result === null; guard++) {
+            if (m.pause > 0) { m.update(1 / 60); continue; }
+            solveModule(m);
+        }
+    };
+
+    let clean = true, threeStars = true;
+    tiers.forEach((p, t) => {
+        const m = make(p, 500 + t);
+        playStage(m);
+        if (m.result !== 'success' || m.totalStrikes !== 0 || m.defused !== p.payloads) clean = false;
+        if (CAMPAIGN.starsFor('bomb', act.stages[t].tier, m.starStats(), false) !== 3) threeStars = false;
+    });
+    ok('a perfect bot clears every tier without a strike', clean);
+    ok('a fast clean run earns 3 stars (draft rule)', threeStars);
+
+    // Strikes: a wrong line is patched and speeds the timer up.
+    const m = make(tiers[0], 7);
+    const w = m.mods.findIndex(x => x.kind === 'wires');
+    m.selectModule(w);
+    const wrong = (m.current.answer + 1) % m.current.wires.length;
+    m.tapWire(wrong);
+    ok('first tap only selects', m.current.selected === wrong && m.strikes === 0);
+    m.tapWire(wrong);
+    ok('wrong line: strike, line patched', m.strikes === 1 && !m.current.wires[wrong].cut && !m.current.done);
+    const before = m.timeLeft;
+    m.update(1);
+    ok('a strike speeds the timer up 25 %', approx(before - m.timeLeft, 1.25, 1e-6));
+    m.tapWire(wrong); m.tapWire(wrong);
+    m.tapWire(wrong); m.tapWire(wrong);
+    ok('third strike detonates', m.result === 'fail' && m.strikes === 3);
+    m.revive();
+    ok('revive: +20 s, one strike off, same payload', m.result === null && m.strikes === 2 && m.timeLeft > 20 && !m.mods[w].done);
+    m.tapWire(m.current.answer); m.tapWire(m.current.answer);
+    ok('right line defuses the module', m.mods[w].done && m.sel !== w);
+
+    // Time out
+    const tm = make(tiers[0], 8);
+    for (let i = 0; i < 61 * 60 && tm.result === null; i++) tm.update(1 / 60);
+    ok('the payload detonates when time runs out', tm.result === 'fail' && tm.timeLeft === 0);
+
+    // Circuit: the lamp off defuses at once; spending every flip on a live lamp is a strike.
+    const cm = make(tiers[1], 9);
+    cm.selectModule(cm.mods.findIndex(x => x.kind === 'circuit'));
+    const cx = cm.current;
+    ok('flips = fewest needed + slack', cx.flips === cx.minFlips + tiers[1].flipSlack && cx.minFlips >= 1);
+    const sig = LB.signals(cx, cx.switches);
+    ok('live signals: DETONATE starts on', sig[sig.length - 1] === 1);
+    // Flip one switch back and forth until the flips run out (never landing safe).
+    const budget = cx.flips;
+    for (let i = 0; i < budget; i++) {
+        const k = [0, 1, 2].find(j => { const t = cx.switches.slice(); t[j] = 1 - t[j]; return !LB.circuitSafe(cx, t); });
+        cm.toggleSwitch(k);
+    }
+    ok('out of flips: strike, switches back to the start, flips refilled',
+        cm.strikes === 1 && cx.switches.join() === cx.start.join() && cx.flips === cx.minFlips + tiers[1].flipSlack && !cx.done);
+    LB.solve(cx).switches.forEach((v, k) => { if (cx.switches[k] !== v && !cx.done) cm.toggleSwitch(k); });
+    ok('the lamp off defuses the module', cx.done && cm.strikes === 1);
+
+    // Kill switch verdicts
+    const bp = Object.assign({}, tiers[3], { kinds: ['button'], modules: 1 });
+    const findButton = (answer) => {
+        for (let seed = 1; seed < 200; seed++) { const b = make(bp, seed); if (b.current.answer === answer) return b; }
+        return null;
+    };
+    const tapB = findButton('tap'), holdB = findButton('hold');
+    tapB.pressButton(); for (let i = 0; i < 60; i++) tapB.update(1 / 60); tapB.handlePointer(0, 0, 'up');
+    ok('holding a tap button is a strike', tapB.strikes === 1 && !tapB.current.done);
+    holdB.pressButton(); holdB.update(1 / 60); holdB.handlePointer(0, 0, 'up');
+    ok('tapping a hold button is a strike', holdB.strikes === 1);
+    holdB.pressButton();
+    for (let i = 0; i < 60; i++) holdB.update(1 / 60);
+    for (let i = 0; i < 3000 && holdB.timerText().indexOf(String(holdB.current.digit)) >= 0; i++) holdB.update(1 / 60);
+    holdB.handlePointer(0, 0, 'up');
+    ok('releasing on the wrong digit is a strike', holdB.strikes === 2);
+    holdB.pressButton();
+    holdB.releaseAll();
+    ok('a dropped hold (blur, pause) has no verdict', holdB.strikes === 2 && !holdB.holding);
+
+    // Keyboard: digits pick a module, Space selects then cuts.
+    const km = make(tiers[0], 10);
+    const kw = km.mods.findIndex(x => x.kind === 'wires');
+    km.handleKey('Digit' + (kw + 1));
+    ok('digit keys open a module', km.sel === kw);
+    const target = km.current.answer;
+    while (km.controls()[km.focus].i !== target) km.handleKey('ArrowDown');
+    km.handleKey('Space');
+    ok('SPACE selects the focused line', km.current.selected === target && !km.current.done);
+    km.handleKey('Space');
+    ok('SPACE again cuts it', km.mods[kw].done);
+
+    // Pointer: tabs and parts
+    const pm = make(tiers[2], 11);
+    const pi = pm.mods.findIndex(x => x.kind === 'pad');
+    const tab = pm.tabRect(pi);
+    pm.handlePointer(tab.x + tab.w / 2, tab.y + tab.h / 2, 'down');
+    ok('tapping a tab opens its module', pm.sel === pi);
+    const first = LB.solve(pm.current).keys[0];
+    const kr = pm.keyRect(first);
+    pm.handlePointer(kr.x + kr.w / 2, kr.y + kr.h / 2, 'down');
+    ok('tapping the right key lights it', pm.current.pressed === 1 && pm.strikes === 0);
+    ok('wantsHold for the kill switch', pm.wantsHold === true);
+
+    // Score and stars
+    const sm = make(tiers[0], 12);
+    playStage(sm);
+    ok('score counts modules, payloads and time', sm.score === sm.computeScore() && sm.score > 2 * 2 * 150 + 2 * 300);
+    ok('stars: one strike = 2, two = 1, revive = 1',
+        CAMPAIGN.starsFor('bomb', 'EASY', { strikes: 1, timeShare: 0.9 }, false) === 2 &&
+        CAMPAIGN.starsFor('bomb', 'EASY', { strikes: 2, timeShare: 0.9 }, false) === 1 &&
+        CAMPAIGN.starsFor('bomb', 'EASY', { strikes: 0, timeShare: 0.9 }, true) === 1 &&
+        CAMPAIGN.starsFor('bomb', 'EASY', { strikes: 0, timeShare: 0.2 }, false) === 2);
+
+    // Render every module kind, the coach and the end states.
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try {
+        const r = make(tiers[3], 13);
+        for (let i = 0; i < r.mods.length; i++) { r.selectModule(i); r.kbd = i % 2 === 0; r.render(ctx, 960, 640); }
+        r.pressButton(); for (let i = 0; i < 40; i++) r.update(1 / 60); r.render(ctx, 960, 640);
+        r._detonate(); r.update(1 / 60); r.render(ctx, 960, 640);
+    } catch (e) { threw = e.stack; }
+    ok('every module, the kill-switch strip and detonation render', threw === null, threw);
+});
+
+// ─────────────────────────────────────────────
+suite('Logic Bomb teaches itself (tour + one-time tips) and runs in the host', () => {
+    const mod = loadGameManager();
+    const { LogicBombMechanic: LB, CAMPAIGN } = mod;
+    const tiers = CAMPAIGN.acts[6].stages.map(st => st.params);
+    const store = () => { const seen = {}; return { seen: k => !!seen[k], mark: k => { seen[k] = true; }, raw: seen }; };
+
+    const st = store();
+    const m = new LB(Object.assign({ rng: makeRng(4) }, tiers[0]));
+    m.useCoach(st, true);
+    m.init({ width: 960, height: 640 });
+    const lesson = m.mods[0];
+    ok('first stage opens with the lesson', m.tutorial && m.coach && /LOGIC BOMB/.test(m.coach.text));
+    ok('the lesson card skips at least one rule', lesson.kind === 'wires' && lesson.applied >= 1);
+    const t0 = m.timeLeft;
+    for (let i = 0; i < 120; i++) m.update(1 / 60);
+    ok('the timer waits while a bubble is up', m.timeLeft === t0);
+    ok('controls are blocked while an info bubble is up', m.tapWire(0) === false && m.selectModule(1) === false);
+    const ruleSteps = [];
+    for (let taps = 0; m.coach && m.coach.kind === 'info' && taps < 20; taps++) {
+        if (m.coach.rows && m.coach.rows.length) ruleSteps.push(m.coach);
+        m.handlePointer(10, 10, 'down');
+    }
+    ok('each rule up to the true one gets its own step', ruleSteps.length === lesson.applied + 1 &&
+        ruleSteps.every((c, k) => c.rows[0] === k) && /NOT true/.test(ruleSteps[0].text) &&
+        /(IS true|last one counts)/.test(ruleSteps[ruleSteps.length - 1].text));
+    ok('then it asks for the line', m.coach && m.coach.kind === 'select' && m.coach.wire === lesson.answer);
+    const wrongLine = (lesson.answer + 1) % lesson.wires.length;
+    ok('other lines do nothing during the lesson', m.tapWire(wrongLine) === false && m.strikes === 0 && lesson.selected === null);
+    m.tapWire(lesson.answer);
+    ok('select, then cut', lesson.selected === lesson.answer && m.coach && m.coach.kind === 'cut');
+    for (let i = 0; i < 60; i++) m.update(1 / 60);
+    ok('the timer still waits during the lesson', m.timeLeft === t0);
+    m.tapWire(lesson.answer);
+    ok('the cut defuses it and the lesson wraps up', lesson.done && m.coach && m.coach.key === 'tutorial' && m.strikes === 0);
+    m.handleKey('Space');
+    ok('lesson marked done (lines too)', !m.coach && st.raw.tutorial && st.raw.wires);
+    for (let i = 0; i < 60; i++) m.update(1 / 60);
+    ok('the timer runs again', m.timeLeft < t0);
+
+    // The circuit is explained once, the first time it is opened.
+    const nm = new LB(Object.assign({ rng: makeRng(9) }, tiers[1]));
+    nm.useCoach(st, false);
+    nm.init({ width: 960, height: 640 });
+    while (nm.coach) nm.handleKey('Space');
+    const ci0 = nm.mods.findIndex(x => x.kind === 'circuit');
+    nm.selectModule(ci0);
+    ok('the circuit gets a one-time explanation', st.raw.circuit || (nm.coach && nm.coach.key === 'circuit'));
+    while (nm.coach) nm.handleKey('Space');
+    nm.selectModule((ci0 + 1) % nm.mods.length); nm.selectModule(ci0);
+    ok('no repeat once seen', !nm.coach && st.raw.circuit);
+
+    const again = new LB(Object.assign({ rng: makeRng(5) }, tiers[0]));
+    again.useCoach(st, true);
+    again.init({ width: 960, height: 640 });
+    ok('the tour is shown only once', !again.tutorial && !again.coach);
+
+    const vh = new LB(Object.assign({ rng: makeRng(6) }, tiers[3]));
+    const st2 = store();
+    st2.mark('tutorial'); st2.mark('wires'); st2.mark('circuit'); st2.mark('pad'); st2.mark('button');
+    vh.useCoach(st2, false);
+    vh.init({ width: 960, height: 640 });
+    const ci = vh.mods.findIndex(x => x.kind === 'circuit');
+    while (vh.coach) vh.handleKey('Space');
+    vh.selectModule(ci === vh.sel ? (ci + 1) % vh.mods.length : vh.sel);
+    while (vh.coach) vh.handleKey('Space');
+    vh.selectModule(ci);
+    ok('CLK gets its own explanation', st2.raw.clock || (vh.coach && vh.coach.key === 'clock'));
+
+    const plain = new LB(Object.assign({ rng: makeRng(7) }, tiers[0]));
+    plain.init({ width: 960, height: 640 });
+    ok('without a coach store: no bubbles (tests, bots)', plain.coach === null && !plain.tutorial);
+
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try { const c = new LB(Object.assign({ rng: makeRng(8) }, tiers[0])); c.useCoach(store(), true); c.init({}); c.render(ctx, 960, 640); } catch (e) { threw = e.message; }
+    ok('coach bubbles render', threw === null, threw);
+
+    // Through the host: act 7 stage 1 runs in MINIGAME with a coach store.
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    for (let a = 1; a <= 6; a++) {
+        for (let i = 0; i < CAMPAIGN.acts[a - 1].stages.length; i++) gm.progress.completeStage(a, i, 10);
+        gm.progress.openGate(a);
+    }
+    ok('act 7 opens after gate 6', gm.progress.isActUnlocked(7) && gm.progress.isStageUnlocked(7, 0));
+    gm._startStage(7, 0);
+    const S = gm.state.STATES;
+    ok('stage starts in the MINIGAME host', gm.state.pendingState === S.MINIGAME && gm.state.pendingContext.mechanic instanceof LB);
+    ok('first stage gets the tour and the faint hint', gm.state.pendingContext.mechanic.firstStage && !!gm.state.pendingContext.footHint);
+    ok('stage summary line', gm._stageSummary(CAMPAIGN.acts[6], CAMPAIGN.acts[6].stages[0]) === '2 PAYLOADS · 60s');
+    ok('registry: revive +20s', mod.GameRegistry.get('bomb').revive && mod.GameRegistry.get('bomb').reviveLabel === '+20s');
 });
 
 // ─────────────────────────────────────────────

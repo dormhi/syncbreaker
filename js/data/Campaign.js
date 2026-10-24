@@ -146,7 +146,35 @@ const CAMPAIGN = {
                 { tier: 'VERY HARD', params: { networks: 4, cols: 6, minCutMin: 3, minCutMax: 4, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 2, armoredMax: 2, failoverMin: 1, failoverMax: 2, lives: 5 } }
             ]
         },
-        { id: 7, key: 'DEFUSE_PAYLOAD', done: 'payload defused', story: 'Disarm the logic bomb the attacker left behind',     game: null, themeId: 7, available: false, stages: [] },
+        {
+            id: 7,
+            key: 'DEFUSE_PAYLOAD', done: 'payload defused',
+            story: 'Disarm the logic bomb the attacker left behind',
+            game: 'bomb',
+            themeId: 7,
+            available: true,
+            controls: 'Follow the MANUAL on the right · tap tabs and parts · 1-4 / arrows + SPACE',
+            hint: {
+                desktop: 'Do what the MANUAL on the right says · defuse every module before the timer ends',
+                touch: 'Do what the MANUAL on the right says · defuse every module before the timer ends'
+            },
+            // Timer + strikes, no physics (docs/ACT_PLAN.md). DRAFT tiers from a
+            // bot sweep, pending playtest and approval. One new thing per stage:
+            // lines, + trigger circuit, + cipher pad, + kill switch and SIG/flag
+            // rules. `timeLimit` is per payload; each strike speeds the timer
+            // up by 25 %, `strikes` strikes detonate it. `flipSlack` = spare
+            // circuit flips over the fewest needed.
+            stages: [
+                { tier: 'EASY',      params: { payloads: 2, modules: 2, kinds: ['wires'], timeLimit: 60, strikes: 3,
+                    wireMin: 3, wireMax: 4, rules: 3 } },
+                { tier: 'NORMAL',    params: { payloads: 2, modules: 2, kinds: ['wires', 'circuit'], timeLimit: 75, strikes: 3,
+                    wireMin: 3, wireMax: 4, rules: 3, inputs: 3, gates: 3, flipSlack: 1 } },
+                { tier: 'HARD',      params: { payloads: 2, modules: 3, kinds: ['wires', 'circuit', 'pad'], timeLimit: 90, strikes: 3,
+                    wireMin: 4, wireMax: 5, rules: 4, inputs: 3, gates: 3, xor: true, flipSlack: 1, padColumns: 3 } },
+                { tier: 'VERY HARD', params: { payloads: 3, modules: 4, kinds: ['wires', 'circuit', 'pad', 'button'], timeLimit: 120, strikes: 3,
+                    wireMin: 5, wireMax: 6, rules: 4, edgework: true, compound: true, inputs: 3, gates: 3, clock: true, flipSlack: 1, padColumns: 4 } }
+            ]
+        },
         { id: 8, key: 'RESTORE_CORE', done: 'core restored',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
         // Act 9: a test of knowledge and reasoning — no timer, no lives.
         { id: 9, key: 'FINAL_AUDIT', done: 'audit passed',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] },
@@ -193,7 +221,10 @@ CAMPAIGN.starRules = (() => {
         // wasted scissor over the stage; 2 = at most one life lost (two on the
         // five-life tiers).
         cut: (s, tier) => (s.livesLost === 0 && s.wasted <= 1) ? 3
-            : s.livesLost <= (tier === 'HARD' || tier === 'VERY HARD' ? 2 : 1) ? 2 : 1
+            : s.livesLost <= (tier === 'HARD' || tier === 'VERY HARD' ? 2 : 1) ? 2 : 1,
+        // Logic Bomb (DRAFT, pending approval): 3 = no strike and on average
+        // 35 % of each payload's time left; 2 = at most one strike.
+        bomb: (s) => (s.strikes === 0 && s.timeShare >= 0.35) ? 3 : s.strikes <= 1 ? 2 : 1
     };
 })();
 

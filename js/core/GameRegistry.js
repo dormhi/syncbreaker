@@ -54,6 +54,14 @@ const GameRegistry = {
         create: (params) => new NetworkCutMechanic(Object.assign({}, params))
     },
 
+    bomb: {
+        kind: 'mechanic',
+        revive: true,
+        reviveLabel: '+20s',
+        title: 'LOGIC BOMB',
+        create: (params) => new LogicBombMechanic(Object.assign({}, params))
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 

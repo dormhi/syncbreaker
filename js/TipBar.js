@@ -124,6 +124,13 @@ TipBar.ACT = {
         'A dashed purple cable wakes when the cable with the same letter is cut',
         'Out of lives? The recovery protocol (1⚡) gives one back'
     ],
+    bomb: [
+        'Check the MANUAL\'s rules from the top — only the first true rule counts',
+        'Each strike makes the timer run faster — slow down before you cut',
+        'TRIGGER: lit wires carry a 1 — turn the DETONATE lamp off before your flips run out',
+        'KILL SWITCH: while holding, watch the strip colour and the timer digits',
+        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',

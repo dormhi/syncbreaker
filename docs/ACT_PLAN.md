@@ -27,7 +27,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5) |
-| 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
+| 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | **Logic Bomb** (modüler bomba: süre + arıza) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 6) |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
 | 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Eğitici final** (bölüm 3) | 🛠 Geliştiriliyor |
@@ -325,12 +325,80 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Kesim animasyonu ve sesi: kıvılcım, kopan kablonun sarkması.
 - Ağ sayısı ve makas payı bot taramasından sonra.
 
-### Act 7–8: Geliştiriliyor 🛠
+### Act 7: Logic Bomb, 4 aşama 📝 (plan, 2026-10-24)
 
-Mekanikler birlikte kararlaştırılacak. Aşağıdakiler şimdilik sadece fikir:
+**Fikir:** Act 6'da saldırganın bağlantısı kesildi, ama geride bir **mantık bombası (payload)** bıraktı. Ekranda bir payload kasası var. Kasanın üstünde ortak bir geri sayım ve birkaç **modül** duruyor. Bütün modüller etkisizleşince payload da etkisizleşir. Bomba imha oyunlarının klasik kurgusu bu (2026-10-24'te dört öneri arasından seçildi: A "Payload Kasası").
 
-- **Act 7 (DEFUSE_PAYLOAD):** Kural kartlı kablo kesme (2026-10-23'te Act 6 konuşulurken ayrıldı). Kutuda renkli ve etiketli kablolar ile bir kural kartı var, örneğin "kırmızı LED yanıyorsa son mavi kabloyu kes". Kural doğru uygulanır, yanlış kesim can götürür. Bomba imha oyunlarının klasik kurgusu.
-- Act 8 (RESTORE_CORE) için henüz fikir yok.
+- **Süre + arıza oyunu.** Act 6'da süre yok, Act 9'da da süre ve can olmayacak. Bomba temasında geri sayım baskıyı sağlıyor.
+- **Fizik yok.** Matter.js kullanılmıyor.
+
+**Ekran (telefon uyumu için):**
+- Solda **kasa**: üstte modül sekmeleri, altında seçili modül büyük çiziliyor. Her sekmede modülün durum ışığı var (yeşil = etkisiz).
+- Sağda **kontrol paneli**: geri sayım ve arıza ışıkları, payload imzası (SIG) ile durum bayrakları ve seçili modülün **MANUAL**'ı (kullanım kılavuzu).
+- Bir anda yalnızca bir modül ve onun kılavuzu görünüyor. Bir modül etkisizleşince sıradaki kendiliğinden açılıyor.
+
+**MANUAL (ilk oyun testinden sonra, 2026-10-24):** Kullanıcı ilk denemede ne yapacağını anlamadı. Kılavuz yeniden düzenlendi:
+- En üstte sarı bir **hedef cümlesi** var, örneğin "Check the rules from the top. Do ONLY the first one that is true."
+- Kurallar numaralı ayrı kutularda, iki satır halinde: "IF …" ve altında "→ …". Renk adları kendi renginde yazılıyor.
+- Yazı sığmazsa boyutu küçülüyor (16 → 13 px).
+- İleride oyunun Türkçesi gelince anlaşılması daha da kolaylaşacak.
+
+**Modüller:**
+1. **DATA LINES (veri hatları):** 3–6 renkli hat. Her hattın yanında rengi yazıyor. Kılavuzdaki kurallar yukarıdan aşağı okunuyor ve **ilk doğru kural** uygulanıyor. Son satır "OTHERWISE". Her satır bu modülde uygulanabilir. İlk dokunuş hattı seçiyor, ikincisi kesiyor. Yanlış hat bir arıza yazıyor, hat hemen onarılıyor.
+2. **TRIGGER (tetik devresi):** giriş anahtarları mantık kapılarından (AND / OR / NOT, sonra XOR) geçip **DETONATE lambasına** bağlanıyor. Teller **canlı**: 1 taşıyan tel yanıyor. Amaç lambayı söndürmek. Lamba sönünce modül hemen etkisizleşiyor. Anahtar hakkı sınırlı: en az gereken + `flipSlack`. Haklar bitince bir arıza yazılıyor ve anahtarlar başa dönüyor. Çok zor'da kendi kendine değişen bir **CLK** girişi var; lamba CLK'nin iki değerinde de sönük kalmalı.
+3. **CIPHER PAD (sembol tuş takımı):** 4 sembollü tuşlar. Kılavuzda birkaç sembol sütunu var. Dördünü de içeren tek sütun bulunuyor, tuşlara o sütunun yukarıdan aşağı sırasıyla basılıyor.
+4. **KILL SWITCH (basılı tut düğmesi):** kılavuz önce (STEP 1) dokun mu basılı tut mu dediğini söylüyor. Basılı tutunca bir şerit yanıyor. STEP 2: şeridin rengine göre sayaçta belli bir rakam görünürken bırakılıyor.
+
+**Kurallar:**
+- Yanlış hamle bir **arıza (strike)** demek. Her arıza geri sayımı %25 hızlandırıyor. 3 arızada ya da süre bitince payload patlıyor ve aşama kaybediliyor.
+- Bir aşamada birden fazla payload var. Her payload kendi süresi ve sıfır arızayla başlıyor.
+
+**Kontroller:**
+- Telefon / fare: sekmeye dokun, hattı iki kez dokunarak kes, anahtara dokun, tuşa bas, düğmeyi basılı tut.
+- Klavye: 1–4 ya da Tab ile modül seç, oklarla modülün içinde gez, Space / Enter ile kullan (düğme için Space basılı tutulur).
+
+**Aşamalar (taslak, onay bekliyor).** Her aşama tek bir yeni şey getiriyor. Uzman aşaması kullanıcı isteğiyle kaldırıldı (2026-10-24: "4 level gayet iyi").
+
+| | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| Yeni | hatlar | + devre | + tuş takımı, XOR | + düğme, CLK, SIG/bayrak kuralları |
+| Payload | 2 | 2 | 2 | 3 |
+| Modül (payload başına) | 2 | 2 | 3 | 4 |
+| Hat sayısı / kural | 3–4 / 3 | 3–4 / 3 | 4–5 / 4 | 5–6 / 4 |
+| Devre | – | 3 giriş, 3 kapı | 3 giriş, 3 kapı, XOR | 3 giriş + CLK, 3 kapı |
+| Fazladan anahtar hakkı | – | 1 | 1 | 1 |
+| Arıza sınırı | 3 | 3 | 3 | 3 |
+| Süre (payload başına) | 60 sn | 75 sn | 90 sn | 120 sn |
+
+**Denge sonucu (taslak, 2026-10-24):** gerçek üreticiyle, aşama başına 200 deneme. Botlar basit bir çözme süresi modeliyle oynuyor (kural okuma, kapı başına düşünme ve anahtar çevirme, sütun tarama, rakam bekleme). "İyi" bot hamlelerin %4'ünde, "ortalama" %12'sinde, "yavaş" %22'sinde hata yapıyor ve sırasıyla 0.75×, 1×, 1.4× hızda oynuyor. Süreler modelin yaklaşık 1.8–2.8 katı. Yeni bir şey öğreten aşamalarda (Kolay, Orta) pay bilerek geniş bırakıldı.
+
+| Bot | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| İyi | 200/200 | 200/200 | 199/200 | 200/200 |
+| Ortalama | 198/200 | 197/200 | 195/200 | 186/200 |
+| Yavaş | 189/200 | 187/200 | 162/200 | 73/200 |
+
+- Oyun testine göre ayarlanacak.
+
+**Revive:** Lockpick ile, Signal Lock gibi **+20 saniye**. Arıza sınırındaysa bir arıza da siliniyor. Payload kaldığı yerden devam ediyor. Aşama başına 2 hak, her biri 1 enerji.
+
+**Skor:** etkisizleşen modül başına 150, payload başına 300, kalan her saniye için 10, her arıza için −100.
+
+**Yıldızlar (taslak, onay bekliyor):** 3 yıldız = hiç arıza yok ve sürenin en az %35'i kalmış (payload'ların ortalaması). 2 yıldız = en fazla 1 arıza. Revive kullanılırsa en fazla 1 yıldız.
+
+**Eğitim (coach):**
+- İlk aşamanın ilk modülü **adım adım ders**: sayaç → kılavuz → kurallar tek tek ("Rule 1: … NOT true here, skip it" … "Rule 3: … IS true! So: cut the last BLUE line — line 2") → "Tap line 2" → "Tap again to cut".
+- Ders sırasında sadece gösterilen hat tepki veriyor. Konuşulan yer dışında ekran karartılıyor ve süre duruyor.
+- Ders bitince sekmeler, arızalar ve "kurallar her seferinde değişir" bir baloncukla anlatılıyor.
+- Devre, tuş takımı, düğme, CLK ve SIG/bayrak kuralları ilk açıldıklarında bir kez açıklanıyor (`sb_coach_bomb`).
+
+**Sonsuz mod uyumu:** payload'lar art arda sonsuza kadar gelebilir. Modül sayısı, kural sayısı ve kapı sayısı artırılıp süre kısaltılabilir. Skor zaten var.
+
+**Sonraki iş (2026-10-24, kullanıcı):** Act 7 bitince **Act 1–5 için de benzer küçük öğreticiler** yapılacak (Act 6 ve 7'deki `useCoach` yapısıyla).
+
+### Act 8: Geliştiriliyor 🛠
+
+- Act 8 (RESTORE_CORE) için henüz fikir yok. Mekanik birlikte kararlaştırılacak.
 
 ### Act 9: FINAL_AUDIT 🛠
 
@@ -461,7 +529,8 @@ Her fazın kabul şartları:
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
 | 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5 | ✅ Yayında (2026-10-24) |
-| 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
+| 6 | Act 7 Logic Bomb (süre + arıza, 4 aşama, bölüm 3) ve Kapı 6 | 🛠 Geliştiriliyor |
+| 7 | Act 8 ve Kapı 7 | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
 | Son | Yeni çok oyunlu sonsuz mod tamamlanınca: **herkesin verileri tamamen silinir** (bölüm 5b). | Bekliyor |
@@ -539,3 +608,4 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 20. **Herkesin verileri silinecek**, herkes sıfırdan başlayacak. 2026-10-24 güncellemesi: Act 6 ile değil, **her şey bittiğinde** (son sürümde) ve **tamamen** (tarayıcıdaki bütün `sb_` verileri, leaderboard skorları, operatör profilleri). Oyunculara bildirim gösterilmez (bölüm 5b).
 21. **Act 6:** Network Cut. Saldırganı çekirdeğe bağlayan bütün yollar sınırlı makasla kesilir. Can + mantık oyunu, süre yok. Kademelerle sahibin hattı, zırhlı kablo ve yedek hat (failover) eklenir. Kural kartlı kablo fikri Act 7'ye ayrıldı (bölüm 3).
 22. **Act 6 kademeleri (2026-10-24):** L2 ayarı onaylandı: can 3/4/5/5, makas payı +2/+1/+1/+1, sütun 5/5/6/6. Çelik ana hatlar ve kolay yol kontrolü eklendi.
+23. **Act 7:** Logic Bomb (2026-10-24). Modüler bir payload kasası: veri hatları (kural kartı), tetik devresi (mantık kapıları), sembol tuş takımı ve basılı tut düğmesi. Ortak geri sayım ve arıza sınırı var, fizik yok. Telefon için bir anda tek modül ve onun kartı gösteriliyor. Kademeler ve yıldızlar taslak, onay bekliyor. İlk oyun testinden sonra (aynı gün) Uzman kaldırıldı (4 aşama), her aşama tek yeni şey getiriyor, devre canlı oldu, kılavuz yeniden düzenlendi ve ilk modül adım adım ders oldu.

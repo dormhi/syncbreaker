@@ -2981,6 +2981,7 @@ class GameManager {
         if (act.game === 'signal') return `${p.keys} KEYS · ${p.timeLimit}s`;
         if (act.game === 'route') return `${p.traces} TRACES · ${p.size}×${p.size} · ${p.timeLimit}s`;
         if (act.game === 'cut') return `${p.networks} NETWORKS · ${p.lives}♥`;
+        if (act.game === 'bomb') return `${p.payloads} PAYLOADS · ${p.timeLimit}s`;
         return '';
     }
 
@@ -3994,6 +3995,7 @@ GameManager.GUIDE_PAGES = [
             ['Signal Lock', 'Hold SPACE or mouse', 'Hold anywhere'],
             ['Route Trace', 'Click a tile · arrows + SPACE', 'Tap a tile'],
             ['Network Cut', 'Click twice · arrows + SPACE', 'Tap a cable twice'],
+            ['Logic Bomb', '1-4 / Tab · arrows + SPACE', 'Tap tabs and parts'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -4008,6 +4010,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'SIGNAL LOCK', text: 'Hold to raise your signal, release to lower it. Keep it on the target until SYNC fills to lock a key, before time runs out.' },
             { head: 'ROUTE TRACE', text: 'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.' },
             { head: 'NETWORK CUT', text: 'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue owner lines cost a life; thick cables need two cuts.' },
+            { head: 'LOGIC BOMB', text: 'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },
@@ -4015,7 +4018,7 @@ GameManager.GUIDE_PAGES = [
         title: 'ENERGY',
         items: [
             { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
-            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock and Route Trace you get 20 more seconds. Twice per stage.' },
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock, Route Trace and Logic Bomb you get 20 more seconds. Twice per stage.' },
             { head: 'ENDLESS MODE', text: `Unlocks after ACT ${CAMPAIGN.finalAct}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.` }
         ]
     }
