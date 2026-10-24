@@ -26,7 +26,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
-| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5; sıfırlama bekliyor) |
+| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
@@ -394,31 +394,21 @@ Mevcut oyuncular ilerlemelerini kaybetmemeli. Yeni kayıt anahtarı `sb_campaign
 
 Göç tekrar çalıştırılsa sonuç değişmez. Reset butonu yeni anahtarı da siler.
 
-### 5b. Herkesin ilerlemesi sıfırlanacak (karar 2026-10-23, henüz uygulanmadı)
+### 5b. Herkesin verileri tamamen silinecek (karar 2026-10-23, güncellendi 2026-10-24, henüz uygulanmadı)
 
-**Karar:** Bütün oyuncuların geçmişi sıfırlanacak, herkes oyuna sıfırdan başlayacak. Yukarıdaki göç (eski ilerlemenin taşınması) ve "Endless'ı zaten açmış olanlarda açık kalır" kuralı bu sıfırlamayla birlikte geçerliliğini yitirir.
+**Karar:** Oyun **her şey bittiğinde** (Act 7–10 ve yeni sonsuz mod tamamlanıp son sürüm yayına girerken) bütün oyuncuların verileri **tamamen** silinecek. Herkes oyuna sıfırdan başlayacak. Yukarıdaki göç (eski ilerlemenin taşınması) ve "Endless'ı zaten açmış olanlarda açık kalır" kuralı bu silmeyle geçerliliğini yitirir.
 
-**Önerilen uygulama:** Bir kayıt dönemi (`sb_save_epoch`) eklenir. Oyun açılınca kayıttaki dönem eskiyse ilerleme anahtarları bir kez silinir ve yeni dönem yazılır. Böylece her oyuncu tam bir kez sıfırlanır, sonrasında ilerlemesi normal şekilde birikir.
+**Zaman:** İlk karar sıfırlamanın Act 6 ile gelmesiydi (2026-10-23). 2026-10-24'te değişti: sıfırlama son sürümle birlikte, her şey bittiğinde yapılacak. O zamana kadar oyuncuların ilerlemesi korunur.
 
-| Tarayıcıda silinecek (ilerleme) | Tarayıcıda korunacak (tercih) |
-|---|---|
-| `sb_campaign_v1` (act, aşama, yıldız, kapı, Endless kilidi) | `sb_muted` (ses tercihi) |
-| `sb_progress`, `sb_group2_unlocked`, `sb_congrats_seen` (eski kayıt) | `sb_guide_seen` (kılavuz bir kez açıldı mı) |
-| `sb_gate_*`, `sb_packetpurge`, `sb_dualring` (deneme sayaçları) | |
-| `sb_energy` (enerji tam doluyla başlar) | |
-| `sb_endless_best`, `sb_endless_pending_submission` | |
-
-**Zaman (karar 2026-10-23):** Sıfırlama **Act 6 ile birlikte** yayına girer (Faz 5).
-
-**Not (2026-10-24):** Act 6, denenmek için taslak kademe sayılarıyla ve sıfırlama **olmadan** erken yayına alındı. Sıfırlama, Act 6'nın kesin ayarıyla (kademe sayıları ve yıldız kuralları onaylandıktan sonra) yayına girecek.
-
-**Kapsam (karar 2026-10-23):**
-- **Leaderboard sıfırlanır:** sunucudaki bütün Endless skorları silinir.
-- **Operatör profilleri silinir:** isimler ve şifreler sunucudan silinir. Herkes Endless'ı yeniden açınca yeni bir operatör adı alır. Tarayıcıda sadece anonim Supabase oturumu durur. Profil sunucuda olmadığı için oyun yeni isim ister, tarayıcıda ek temizlik gerekmez.
+**Kapsam: tamamen silme.**
+- **Tarayıcıda:** oyunun bütün `sb_` anahtarları silinir. Kampanya ilerlemesi, yıldızlar, kapılar, Endless kilidi ve en iyi skoru, enerji, kapı deneme sayaçları, eski kayıt kalıntıları, eğitim işaretleri (`sb_coach_*`), kılavuz bilgisi ve ses tercihi de dahil. Tercih olarak hiçbir şey korunmaz.
+- **Sunucuda:** bütün Endless leaderboard skorları ve operatör profilleri (isim + şifre) silinir. Herkes Endless'ı yeniden açınca yeni bir operatör adı alır.
 - **Bildirim yok:** oyun sessizce baştan başlar.
 
-**Yayın adımları (Act 6 sürümünde):**
-1. İstemci: kayıt dönemi (`sb_save_epoch`) ile ilerleme anahtarlarını bir kez silmek. Testleriyle birlikte.
+**Önerilen uygulama:** Bir kayıt dönemi (`sb_save_epoch`). Oyun açılınca kayıttaki dönem eski ya da yoksa bütün `sb_` anahtarları bir kez silinir ve yeni dönem yazılır. Böylece her oyuncu tam bir kez sıfırlanır, sonrasında ilerlemesi normal şekilde birikir.
+
+**Yayın adımları (son sürümde):**
+1. İstemci: kayıt dönemi ile bütün `sb_` anahtarlarını bir kez silmek. Testleriyle birlikte.
 2. Sunucu: skorları ve operatör profillerini silen bir SQL dosyası (`supabase/` altında). Önce yerel bir Postgres'te denenir, canlı projede **kullanıcı** çalıştırır.
 3. İkisi aynı anda yayına girer: önce SQL, hemen ardından `v2` push'u.
 
@@ -470,10 +460,11 @@ Her fazın kabul şartları:
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
-| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | 🧪 Yayında (2026-10-24), kademeler ve yıldızlar kesin. Kalan: sıfırlama. |
+| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5 | ✅ Yayında (2026-10-24) |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
+| Son | Yeni çok oyunlu sonsuz mod tamamlanınca: **herkesin verileri tamamen silinir** (bölüm 5b). | Bekliyor |
 
 ## 7b. Duraklatma ve geri gitme (2026-10-21)
 
@@ -545,6 +536,6 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 **2026-10-23**
 18. **Kampanya 10 act.** Act 10 RETURN_CONTROL final act: erişim asıl sahibine geri veriliyor, içerik eğitici. Kendi statüsü HANDOVER (bölüm 3). Endless bu act'ten sonra açılıyor.
 19. **Endless sadece halkadan:** Endless ve leaderboard HUB'da sadece raydaki ∞ halkasının arkasında. Kilidi açanlar için HUB Endless kartında açılıyor, ayrıca kendilerine özel bir giriş ekranı var (bölüm 8b).
-20. **Herkesin ilerlemesi sıfırlanacak**, herkes sıfırdan başlayacak. **Act 6 ile birlikte** yayına girer. Leaderboard skorları ve operatör profilleri de silinir, oyunculara bildirim gösterilmez (bölüm 5b).
+20. **Herkesin verileri silinecek**, herkes sıfırdan başlayacak. 2026-10-24 güncellemesi: Act 6 ile değil, **her şey bittiğinde** (son sürümde) ve **tamamen** (tarayıcıdaki bütün `sb_` verileri, leaderboard skorları, operatör profilleri). Oyunculara bildirim gösterilmez (bölüm 5b).
 21. **Act 6:** Network Cut. Saldırganı çekirdeğe bağlayan bütün yollar sınırlı makasla kesilir. Can + mantık oyunu, süre yok. Kademelerle sahibin hattı, zırhlı kablo ve yedek hat (failover) eklenir. Kural kartlı kablo fikri Act 7'ye ayrıldı (bölüm 3).
 22. **Act 6 kademeleri (2026-10-24):** L2 ayarı onaylandı: can 3/4/5/5, makas payı +2/+1/+1/+1, sütun 5/5/6/6. Çelik ana hatlar ve kolay yol kontrolü eklendi.
