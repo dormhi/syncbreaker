@@ -2616,6 +2616,10 @@ suite('Stage stars (UI-5)', () => {
     ok('route: seconds left per tier', C.starsFor('route', 'NORMAL', { timeLeft: 35 }) === 3 && C.starsFor('route', 'NORMAL', { timeLeft: 15 }) === 2 &&
         C.starsFor('route', 'NORMAL', { timeLeft: 14 }) === 1);
     ok('a revive caps the run at one star', C.starsFor('orbital', 'EASY', { breaches: 0 }, true) === 1);
+    const nc = (tier, livesLost, wasted) => C.starsFor('cut', tier, { livesLost, wasted });
+    ok('network cut: flawless or one wasted cut = 3', nc('EASY', 0, 0) === 3 && nc('EASY', 0, 1) === 3 && nc('EASY', 0, 2) === 2);
+    ok('network cut: one life lost = 2, two = 1', nc('NORMAL', 1, 0) === 2 && nc('NORMAL', 2, 0) === 1);
+    ok('network cut: five-life tiers allow two lives for 2', nc('HARD', 2, 3) === 2 && nc('VERY HARD', 3, 0) === 1);
     ok('unknown game or no stats = one star', C.starsFor('nope', 'EASY', {}) === 1 && C.starsFor('orbital', 'EASY', null) === 1);
     ok('every campaign tier of the timed games has thresholds', C.acts.filter(a => a.game === 'signal' || a.game === 'route')
         .every(a => a.stages.every(st => C.starsFor(a.game, st.tier, { timeLeft: 999 }) === 3)));
@@ -3053,6 +3057,7 @@ suite('Network Cut (Act 6) — puzzles, rules, flow', () => {
     }
     ok('all networks: success with a score', m3.result === 'success' && m3.score === m3.computeScore() && m3.score > 0);
     ok('star stats', m3.starStats().livesLost === 0 && m3.starStats().wasted === 0);
+    ok('a clean stage earns 3 stars', CAMPAIGN.starsFor('cut', 'EASY', m3.starStats(), false) === 3);
 
     // Running out of scissors costs a life and rebuilds the same network.
     const m4 = make(tiers[0], 8);

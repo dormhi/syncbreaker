@@ -92,6 +92,20 @@ Bot taramasıyla belirlendi. İyi, ortalama ve yavaş insana benzer botlar her a
 
 Hizalama, her karenin altındakine göre ne kadar ortalandığını ölçer. Tam ortadaysa %100 olur.
 
+**Act 6 Network Cut (onaylandı, 2026-10-24):**
+
+| Oyun | 3 yıldız | 2 yıldız |
+|---|---|---|
+| Network Cut | hiç can kaybı yok ve aşama boyunca en fazla 1 boşa makas | en fazla 1 can kaybı (Zor ve Çok zor'da en fazla 2) |
+
+Boşa makas: bir ağı en ucuz çözümden fazla makasla kesmek. Fark aşama boyunca toplanır. Bot taraması, aşama başına 60 deneme (3/2/1 yıldız / kayıp):
+
+| | Kolay | Orta | Zor | Çok zor |
+|---|---|---|---|---|
+| İyi | 53/7/0/0 | 26/23/8/3 | 18/33/8/1 | 18/32/9/1 |
+| Ortalama | 24/35/1/0 | 0/10/18/32 | 0/6/9/45 | 0/4/9/47 |
+| Yavaş | 0/15/15/30 | 0/0/1/59 | – | – |
+
 ## 4. HUB: gelişmiş carousel (karar: 2026-10-21)
 
 Carousel yapısı kalıyor (`_mapIndex` / `_mapScroll`, yan kartlar, oklar, üstteki ilerleme rayı). Değişen kısım görünüm ve dokunma rahatlığı.

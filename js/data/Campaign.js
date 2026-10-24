@@ -188,7 +188,12 @@ CAMPAIGN.starRules = (() => {
         stack: (s) => (s.lost === 0 && s.align >= 0.8) ? 3 : s.align >= 0.7 ? 2 : 1,
         orbital: (s) => s.breaches === 0 ? 3 : s.breaches <= 1 ? 2 : 1,
         signal: bySeconds({ 'EASY': [38, 36], 'NORMAL': [33, 31], 'HARD': [30, 22], 'VERY HARD': [30, 20], 'EXPERT': [20, 12] }),
-        route: bySeconds({ 'EASY': [30, 20], 'NORMAL': [35, 15], 'HARD': [45, 20] })
+        route: bySeconds({ 'EASY': [30, 20], 'NORMAL': [35, 15], 'HARD': [45, 20] }),
+        // Network Cut (approved 2026-10-24): 3 = no life lost and at most one
+        // wasted scissor over the stage; 2 = at most one life lost (two on the
+        // five-life tiers).
+        cut: (s, tier) => (s.livesLost === 0 && s.wasted <= 1) ? 3
+            : s.livesLost <= (tier === 'HARD' || tier === 'VERY HARD' ? 2 : 1) ? 2 : 1
     };
 })();
 

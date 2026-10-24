@@ -26,7 +26,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 3 | CLOSE_PORTS | Açık portlara gelen saldırı paketlerini engelle | **Orbital Shield** | ✅ Kesin, 4 aşama (Faz 2'de uygulandı) |
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
-| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5; yıldızlar ve sıfırlama bekliyor) |
+| 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5; sıfırlama bekliyor) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | Henüz yok | 🛠 Geliştiriliyor |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
@@ -309,7 +309,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 
 **Skor:** çözülen ağ başına 300, aşama sonunda kalan her makas için 50, kalan her can için 250.
 
-**Yıldızlar (UI-5 gibi):** Eşikler bot taramasıyla belirlenip onaya sunulacak. Önerilen ölçü: kaybedilen can ve boşa harcanan makas.
+**Yıldızlar (onaylandı, 2026-10-24):** 3 yıldız = hiç can kaybı yok ve aşama boyunca en fazla 1 boşa makas; 2 yıldız = en fazla 1 can kaybı (Zor ve Çok zor'da en fazla 2). Revive kullanılırsa en fazla 1 yıldız. Bot taraması `UI_PLAN.md` bölüm 3e'de.
 
 **Sonsuz mod uyumu:** Ağlar art arda sonsuza kadar gelebilir. Düğüm sayısı, sahibin hatları, zırhlı kablolar ve yedek hatlar giderek artırılabilir.
 
@@ -470,7 +470,7 @@ Her fazın kabul şartları:
 | 3 | Act 4 Signal Lock (5 aşama, bölüm 3), Kapı 3 (Act 3 → 4) ve InputManager'a "bırakma" olayının eklenmesi. | ✅ Uygulandı |
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
-| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | 🧪 Yayında (2026-10-24), kademeler kesin. Kalan: yıldız kuralları, sıfırlama. |
+| 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5. Herkesin ilerlemesinin sıfırlanması da bu sürümle yayına girer (bölüm 5b). | 🧪 Yayında (2026-10-24), kademeler ve yıldızlar kesin. Kalan: sıfırlama. |
 | 6–7 | Act 7, Act 8 ve kapıları | Bekliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
