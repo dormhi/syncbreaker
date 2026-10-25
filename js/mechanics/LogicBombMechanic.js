@@ -51,6 +51,13 @@ const LB_NAMES = { wires: 'LINES', circuit: 'TRIGGER', pad: 'CIPHER', button: 'S
 const LB_TITLES = { wires: 'DATA LINES', circuit: 'TRIGGER CIRCUIT', pad: 'CIPHER PAD', button: 'KILL SWITCH' };
 const LB_HOLD = 0.6;   // seconds: a shorter press on the kill switch is a tap
 
+/**
+ * Text in the player's language. Rule cards are built in that language when
+ * a module is made (the language only changes on the main menu), so the
+ * MANUAL, the lesson and the rule checks all read the same words.
+ */
+const lbT = (text, vars) => (typeof UITheme !== 'undefined' ? UITheme.t(text, vars) : text);
+
 class LogicBombMechanic extends _MechanicBaseLB {
     constructor(options = {}) {
         super();
@@ -198,19 +205,19 @@ class LogicBombMechanic extends _MechanicBaseLB {
     /** Edgework conditions (SIG and flags); only on tiers with `edgework`. */
     _edgeCond() {
         const roll = this._int(3);
-        if (roll === 0) return { text: 'the SIG ends in an odd digit', test: v => v.odd, edge: true };
-        if (roll === 1) return { text: 'the SIG ends in an even digit', test: v => !v.odd, edge: true };
+        if (roll === 0) return { text: lbT('the SIG ends in an odd digit'), test: v => v.odd, edge: true };
+        if (roll === 1) return { text: lbT('the SIG ends in an even digit'), test: v => !v.odd, edge: true };
         const f = this._pick(this.flags).name;
         return this.rng() < 0.6
-            ? { text: `the ${f} flag is lit`, test: v => v.lit.has(f), edge: true }
-            : { text: `the ${f} flag is off`, test: v => !v.lit.has(f), edge: true };
+            ? { text: lbT('the {f} flag is lit', { f }), test: v => v.lit.has(f), edge: true }
+            : { text: lbT('the {f} flag is off', { f }), test: v => !v.lit.has(f), edge: true };
     }
 
     /** One rule condition: a module condition, an edgework one, or both. */
     _cond(own) {
         if (this.edgework && this.compound && this.rng() < 0.3) {
             const a = own(), b = this._edgeCond();
-            return { text: `${a.text} and ${b.text}`, test: v => a.test(v) && b.test(v), edge: true };
+            return { text: lbT('{a} and {b}', { a: a.text, b: b.text }), test: v => a.test(v) && b.test(v), edge: true };
         }
         if (this.edgework && this.rng() < 0.3) return this._edgeCond();
         return own();
@@ -252,21 +259,21 @@ class LogicBombMechanic extends _MechanicBaseLB {
             const view = this._view({ colors: wires.map(w => w.color) });
             const count = (v, c) => v.colors.filter(x => x === c).length;
             const own = () => {
-                const C = this._pick(names);
+                const C = this._pick(names), name = { C: lbT(C) };
                 const roll = this._int(5);
-                if (roll === 0) return { text: `there are no ${C} lines`, test: v => count(v, C) === 0 };
-                if (roll === 1) return { text: `there is more than one ${C} line`, test: v => count(v, C) > 1 };
-                if (roll === 2) return { text: `there is exactly one ${C} line`, test: v => count(v, C) === 1 };
-                if (roll === 3) return { text: `the last line is ${C}`, test: v => v.colors[v.colors.length - 1] === C };
-                return { text: `the first line is ${C}`, test: v => v.colors[0] === C };
+                if (roll === 0) return { text: lbT('there are no {C} lines', name), test: v => count(v, C) === 0 };
+                if (roll === 1) return { text: lbT('there is more than one {C} line', name), test: v => count(v, C) > 1 };
+                if (roll === 2) return { text: lbT('there is exactly one {C} line', name), test: v => count(v, C) === 1 };
+                if (roll === 3) return { text: lbT('the last line is {C}', name), test: v => v.colors[v.colors.length - 1] === C };
+                return { text: lbT('the first line is {C}', name), test: v => v.colors[0] === C };
             };
             const action = () => {
                 const roll = this._int(4);
-                if (roll === 0) { const k = this._int(n); return { text: `cut the ${LB_ORDINAL[k]} line`, pick: () => k }; }
-                if (roll === 1) return { text: 'cut the last line', pick: v => v.colors.length - 1 };
-                const C = this._pick(names);
-                if (roll === 2) return { text: `cut the first ${C} line`, pick: v => v.colors.indexOf(C) };
-                return { text: `cut the last ${C} line`, pick: v => v.colors.lastIndexOf(C) };
+                if (roll === 0) { const k = this._int(n); return { text: lbT('cut the {nth} line', { nth: lbT(LB_ORDINAL[k]) }), pick: () => k }; }
+                if (roll === 1) return { text: lbT('cut the last line'), pick: v => v.colors.length - 1 };
+                const C = this._pick(names), name = { C: lbT(C) };
+                if (roll === 2) return { text: lbT('cut the first {C} line', name), pick: v => v.colors.indexOf(C) };
+                return { text: lbT('cut the last {C} line', name), pick: v => v.colors.lastIndexOf(C) };
             };
             // Every line must make sense on this module (no "first RED line" without red).
             const card = this._ruleCard(this.rules, own, action, view, rules => rules.every(r => r.act.pick(view) >= 0));
@@ -276,7 +283,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         // Practically unreachable: fall back to a one-rule card.
         const wires = [{ color: 'RED', cut: false }, { color: 'BLUE', cut: false }, { color: 'WHITE', cut: false }];
         return { kind: 'wires', done: false, wires, selected: null, applied: 0, answer: 2, edge: false,
-            rules: [{ cond: null, act: { text: 'cut the last line', pick: () => 2 } }] };
+            rules: [{ cond: null, act: { text: lbT('cut the last line'), pick: () => 2 } }] };
     }
 
     /** Value of DETONATE for one assignment (inputs in order, CLK last). */
@@ -450,11 +457,11 @@ class LogicBombMechanic extends _MechanicBaseLB {
             const color = this._pick(colors), label = this._pick(labels);
             const view = this._view({ color, label });
             const own = () => this.rng() < 0.5
-                ? (C => ({ text: `the button is ${C}`, test: v => v.color === C }))(this._pick(colors))
-                : (Lb => ({ text: `the button says ${Lb}`, test: v => v.label === Lb }))(this._pick(labels));
+                ? (C => ({ text: lbT('the button is {C}', { C: lbT(C) }), test: v => v.color === C }))(this._pick(colors))
+                : (Lb => ({ text: lbT('the button says {L}', { L: lbT(Lb) }), test: v => v.label === Lb }))(this._pick(labels));
             const action = () => this.rng() < 0.5
-                ? { text: 'press and release at once', pick: () => 'tap' }
-                : { text: 'hold it down', pick: () => 'hold' };
+                ? { text: lbT('press and release at once'), pick: () => 'tap' }
+                : { text: lbT('hold it down'), pick: () => 'hold' };
             // A card that says "tap" on every line would teach nothing.
             const card = this._ruleCard(3, own, action, view, rules => new Set(rules.map(r => r.act.pick(view))).size === 2);
             if (!card) continue;
@@ -467,7 +474,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             return Object.assign({ kind: 'button', done: false, color, label, strip, release, digit }, card);
         }
         return { kind: 'button', done: false, color: 'RED', label: 'HOLD', strip: 'BLUE', release: { BLUE: 4, WHITE: 1, YELLOW: 5, other: 1 },
-            digit: 4, applied: 0, answer: 'hold', edge: false, rules: [{ cond: null, act: { text: 'hold it down', pick: () => 'hold' } }] };
+            digit: 4, applied: 0, answer: 'hold', edge: false, rules: [{ cond: null, act: { text: lbT('hold it down'), pick: () => 'hold' } }] };
     }
 
     /** The right move for a module (tests and bots). */
@@ -503,13 +510,13 @@ class LogicBombMechanic extends _MechanicBaseLB {
             const line = { x: p.x0 - 40, y: p.y - p.gap / 2, w: p.x1 - p.x0 + 60, h: p.gap };
             steps.push({ kind: 'info', text: 'Check the rules from the top. Only the FIRST rule that is true counts.', rows: [] });
             for (let k = 0; k < mod.applied; k++) {
-                steps.push({ kind: 'info', rows: [k], text: `Rule ${k + 1}: "if ${mod.rules[k].cond.text}". That is NOT true here — skip it, check the next one.` });
+                steps.push({ kind: 'info', rows: [k], text: 'Rule {n}: "if {cond}". That is NOT true here — skip it, check the next one.', vars: { n: k + 1, cond: mod.rules[k].cond.text } });
             }
             const r = mod.rules[mod.applied];
             steps.push(r.cond
-                ? { kind: 'info', rows: [mod.applied], text: `Rule ${mod.applied + 1}: "if ${r.cond.text}". That IS true here! So: ${r.act.text} — line ${mod.answer + 1}.` }
-                : { kind: 'info', rows: [mod.applied], text: `No rule above is true, so the last one counts: ${r.act.text} — line ${mod.answer + 1}.` });
-            steps.push({ kind: 'select', wire: mod.answer, rects: [line], text: `Tap line ${mod.answer + 1} to select it.` });
+                ? { kind: 'info', rows: [mod.applied], text: 'Rule {n}: "if {cond}". That IS true here! So: {act} — line {line}.', vars: { n: mod.applied + 1, cond: r.cond.text, act: r.act.text, line: mod.answer + 1 } }
+                : { kind: 'info', rows: [mod.applied], text: 'No rule above is true, so the last one counts: {act} — line {line}.', vars: { act: r.act.text, line: mod.answer + 1 } });
+            steps.push({ kind: 'select', wire: mod.answer, rects: [line], text: 'Tap line {n} to select it.', vars: { n: mod.answer + 1 } });
             steps.push({ kind: 'cut', wire: mod.answer, rects: [line], text: 'Tap it again to cut it.' });
         }
         this.coachQueue.push(...steps);
@@ -682,7 +689,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         this.strikes++;
         this.totalStrikes++;
         this.hurt = 0.5;
-        this.message = { text: `STRIKE — ${text}`, color: '#ef4444', t: 1.5 };
+        this.message = { text: lbT('STRIKE — {why}', { why: lbT(text) }), color: '#ef4444', t: 1.5 };
         if (typeof Sound !== 'undefined' && Sound.playMiss) Sound.playMiss();
         if (this.strikes >= this.maxStrikes) this._detonate();
     }
@@ -971,7 +978,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.fillText(LB_NAMES[m.kind], r.x + r.w / 2 + 8, r.y + r.h / 2 - 6);
             ctx.fillStyle = '#64748b';
             ctx.font = '600 13px Rajdhani';
-            ctx.fillText(m.done ? 'DEFUSED' : `${i + 1}`, r.x + r.w / 2 + 8, r.y + r.h / 2 + 12);
+            ctx.fillText(m.done ? lbT('DEFUSED') : `${i + 1}`, r.x + r.w / 2 + 8, r.y + r.h / 2 + 12);
         });
 
         const M = this.moduleRect();
@@ -991,7 +998,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.font = '700 30px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('DEFUSED', M.x + M.w / 2, M.y + M.h / 2);
+            ctx.fillText(lbT('DEFUSED'), M.x + M.w / 2, M.y + M.h / 2);
         }
         // Keyboard focus ring
         if (this.kbd && !mod.done && !this.coach) {
@@ -1060,7 +1067,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.fillStyle = color;
             ctx.font = '700 13px Rajdhani';
             ctx.textAlign = 'left';
-            ctx.fillText(w.color, p.x0 + 6, p.y - 14);
+            ctx.fillText(lbT(w.color), p.x0 + 6, p.y - 14);
         });
     }
 
@@ -1147,13 +1154,15 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.font = '700 15px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(mod.done ? 'OFF' : fire ? 'ON' : 'off', o.x, o.y + 1);
+        const state = lbT(mod.done ? 'OFF' : fire ? 'ON' : 'off');
+        if (ctx.measureText(state).width > 50) ctx.font = '700 11px Orbitron, OrbitronTR';
+        ctx.fillText(state, o.x, o.y + 1);
         ctx.font = '700 12px Orbitron, OrbitronTR';
-        ctx.fillText('DETONATE', o.x, o.y - 40);
+        ctx.fillText(lbT('DETONATE'), o.x, o.y - 40);
         // Flips left
         ctx.fillStyle = mod.flips <= 1 && !mod.done ? '#fbbf24' : '#94a3b8';
         ctx.font = '700 12px Orbitron, OrbitronTR';
-        ctx.fillText('FLIPS LEFT', o.x, o.y + 52);
+        ctx.fillText(lbT('FLIPS LEFT'), o.x, o.y + 52);
         ctx.font = '700 28px Orbitron, OrbitronTR';
         ctx.fillText(String(mod.flips), o.x, o.y + 80);
     }
@@ -1193,23 +1202,24 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(b.x, b.y + (held ? 3 : 0), b.r - 8, Math.PI * 1.1, Math.PI * 1.6); ctx.stroke();
         ctx.fillStyle = mod.color === 'YELLOW' || mod.color === 'WHITE' ? '#0f172a' : '#f8fafc';
-        ctx.font = `700 ${mod.label.length > 6 ? 22 : 26}px Orbitron, OrbitronTR`;
+        const label = lbT(mod.label);
+        ctx.font = `700 ${label.length > 6 ? 22 : 26}px Orbitron, OrbitronTR`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(mod.label, b.x, b.y + (held ? 3 : 0));
+        ctx.fillText(label, b.x, b.y + (held ? 3 : 0));
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 14px Rajdhani';
-        ctx.fillText(mod.color, b.x, b.y + b.r + 26);
+        ctx.fillText(lbT(mod.color), b.x, b.y + b.r + 26);
         // Strip: lights while held
         const s = b.strip;
         const lit = held && this.holding.t >= 0.15;
         UITheme.panel(ctx, s.x, s.y, s.w, s.h, { chamfer: 4, fill: lit ? LB_COLORS[mod.strip] : 'rgba(15,23,42,0.95)', stroke: 'rgba(148,163,184,0.6)', glow: lit ? LB_COLORS[mod.strip] : null });
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 13px Rajdhani';
-        ctx.fillText('STRIP', s.x + s.w / 2, s.y + s.h + 16);
+        ctx.fillText(lbT('STRIP'), s.x + s.w / 2, s.y + s.h + 16);
         if (lit) {
             ctx.fillStyle = LB_COLORS[mod.strip];
-            ctx.fillText(mod.strip, s.x + s.w / 2, s.y - 12);
+            ctx.fillText(lbT(mod.strip), s.x + s.w / 2, s.y - 12);
         }
     }
 
@@ -1303,7 +1313,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             if (mod.kind === 'button') {
                 let y = lay.bottom + 14;
                 ctx.font = '700 16px Rajdhani';
-                this._drawRich(ctx, 'STEP 2 — HOLDING? Let go when the timer shows:', x, y, '#fde68a');
+                this._drawRich(ctx, lbT('STEP 2 — HOLDING? Let go when the timer shows:'), x, y, '#fde68a');
                 y += 14;
                 const items = [['BLUE', mod.release.BLUE], ['WHITE', mod.release.WHITE], ['YELLOW', mod.release.YELLOW], ['OTHER', mod.release.other]];
                 items.forEach(([c, d], i) => {
@@ -1312,26 +1322,26 @@ class LogicBombMechanic extends _MechanicBaseLB {
                     ctx.fillRect(cx, cy - 7, 14, 14);
                     ctx.fillStyle = '#e2e8f0';
                     ctx.font = '600 16px Rajdhani';
-                    ctx.fillText(`${c} strip → a ${d}`, cx + 22, cy + 1);
+                    ctx.fillText(lbT('{C} strip → a {d}', { C: lbT(c), d }), cx + 22, cy + 1);
                 });
             }
         } else if (mod.kind === 'circuit') {
             let y = lay.bottom + 6;
             ctx.font = '600 16px Rajdhani';
-            const steps = ['Tap a switch to flip it: 0 ↔ 1.', 'A lit wire carries a 1, a dark one a 0.', `Flips are limited (${mod.minFlips + this.flipSlack}) — plan before you tap.`];
+            const steps = [lbT('Tap a switch to flip it: 0 ↔ 1.'), lbT('A lit wire carries a 1, a dark one a 0.'), lbT('Flips are limited ({n}) — plan before you tap.', { n: mod.minFlips + this.flipSlack })];
             for (const l of steps) for (const part of this._wrap(ctx, l, w)) { this._drawRich(ctx, part, x, y, '#e2e8f0'); y += 20; }
             y += 8;
             ctx.fillStyle = '#c4b5fd';
             ctx.font = '700 13px Orbitron, OrbitronTR';
-            ctx.fillText('GATES', x, y);
+            ctx.fillText(lbT('GATES'), x, y);
             y += 20;
             const has = (op) => mod.gates.some(g => g.op === op);
             const lines = [];
-            if (has('AND')) lines.push('AND → 1 only if both inputs are 1');
-            if (has('OR')) lines.push('OR → 1 if any input is 1');
-            if (has('XOR')) lines.push('XOR → 1 if the two inputs differ');
-            if (has('NOT')) lines.push('NOT → turns 1 into 0 and 0 into 1');
-            if (mod.inputs.some(i => i.clock)) lines.push('CLK flips by itself — the lamp must stay off for both values');
+            if (has('AND')) lines.push(lbT('AND → 1 only if both inputs are 1'));
+            if (has('OR')) lines.push(lbT('OR → 1 if any input is 1'));
+            if (has('XOR')) lines.push(lbT('XOR → 1 if the two inputs differ'));
+            if (has('NOT')) lines.push(lbT('NOT → turns 1 into 0 and 0 into 1'));
+            if (mod.inputs.some(i => i.clock)) lines.push(lbT('CLK flips by itself — the lamp must stay off for both values'));
             ctx.font = '600 16px Rajdhani';
             for (const l of lines) for (const part of this._wrap(ctx, l, w)) { this._drawRich(ctx, part, x, y, '#c4b5fd'); y += 20; }
         } else if (mod.kind === 'pad') {
@@ -1368,7 +1378,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             pad: '1. Find the column that has all 4 symbols. 2. Press them in that column\'s order, top first.'
         };
         ctx.font = '700 17px Rajdhani';
-        const goal = this._wrap(ctx, goals[mod.kind], w);
+        const goal = this._wrap(ctx, lbT(goals[mod.kind]), w);
         const goalY = C.y + 46;
         const top = goalY + goal.length * 21 - 4;
         const rows = [];
@@ -1381,7 +1391,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
                 const lh = size + 4;
                 for (const r of mod.rules) {
                     ctx.font = `600 ${size}px Rajdhani`;
-                    const cond = this._wrap(ctx, r.cond ? `IF ${r.cond.text}` : 'OTHERWISE', w - 30);
+                    const cond = this._wrap(ctx, r.cond ? lbT('IF {cond}', { cond: r.cond.text }) : lbT('OTHERWISE'), w - 30);
                     ctx.font = `700 ${size}px Rajdhani`;
                     const act = this._wrap(ctx, `→ ${r.act.text}`, w - 30);
                     const h = (cond.length + act.length) * lh + 8;
@@ -1408,15 +1418,18 @@ class LogicBombMechanic extends _MechanicBaseLB {
         return lines;
     }
 
-    /** One line; colour names in capitals in their colour, IF / OTHERWISE / STEP in pink. */
+    /** One line; colour names in capitals in their colour, IF / OTHERWISE / STEP in pink (in either language). */
     _drawRich(ctx, line, x, y, base) {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         const measure = (t) => { const m = ctx.measureText(t).width; return typeof m === 'number' ? m : t.length * 7.5; };
         const space = measure(' ');
+        const colour = {};
+        for (const k of Object.keys(LB_COLORS)) colour[k] = colour[lbT(k)] = LB_COLORS[k];
+        const pink = new Set(['IF', 'OTHERWISE', 'STEP'].concat(['IF', 'OTHERWISE', 'STEP'].map(k => lbT(k))));
         let cx = x;
         for (const word of line.split(' ')) {
-            ctx.fillStyle = LB_COLORS[word] || (/^(IF|OTHERWISE|STEP)$/.test(word) ? '#f472b6' : base);
+            ctx.fillStyle = colour[word] || (pink.has(word) ? '#f472b6' : base);
             ctx.fillText(word, cx, y);
             cx += measure(word) + space;
         }
@@ -1440,12 +1453,13 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.fillText(`PAYLOAD ${Math.min(this.defused + 1, this.payloads)}/${this.payloads}`, W / 2 - 150 + this.payloads * 28, y);
 
         let text = null, color = '#94a3b8';
-        if (this.result === 'success') { text = `ALL PAYLOADS DEFUSED · SCORE ${this.score}`; color = '#22c55e'; }
+        if (this.result === 'success') { text = lbT('ALL PAYLOADS DEFUSED · SCORE {n}', { n: this.score }); color = '#22c55e'; }
         else if (this.result === 'fail') { text = 'PAYLOAD DETONATED'; color = '#ef4444'; }
         else if (this.message) { text = this.message.text; color = this.message.color; }
         else if (this.current && this.current.kind === 'wires' && this.current.selected !== null && !this.coach) { text = 'TAP AGAIN TO CUT'; color = '#fbbf24'; }
         else if (this.holding && this.holding.t >= LB_HOLD) { text = 'HOLDING — RELEASE ON THE STRIP\'S DIGIT'; color = '#fbbf24'; }
         if (text) {
+            text = lbT(text);
             ctx.fillStyle = color;
             ctx.font = text.length > 30 ? '700 16px Orbitron, OrbitronTR' : '700 19px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
@@ -1482,7 +1496,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         const onPanel = !!first && first.x >= P.x - 1;
         const bw = ruleStep ? V.w + 8 : onPanel ? V.w - 28 : P.w;
         ctx.font = '600 18px Rajdhani';
-        const words = c.text.split(' ');
+        const words = lbT(c.text, c.vars).split(' ');
         const lines = [];
         let line = '';
         for (const w of words) {
@@ -1502,7 +1516,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.fillStyle = '#facc15';
             ctx.font = '700 15px Rajdhani';
             ctx.textAlign = 'right';
-            ctx.fillText('TAP TO CONTINUE ▸', bx + bw - 16, by + bh - 16);
+            ctx.fillText(lbT('TAP TO CONTINUE ▸'), bx + bw - 16, by + bh - 16);
         }
         ctx.restore();
     }

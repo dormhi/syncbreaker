@@ -507,7 +507,7 @@ class DefragMechanic extends _MechanicBaseDF {
         this.penalties++;
         this.timeLeft = Math.max(0, this.timeLeft - this.penaltyTime);
         this.hurt = 0.5;
-        this.message = { text: `${text} · −${this.penaltyTime}s`, color: '#ef4444', t: 1.6 };
+        this.message = { text: UITheme.t('{why} · −{s}s', { why: UITheme.t(text), s: this.penaltyTime }), color: '#ef4444', t: 1.6 };
         if (typeof Sound !== 'undefined' && Sound.playMiss) Sound.playMiss();
         if (this.timeLeft <= 0) this._timeUp();
     }
@@ -799,7 +799,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.font = '700 16px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('FILL EVERY EMPTY SECTOR', R.x + R.w / 2, R.y - 32);
+        ctx.fillText(UITheme.t('FILL EVERY EMPTY SECTOR'), R.x + R.w / 2, R.y - 32);
         for (let r = 0; r < B.rows; r++) {
             for (let c = 0; c < B.cols; c++) {
                 const i = r * B.cols + c;
@@ -893,7 +893,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.font = '700 13px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText('BACKUP BLOCKS', T.x + 12, T.y - 10);
+        ctx.fillText(UITheme.t('BACKUP BLOCKS'), T.x + 12, T.y - 10);
         const held = (this.drag && this.drag.piece) || (this.kbd && this.kbd.piece);
         for (const p of this.pieces) {
             if (p.at || p.gone || p === held) continue;
@@ -939,7 +939,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.fillText('TRASH', tr.x + tr.w / 2, tr.y + tr.h / 2 - 8);
         ctx.font = '600 13px Rajdhani';
         ctx.fillStyle = '#94a3b8';
-        ctx.fillText('corrupted copies', tr.x + tr.w / 2, tr.y + tr.h / 2 + 14);
+        ctx.fillText(UITheme.t('corrupted copies'), tr.x + tr.w / 2, tr.y + tr.h / 2 + 14);
     }
 
     /** The block in hand (drag or keyboard) and where it would land. */
@@ -987,7 +987,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 18px Rajdhani';
         ctx.textAlign = 'left';
-        ctx.fillText(`DISK ${Math.min(this.restored + 1, this.disks)}/${this.disks}`, W / 2 - 200 + this.disks * 28, y);
+        ctx.fillText(UITheme.t('DISK {done}/{n}', { done: Math.min(this.restored + 1, this.disks), n: this.disks }), W / 2 - 200 + this.disks * 28, y);
         const low = this.timeLeft < 10 && this.result === null;
         ctx.fillStyle = low && Math.sin(this.time * 12) > 0 ? '#fca5a5' : low ? '#ef4444' : '#e2e8f0';
         ctx.font = '700 24px Orbitron, OrbitronTR';
@@ -995,10 +995,11 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.fillText(`⏱ ${this.timerText()}`, W / 2 + 250, y);
 
         let text = null, color = '#94a3b8';
-        if (this.result === 'success') { text = `CORE RESTORED · SCORE ${this.score}`; color = '#22c55e'; }
+        if (this.result === 'success') { text = UITheme.t('CORE RESTORED · SCORE {n}', { n: this.score }); color = '#22c55e'; }
         else if (this.result === 'fail') { text = 'TIME UP — RESTORE FAILED'; color = '#ef4444'; }
         else if (this.message) { text = this.message.text; color = this.message.color; }
         if (text) {
+            text = UITheme.t(text);
             ctx.fillStyle = color;
             ctx.font = text.length > 28 ? '700 16px Orbitron, OrbitronTR' : '700 19px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
@@ -1047,7 +1048,7 @@ class DefragMechanic extends _MechanicBaseDF {
         // The bubble sits over the title band, clear of the board and the tray.
         const bw = 560;
         ctx.font = '600 18px Rajdhani';
-        const words = c.text.split(' ');
+        const words = UITheme.t(c.text).split(' ');
         const lines = [];
         let line = '';
         for (const w of words) {
@@ -1067,7 +1068,7 @@ class DefragMechanic extends _MechanicBaseDF {
             ctx.fillStyle = '#facc15';
             ctx.font = '700 14px Rajdhani';
             ctx.textAlign = 'right';
-            ctx.fillText('TAP TO CONTINUE ▸', bx + bw - 16, by + bh - 14);
+            ctx.fillText(UITheme.t('TAP TO CONTINUE ▸'), bx + bw - 16, by + bh - 14);
         }
         ctx.restore();
     }

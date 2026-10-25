@@ -4575,6 +4575,71 @@ suite('Languages (I18n) — phase 4: Acts 1-5 lessons and in-game texts', () => 
 });
 
 // ─────────────────────────────────────────────
+suite('Languages (I18n) — phase 5: Network Cut, Logic Bomb, Defrag', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const mod = loadGameManager();
+    const { I18n, CAMPAIGN, LogicBombMechanic } = mod;
+    const tr = I18n.dict.tr;
+    const has = (t) => Object.prototype.hasOwnProperty.call(tr, t);
+    const files = ['js/mechanics/NetworkCutMechanic.js', 'js/mechanics/LogicBombMechanic.js', 'js/mechanics/DefragMechanic.js'];
+    // Board labels, module names, jargon and English-only tags stay English by rule.
+    const english = new Set(['TRASH', 'MANUAL', 'STRIKES', 'NET', 'SYS', 'AUX', 'SEC', 'DMZ',
+        'LINES', 'TRIGGER', 'CIPHER', 'SWITCH', 'DATA LINES', 'TRIGGER CIRCUIT', 'CIPHER PAD', 'KILL SWITCH']);
+    const patterns = [
+        /(?:UITheme\.t\(|lbT\()'((?:[^'\\]|\\.)*)'/g,                        // drawn through the translator
+        /\btext: '((?:[^'\\]|\\.)*)'/g,                                     // lesson steps, messages
+        /_(?:strike|penalty|loseLife)\('((?:[^'\\]|\\.)*)'/g,               // strike / penalty reasons
+        /\['\w+', [^\n]*?, '((?:[^'\\]|\\.)*)', (?:\[|'\w+'\])/g,           // one-time explanation topics
+        /null, '((?:[^'\\]|\\.)*)'\]/g,                                     // Network Cut legend
+        /\b(?:wires|button|circuit|pad): '((?:[^'\\]|\\.)*)'/g              // MANUAL goal lines
+    ];
+    const missing = [];
+    for (const f of files) {
+        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+        for (const re of patterns) {
+            let m;
+            while ((m = re.exec(src))) {
+                const key = m[1].replace(/\\'/g, "'");
+                if (!english.has(key) && !has(key)) missing.push(`${path.basename(f)}: ${key}`);
+            }
+        }
+    }
+    ok(`every phase 5 text has a Turkish entry${missing.length ? ' (missing: ' + [...new Set(missing)].join(' | ') + ')' : ''}`, missing.length === 0);
+
+    // Rule cards built in Turkish read Turkish: no English template left,
+    // colours named in Turkish (so the MANUAL still paints them).
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    const englishBits = /\b(?:there|line|lines|cut the|the button|press|hold it|flag is|ends in|and)\b|\b(?:RED|BLUE|YELLOW|WHITE|GREEN)\b/;
+    let cards = 0, leaks = [];
+    const stages = CAMPAIGN.acts.find(a => a.game === 'bomb').stages;
+    for (let seed = 1; seed <= 40; seed++) {
+        const p = Object.assign({}, stages[stages.length - 1].params, { rng: makeRng(seed) });
+        const lb = new LogicBombMechanic(p);
+        lb.init({ width: 960, height: 640 });
+        for (const m of lb.mods) {
+            for (const r of m.rules || []) {
+                cards++;
+                const t = (r.cond ? r.cond.text + ' ' : '') + r.act.text;
+                if (englishBits.test(t)) leaks.push(t);
+            }
+        }
+    }
+    ok(`Turkish rule cards have no English left${leaks.length ? ' (' + leaks.slice(0, 3).join(' | ') + ')' : ''}`, cards > 50 && leaks.length === 0);
+    const sample = new LogicBombMechanic(Object.assign({}, stages[0].params, { rng: makeRng(3) }));
+    sample.init({ width: 960, height: 640 });
+    const wires = sample.mods.find(m => m.kind === 'wires');
+    ok('the solver still finds the line on a Turkish card', LogicBombMechanic.solve(wires).wire === wires.answer);
+    I18n.set('en', store);
+    const en = new LogicBombMechanic(Object.assign({}, stages[0].params, { rng: makeRng(3) }));
+    en.init({ width: 960, height: 640 });
+    const enWires = en.mods.find(m => m.kind === 'wires');
+    ok('the same seed gives the same card in both languages', enWires.answer === wires.answer && enWires.applied === wires.applied);
+    ok('English rule cards are unchanged', /line|cut the/.test(enWires.rules.map(r => r.act.text).join(' ')));
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

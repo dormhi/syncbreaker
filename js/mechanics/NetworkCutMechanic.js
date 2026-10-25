@@ -856,7 +856,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             if (n.kind === 'core') {
                 ctx.font = '700 14px Rajdhani';
                 ctx.fillStyle = hit ? red : '#22c55e';
-                ctx.fillText(hit ? 'UNDER ATTACK' : 'SAFE', n.x, n.y + r + 32);
+                ctx.fillText(UITheme.t(hit ? 'UNDER ATTACK' : 'SAFE'), n.x, n.y + r + 32);
             }
         });
 
@@ -865,7 +865,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '600 14px Rajdhani';
-        ctx.fillText('GOAL: cut cables until no red line reaches the CORE', B.x + 14, B.y + 16);
+        ctx.fillText(UITheme.t('GOAL: cut cables until no red line reaches the CORE'), B.x + 14, B.y + 16);
 
         // Sparks
         for (const s of this.sparks) {
@@ -902,6 +902,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         ctx.font = '500 14px Rajdhani';
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'left';
+        items.forEach(it => { it[3] = UITheme.t(it[3]); });
         const widths = items.map(it => 34 + (ctx.measureText(it[3]).width || it[3].length * 7));
         // Up to two per row, centred under the board
         for (let row = 0; row * 2 < items.length; row++) {
@@ -964,7 +965,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         const fx = n ? sx / n : W / 2, fy = n ? sy / n : B.y + B.h / 2;
         const bw = 470;
         ctx.font = '600 16px Rajdhani';
-        const words = c.text.split(' ');
+        const words = UITheme.t(c.text).split(' ');
         const lines = [];
         let line = '';
         for (const w of words) {
@@ -985,7 +986,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             ctx.fillStyle = '#facc15';
             ctx.font = '700 14px Rajdhani';
             ctx.textAlign = 'right';
-            ctx.fillText('TAP TO CONTINUE ▸', bx + bw - 16, by + bh - 16);
+            ctx.fillText(UITheme.t('TAP TO CONTINUE ▸'), bx + bw - 16, by + bh - 16);
         }
         ctx.restore();
     }
@@ -1013,12 +1014,12 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         ctx.fillStyle = this.scissors <= 1 ? '#fbbf24' : '#94a3b8';
         ctx.font = '700 20px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`✂ ${this.scissors}  ·  NETWORK ${Math.min(this.solved + 1, this.networks)}/${this.networks}`, W / 2 + 260, y);
+        ctx.fillText(UITheme.t('✂ {n}  ·  NETWORK {done}/{total}', { n: this.scissors, done: Math.min(this.solved + 1, this.networks), total: this.networks }), W / 2 + 260, y);
 
         // Status line between the board and the HUD
         const B = this.boardRect();
         let text = null, color = '#94a3b8';
-        if (this.result === 'success') { text = `ACCESS CUT · SCORE ${this.score}`; color = '#22c55e'; }
+        if (this.result === 'success') { text = UITheme.t('ACCESS CUT · SCORE {n}', { n: this.score }); color = '#22c55e'; }
         else if (this.result === 'fail') { text = 'ACCESS HELD'; color = '#ef4444'; }
         else if (this.message) { text = this.message.text; color = this.message.color; }
         else if (this.selected !== null && !this.coach) { text = 'TAP AGAIN TO CUT'; color = '#fbbf24'; }
@@ -1026,7 +1027,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             ctx.fillStyle = color;
             ctx.font = text === 'TAP AGAIN TO CUT' ? '600 16px Rajdhani' : '700 20px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
-            ctx.fillText(text, W / 2, B.y + B.h + 28);
+            ctx.fillText(UITheme.t(text), W / 2, B.y + B.h + 28);
         }
         ctx.restore();
     }

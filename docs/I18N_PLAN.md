@@ -1,6 +1,6 @@
 # SyncBreaker — Türkçe dil desteği planı
 
-> Durum (2026-10-26): **Faz 1–3 commit edildi (push yok). Faz 4 de commit edildi (push yok)** (Act 1–5 dersleri, HUD yazıları, sonuç yazıları, vuruş kelimeleri). 1101 test geçiyor. Sıradaki: **Faz 5**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
+> Durum (2026-10-26): **Faz 1–4 commit edildi (push yok). Faz 5 de commit edildi (push yok)** (Network Cut, Logic Bomb ve kural kartı üreticisi, Defrag: dersler, açıklamalar, HUD, mesajlar). 1106 test geçiyor. Sıradaki: **Faz 6**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
 
 ## 1. Kurallar (kullanıcı, 2026-10-25)
 
@@ -43,7 +43,7 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 | **2** | Ana menü, durum raporu, HUB (harita, kartlar, ray), act ekranı, kapılar, duraklatma paneli, oyun sonu / sonuç ekranları, enerji ve recovery mesajları, tebrik ekranı. | ✅ Uygulandı |
 | **3** | TIP satırları (`TipBar.MAP`, `TipBar.ACT`, `TipBar.RULES`), oyun kılavuzu (`GUIDE_PAGES`), act hikâyeleri, kontrol ve alt ipucu satırları (`Campaign.js`). | ✅ Uygulandı |
 | **4** | Act 1–5: dersler ve oyun içi yazılar (HUD, mesajlar). | ✅ Uygulandı |
-| 5 | Act 6–8: Network Cut, Logic Bomb (kural kartı üretici dahil), Defrag. | Bekliyor |
+| **5** | Act 6–8: Network Cut, Logic Bomb (kural kartı üretici dahil), Defrag. | ✅ Uygulandı |
 | 6 | Act 9 Checksum Grid ve Act 10 görevleri (en çok içerik). | Bekliyor |
 | 7 | Kalanlar: Endless, leaderboard, operatör profili formu (DOM), lockpick / Code Breaker, Dual Ring, Packet Purge. Son kontrol: bütün ekranlar iki dilde, telefon ve masaüstü. | Bekliyor |
 
@@ -65,3 +65,5 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 - Test: "phase 3" grubu bütün TIP / RULES satırlarının, act hikâye / kontrol / ipucu satırlarının ve rehber metinlerinin Türkçesi olduğunu, rehberin Türkçe çizildiğini ve hiçbir satırın "…" ile kesilmediğini denetler.
 - Faz 4: `Coach` adımları da `vars` taşıyabilir (`{ text: 'Land {n} hits', vars: { n } }`); sayılı ders metinleri böyle yazılır. Timing Bar'ın vuruş kelimeleri (`LevelThemes` `hitWords`: PURGED, SEALED…) çevrildi; PERFECT / GOOD / MISS İngilizce kaldı. Kelime seçimleri: STACK LIMIT → **SINIR ÇİZGİSİ**, FRAMES → **BLOK**, BLOCKED → **ENGELLENEN**, KEYS → **ANAHTAR**, TRACES → **İZ**, s → **sn**. Oyun adı olan sonuç yazısı STACK OVERFLOW, ayrıca SYNC / SYNCING, CORE ve Route Trace tahtasındaki **YOU / ATTACKER** etiketleri İngilizce kaldı (ATK / CORE gibi kısa tahta etiketleri; ders ve ipuçları da bu adlarla anlatıyor). Endless'ın oyun içi yazıları (WAVE, BEST) Faz 7'de.
 - Test: "phase 4" grubu Act 1–5 dosyalarındaki çizilen metinlerin ve ders adımlarının (text / desktop / touch) Türkçesini, vuruş kelimelerini ve ders yer tutucularını denetler.
+- Faz 5: **Logic Bomb kural kartları oyuncunun dilinde üretilir** (`lbT`, modül oluşurken; dil sadece ana menüde değişir). Cümleler Türkçe kalıplardan kurulur ("EĞER hiç KIRMIZI hat yoksa → ilk MAVİ hattı kes"), kural kontrolü ve çözücü metne bakmadığı için aynı tohum iki dilde aynı kartı verir. Kılavuzdaki renkli kelimeler Türkçe renk adlarını da tanır (KIRMIZI, MAVİ, SARI, BEYAZ, YEŞİL), pembe kelimeler EĞER / YOKSA / ADIM. Düğme yazıları da çevrildi (ABORT → İPTAL, HOLD → BEKLE, DETONATE → PATLAT, PRESS → BAS; Faz 3'teki TRIGGER ipucu da PATLAT'a güncellendi). İngilizce kalanlar: modül adları ve başlıkları (LINES, TRIGGER, CIPHER, SWITCH, DATA LINES, KILL SWITCH…), MANUAL, STRIKE / STRIKES, SIG ve bayraklar (NET, SYS…), PAYLOAD; Network Cut'ta ATK / CORE / OWNER tahta etiketleri; Defrag'da CLEAN SNAPSHOT ve TRASH.
+- Test: "phase 5" grubu üç oyunun metinlerini (ders adımları, açıklamalar, mesajlar, kılavuz hedefleri, renk açıklamaları) ve Türkçe üretilen yüzlerce Logic Bomb kural kartında İngilizce kalıp kalmadığını denetler.
