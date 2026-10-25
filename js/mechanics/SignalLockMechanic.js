@@ -16,6 +16,10 @@
 
    Motion is integrated in fixed steps (frame-rate independent); render
    interpolates the previous/current frequency with alpha.
+
+   LESSON (Coach, useCoach): the first stage opens with the two waves,
+   hold / release, and practice until one key locks (the timer waits).
+   Shown once (sb_coach_signal).
    ========================================= */
 
 const _MechanicBaseSL = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
@@ -72,6 +76,22 @@ class SignalLockMechanic extends _MechanicBaseSL {
         this.lockFlash = 0;
         this.base = 0;
         this._newTarget();
+
+        this.coach = null;
+        if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
+            this.coach = new Coach(this.coachStore).push(
+                { kind: 'info', rects: 'scope', text: 'Reset the stolen key: make YOUR signal (blue wave) match the TARGET (orange, dashed).' },
+                { kind: 'info', rects: 'scope', text: { desktop: 'HOLD SPACE or the mouse button to raise your signal. Let go to lower it.', touch: 'HOLD your finger on the screen to raise your signal. Lift it to lower it.' } },
+                { kind: 'lock', rects: 'scope', text: 'Keep the two waves together until SYNC fills and the key locks. Try it — the timer waits.' },
+                { kind: 'info', key: 'tutorial', text: `Key locked! Lock ${this.keys} keys before the timer runs out. Short taps keep the signal steady.` }
+            );
+        }
+    }
+
+    /** Lesson on the first stage; the host passes a per-game store. */
+    useCoach(store, firstStage) {
+        this.coachStore = store || null;
+        this.firstStage = !!firstStage;
     }
 
     revive() {
@@ -127,9 +147,15 @@ class SignalLockMechanic extends _MechanicBaseSL {
         if (this.flash > 0) this.flash -= h;
         if (this.lockFlash > 0) this.lockFlash -= h;
         if (this.result !== null) return;
+        // Lesson: an info bubble freezes the scope; the timer waits for the whole lesson.
+        if (this.coach) {
+            this.coach.update(h);
+            if (!this.coach.active) this.coach = null;
+            else if (this.coach.blocks) return;
+        }
 
         this.time += h;
-        this.timeLeft = Math.max(0, this.timeLeft - h);
+        if (!this.coach) this.timeLeft = Math.max(0, this.timeLeft - h);
 
         // Player signal: hold pushes up, release pulls down, with damping.
         this.fPrev = this.f;
@@ -158,6 +184,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
             this.sync = 0;
             this.lockFlash = 0.5;
             if (typeof Sound !== 'undefined' && Sound.playGood) Sound.playGood(SignalLockMechanic.SOUND);
+            if (this.coach) this.coach.event('lock');
             if (this.locked >= this.keys) {
                 this.result = 'success';
                 this.score = this.computeScore();
@@ -184,6 +211,10 @@ class SignalLockMechanic extends _MechanicBaseSL {
     // ── Input (hold / release) ──
 
     handleKey(code) {
+        if (this.coach && this.coach.blocks) {
+            if (code === 'Space' || code === 'Enter') this.coach.next();
+            return true;
+        }
         if (code === 'Space') { this.holdKey = true; return true; }
         return false;
     }
@@ -195,6 +226,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
 
     handlePointer(x, y, phase) {
         if (phase === 'up') { this.holdPointer = false; return true; }
+        if (this.coach && this.coach.blocks) { this.coach.next(); return true; }
         this.holdPointer = true;
         return true;
     }
@@ -290,6 +322,11 @@ class SignalLockMechanic extends _MechanicBaseSL {
         }
 
         this._renderHud(ctx, W, H, inSync);
+        if (this.coach && this.coach.active) {
+            // The scope, the gauge and the SYNC meter under them.
+            const rects = this.coach.step.rects === 'scope' ? [{ x: S.x, y: S.y, w: S.w + 60, h: S.h + 30 }] : [];
+            this.coach.render(ctx, W, H, rects, { at: 'top' });
+        }
     }
 
     /** Small vector key (no emoji: the game fonts lack key glyphs). */

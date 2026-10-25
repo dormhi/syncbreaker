@@ -21,6 +21,10 @@
 
    revive(): the recovery protocol adds `reviveTime` seconds; the same run
    (and the same grid) continues.
+
+   LESSON (Coach, useCoach): the first stage opens with the two nodes, one
+   practice turn, the green line, and the first route traced while the
+   timer waits. Shown once (sb_coach_route).
    ========================================= */
 
 const _MechanicBaseRT = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
@@ -77,6 +81,23 @@ class RouteTraceMechanic extends _MechanicBaseRT {
         this.flash = 0;
         this.cursor = { x: 0, y: 0 };
         this._newPuzzle();
+
+        this.coach = null;
+        if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
+            this.coach = new Coach(this.coachStore).push(
+                { kind: 'info', rects: 'board', text: 'Trace the attacker: build one unbroken line of tiles from YOU (left) to the ATTACKER (right).' },
+                { kind: 'rotate', rects: 'board', text: { desktop: 'Click a tile to turn it (or move with the arrows and press SPACE). Try it.', touch: 'Tap a tile to turn it. Try it.' } },
+                { kind: 'info', rects: 'board', text: 'A tile that connects to YOU lights up GREEN. Keep turning tiles so the green line grows all the way to the ATTACKER.' },
+                { kind: 'trace', rects: 'board', text: 'Finish the route — the timer waits while you learn.' },
+                { kind: 'info', key: 'tutorial', text: `Traced! Find ${this.traces} routes before the timer runs out.` }
+            );
+        }
+    }
+
+    /** Lesson on the first stage; the host passes a per-game store. */
+    useCoach(store, firstStage) {
+        this.coachStore = store || null;
+        this.firstStage = !!firstStage;
     }
 
     revive() {
@@ -252,6 +273,12 @@ class RouteTraceMechanic extends _MechanicBaseRT {
         const h = this.stepDt;
         if (this.flash > 0) this.flash -= h;
         if (this.result !== null) return;
+        // Lesson: an info bubble freezes the board; the timer waits for the whole lesson.
+        if (this.coach) {
+            this.coach.update(h);
+            if (!this.coach.active) this.coach = null;
+            else if (this.coach.blocks) return;
+        }
         this.time += h;
 
         // Short pause after a solved trace (the timer stops too).
@@ -261,7 +288,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
             return;
         }
 
-        this.timeLeft = Math.max(0, this.timeLeft - h);
+        if (!this.coach) this.timeLeft = Math.max(0, this.timeLeft - h);
 
         // Scramble: pick tiles at the start of the warning, turn them at the end.
         if (isFinite(this.scrambleAt)) {
@@ -294,6 +321,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
         this.lit = r.lit;
         if (!r.solved) return;
         this.solved++;
+        if (this.coach) this.coach.event('trace');
         this.flash = 0.5;
         if (typeof Sound !== 'undefined' && Sound.playGood) Sound.playGood(RouteTraceMechanic.SOUND);
         if (this.solved >= this.traces) {
@@ -322,6 +350,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
         if (t.locked || t.type === 'empty') return false;
         t.rot = (t.rot + 1) % 4;
         this._afterChange();
+        if (this.coach) this.coach.event('rotate');
         return true;
     }
 
@@ -335,6 +364,10 @@ class RouteTraceMechanic extends _MechanicBaseRT {
     }
 
     handleKey(code) {
+        if (this.coach && this.coach.blocks) {
+            if (code === 'Space' || code === 'Enter') this.coach.next();
+            return true;
+        }
         const c = this.cursor;
         const n = this.size;
         if (code === 'ArrowLeft' || code === 'KeyA') { c.x = Math.max(0, c.x - 1); return true; }
@@ -347,6 +380,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
 
     handlePointer(x, y, phase) {
         if (phase && phase !== 'down') return false;
+        if (this.coach && this.coach.blocks) { this.coach.next(); return true; }
         const B = this.boardRect();
         const gx = Math.floor((x - B.x) / B.tile), gy = Math.floor((y - B.y) / B.tile);
         if (gx < 0 || gy < 0 || gx >= this.size || gy >= this.size) return true;
@@ -456,6 +490,11 @@ class RouteTraceMechanic extends _MechanicBaseRT {
             ctx.restore();
         }
         this._renderHud(ctx, W, H);
+        if (this.coach && this.coach.active) {
+            const B = this.boardRect();
+            const rects = this.coach.step.rects === 'board' ? [{ x: B.x - 40, y: B.y - 6, w: B.w + 80, h: B.w + 12 }] : [];
+            this.coach.render(ctx, W, H, rects, { at: 'bottom', width: 700 });
+        }
     }
 
     _renderHud(ctx, W, H) {

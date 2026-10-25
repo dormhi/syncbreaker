@@ -394,7 +394,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 
 **Sonsuz mod uyumu:** payload'lar art arda sonsuza kadar gelebilir. Modül sayısı, kural sayısı ve kapı sayısı artırılıp süre kısaltılabilir. Skor zaten var.
 
-**Sonraki iş (2026-10-24, kullanıcı):** Act 7 bitince **Act 1–5 için de benzer küçük öğreticiler** yapılacak (Act 6 ve 7'deki `useCoach` yapısıyla).
+**Act 1–5 öğreticileri (istek 2026-10-24, yapıldı 2026-10-25):** her oyunun ilk aşaması kısa bir dersle açılıyor (ortak `js/core/Coach.js`). Ders boyunca süre durur ve hatalar sayılmaz: Timing Bar'da ıska can götürmez, Stack Overflow'da düşen blok geri verilir, Orbital Shield'da kaçan paket can götürmez. Dersler: Timing Bar (çubuk → bölge → bir isabet), Stack Overflow (çizgi → vinç → bir blok bırak ve otursun), Orbital Shield (portlar → kalkanı yanıp sönen porta götür → bir paket engelle), Signal Lock (iki dalga → basılı tut / bırak → bir anahtar kilitle), Route Trace (iki düğüm → bir karo çevir → yeşil hat → ilk rotayı tamamla). Her ders bir kez gösterilir (`sb_coach_<oyun>`).
 
 ### Act 8: Defrag, 4 aşama 📝 (plan ve ilk uygulama, 2026-10-25)
 
@@ -686,3 +686,4 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 22. **Act 6 kademeleri (2026-10-24):** L2 ayarı onaylandı: can 3/4/5/5, makas payı +2/+1/+1/+1, sütun 5/5/6/6. Çelik ana hatlar ve kolay yol kontrolü eklendi.
 23. **Act 7:** Logic Bomb (2026-10-24). Modüler bir payload kasası: veri hatları (kural kartı), tetik devresi (mantık kapıları), sembol tuş takımı ve basılı tut düğmesi. Ortak geri sayım ve arıza sınırı var, fizik yok. Telefon için bir anda tek modül ve onun kartı gösteriliyor. Kademeler ve yıldızlar taslak, onay bekliyor. İlk oyun testinden sonra (aynı gün) Uzman kaldırıldı (4 aşama), her aşama tek yeni şey getiriyor, devre canlı oldu, kılavuz yeniden düzenlendi ve ilk modül adım adım ders oldu.
 24. **Act 8:** Defrag (2026-10-25). Çekirdek diski bir ızgara, yedekten gelen Tetris benzeri bloklar sürüklenip boş sektörlere yerleştiriliyor, disk tamamen doldurulunca geri yükleniyor. Süre baskısı, can yok. Uzman aşaması A + B karışımı: bazı parçaların bozuk ikizi var, temiz görüntüyle karşılaştırılıp çöpe atılıyor.
+25. **Act 1–5 dersleri (2026-10-25):** ilk aşamalar kısa, oynatarak öğreten bir dersle açılıyor. Ders boyunca süre durur, hata sayılmaz. Ortak altyapı `Coach`.

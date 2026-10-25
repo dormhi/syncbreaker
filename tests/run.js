@@ -998,6 +998,7 @@ suite('Act screen + stage flow', () => {
     // Act 2 stage runs Stack Overflow with the tier params.
     gm.progress.openGate(1);
     settle(gm, S.ACT);
+    gm._coachStore('stack').mark('tutorial');   // the lesson is tested on its own
     gm._startStage(2, 0);
     ok('act 2 runs in the MINIGAME host', gm.state.pendingState === S.MINIGAME);
     const cfg = gm.state.pendingContext;
@@ -1569,6 +1570,7 @@ suite('Leave prompt in every game + first-stage hint', () => {
         texts.indexOf('thanks for birlikterutin family') >= 0 && texts.indexOf('alpyso and ezgyso') >= 0);
 
     // Timing Bar stage: ⏸ button, pause panel, warnings, restart.
+    gm._coachStore('timingbar').mark('tutorial');   // the lesson is tested on its own
     gm._startStage(1, 0);
     enter(S.LEVEL);
     ok('⏸ button in the Timing Bar', !!btn('pause'));
@@ -1824,6 +1826,7 @@ suite('Orbital Shield in the campaign (stage flow + revive)', () => {
     ok('act 3 tips', gm.tipBar.tips.some(t => /blinking port/.test(t)));
 
     settle(gm, S.ACT);
+    gm._coachStore('orbital').mark('tutorial');   // the lesson is tested on its own
     gm._startStage(3, 0);
     const cfg = gm.state.pendingContext;
     ok('stage runs Orbital Shield', gm.state.pendingState === S.MINIGAME && cfg.mechanic instanceof mod.OrbitalShieldMechanic);
@@ -1981,6 +1984,7 @@ suite('Signal Lock — hold input routing + +20 s revive', () => {
     ok('gate 3 opened act 4', gm.progress.isActUnlocked(4));
 
     settle(gm, S.ACT);
+    gm._coachStore('signal').mark('tutorial');   // the lesson is tested on its own
     gm._startStage(4, 0);
     const cfg = gm.state.pendingContext;
     const m = cfg.mechanic;
@@ -2180,6 +2184,7 @@ suite('Route Trace (Act 5) — puzzles, rules, flow', () => {
     ok('gate 4 opened act 5', gm.progress.isActUnlocked(5));
     ok('stage card summary', gm._stageSummary(gm.progress.act(5), gm.progress.act(5).stages[2]) === '3 TRACES · 6×6 · 85s');
     settle(gm, S.ACT);
+    gm._coachStore('route').mark('tutorial');   // the lesson is tested on its own
     gm._startStage(5, 0);
     const cfg = gm.state.pendingContext;
     const m = cfg.mechanic;
@@ -3837,6 +3842,172 @@ suite('Defrag teaches itself (lesson disk) and runs in the host', () => {
     const pb = gm.ui.buttons.find(b => b.id === 'pause');
     ok('the pause button is never claimed as a drag', !pb || gm._dragStart(pb.x, pb.y) === false);
     ok('registry: revive +20s, drag game', mod.GameRegistry.get('defrag').reviveLabel === '+20s' && dm.wantsDrag === true);
+});
+
+// ─────────────────────────────────────────────
+suite('Acts 1-5 teach themselves (Coach lessons)', () => {
+    const mod = loadGameManager();
+    const { Coach, CAMPAIGN } = mod;
+    const store = () => { const seen = {}; return { seen: k => !!seen[k], mark: k => { seen[k] = true; }, raw: seen }; };
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    const params = (act, i = 0) => Object.assign({}, CAMPAIGN.acts[act - 1].stages[i].params);
+    const tapThroughInfo = (coach, tap) => { for (let k = 0; k < 10 && coach.step && coach.step.kind === 'info'; k++) tap(); };
+
+    // Coach itself
+    const cs = store();
+    const c = new Coach(cs).push({ kind: 'info', text: 'a' }, { kind: 'go', text: { desktop: 'press', touch: 'tap' } }, { kind: 'info', key: 'done', text: 'b' });
+    ok('coach: info blocks, a move step does not', c.blocks && (c.next(), !c.blocks && c.step.kind === 'go'));
+    const before = Coach.inputMode;
+    Coach.inputMode = () => 'touch';
+    ok('coach: text follows the input mode', Coach.text(c.step.text) === 'tap');
+    Coach.inputMode = before;
+    ok('coach: event passes only its own step', !c.event('other') && c.event('go') && c.step.key === 'done');
+    c.next();
+    ok('coach: a keyed step is marked when passed', cs.raw.done && !c.active);
+
+    // Act 1 · Timing Bar (LevelManager)
+    const lm = new mod.GameManager(makeFakeCanvas(), makeFakeCtx(makeFakeCanvas())).levels;
+    const s1 = store();
+    lm.useCoach(s1, true);
+    lm.startStage(stageCfg(CAMPAIGN, 0, 0));
+    const t1 = lm.timer, p1 = lm.barPosition;
+    for (let i = 0; i < 60; i++) lm.update(1 / 60);
+    ok('timing bar: lesson opens and freezes the bar', lm.coach && lm.coach.blocks && lm.timer === t1 && lm.barPosition === p1);
+    tapThroughInfo(lm.coach, () => lm.hit());
+    ok('timing bar: then asks for a hit', lm.coach.step.kind === 'hit');
+    // A miss in the lesson is free.
+    for (let i = 0; i < 600 && lm.timingBar.hitTest(lm.timingBar.sample(0)).inZone; i++) lm.update(1 / 60);
+    const lives = lm.lives;
+    lm.hit();
+    ok('timing bar: a lesson miss costs no life', lm.lives === lives && lm.misses === 0 && lm.coach.step.kind === 'hit');
+    for (let i = 0; i < 600 && !lm.timingBar.hitTest(lm.timingBar.sample(0)).inZone; i++) lm.update(1 / 60);
+    lm.hit();
+    ok('timing bar: the hit counts and the lesson wraps up', lm.hitCount === 1 && lm.coach.step.key === 'tutorial');
+    ok('timing bar: the timer waited', lm.timer === t1);
+    lm.hit();
+    for (let i = 0; i < 30; i++) lm.update(1 / 60);
+    ok('timing bar: lesson done, marked, the timer runs', s1.raw.tutorial && !lm.coach && lm.timer < t1);
+    lm.useCoach(s1, true);
+    lm.startStage(stageCfg(CAMPAIGN, 0, 0));
+    ok('timing bar: shown once', !lm.coach);
+    lm.useCoach(store(), false);
+    lm.startStage(stageCfg(CAMPAIGN, 0, 1));
+    ok('timing bar: only on the first stage', !lm.coach);
+
+    // Act 2 · Stack Overflow
+    const s2 = store();
+    const so = new mod.StackOverflowMechanic(Object.assign({ rng: makeRng(3) }, params(2)));
+    so.useCoach(s2, true);
+    so.init({ width: 960, height: 640 });
+    const so0 = so.time;
+    for (let i = 0; i < 30; i++) so.update(1 / 60);
+    ok('stack: lesson opens and freezes the crane', so.coach && so.time === so0);
+    tapThroughInfo(so.coach, () => so.drop());
+    ok('stack: then asks for a drop (taps did not drop)', so.coach.step.kind === 'drop' && so.drops === 0);
+    so.drop();
+    ok('stack: the drop moves on', so.coach.step.kind === 'placed' || so.coach.step.kind === 'drop');
+    for (let i = 0; i < 600 && so.coach && so.coach.step.kind !== 'info'; i++) {
+        so.update(1 / 60);
+        if (so.coach && so.coach.step.kind === 'drop' && so.canDrop) so.drop();
+    }
+    ok('stack: a block lands, no life lost, the lesson wraps up', so.coach && so.coach.step.key === 'tutorial' && so.lives === so.maxLives);
+    so.drop();
+    ok('stack: lesson marked', s2.raw.tutorial);
+
+    // Act 3 · Orbital Shield
+    const s3 = store();
+    const os = new mod.OrbitalShieldMechanic(Object.assign({ rng: makeRng(4) }, params(3)));
+    os.useCoach(s3, true);
+    os.init({ width: 960, height: 640 });
+    for (let i = 0; i < 30; i++) os.update(1 / 60);
+    ok('orbital: lesson opens and freezes the packets', os.coach && os.time === 0);
+    tapThroughInfo(os.coach, () => os.handlePointer(5, 5, 'down'));
+    ok('orbital: then asks for a block', os.coach.step.kind === 'block');
+    // Leave the shield alone: breaches are free in the lesson.
+    const away = (p) => (p + 2) % os.ports;
+    for (let i = 0; i < 400 && os.breaches === 0 && os.attacks.length; i++) {
+        const next = os.attacks.find(a => !a.done);
+        if (next) os.setShield(away(next.finalPort));
+        os.update(1 / 60);
+        if (os.coach.step.kind !== 'block') break;
+    }
+    ok('orbital: a lesson breach costs no life', os.lives === os.maxLives && os.breaches === 0);
+    for (let i = 0; i < 1200 && os.coach && os.coach.step.kind === 'block'; i++) {
+        const next = os.attacks.find(a => !a.done);
+        if (next) os.setShield(next.finalPort);
+        os.update(1 / 60);
+    }
+    ok('orbital: a block wraps the lesson up', os.blocked >= 1 && os.coach.step.key === 'tutorial');
+    os.handleKey('Space');
+    ok('orbital: lesson marked', s3.raw.tutorial && !os.coach.active);
+
+    // Act 4 · Signal Lock
+    const s4 = store();
+    const sl = new mod.SignalLockMechanic(Object.assign({ rng: makeRng(5) }, params(4)));
+    sl.useCoach(s4, true);
+    sl.init({ width: 960, height: 640 });
+    const tl = sl.timeLeft;
+    sl.handleKey('Space'); sl.handleKeyUp('Space');
+    ok('signal: SPACE passes an info bubble without holding', sl.coach.step.kind === 'info' && !sl.holding);
+    tapThroughInfo(sl.coach, () => { sl.handlePointer(0, 0, 'down'); sl.handlePointer(0, 0, 'up'); });
+    ok('signal: then asks for a lock', sl.coach.step.kind === 'lock');
+    for (let i = 0; i < 6000 && sl.coach.step.kind === 'lock'; i++) {
+        sl.holdKey = sl.f < sl.target - sl.v * 0.25;
+        sl.update(1 / 60);
+    }
+    ok('signal: a lock wraps the lesson up, the timer waited', sl.locked === 1 && sl.coach.step.key === 'tutorial' && sl.timeLeft === tl);
+    sl.handlePointer(0, 0, 'down');
+    ok('signal: lesson marked', s4.raw.tutorial);
+
+    // Act 5 · Route Trace
+    const s5 = store();
+    const rt = new mod.RouteTraceMechanic(Object.assign({ rng: makeRng(6) }, params(5)));
+    rt.useCoach(s5, true);
+    rt.init({ width: 960, height: 640 });
+    const tr = rt.timeLeft;
+    tapThroughInfo(rt.coach, () => rt.handleKey('Space'));
+    ok('route: asks for a turn first', rt.coach.step.kind === 'rotate');
+    const free = rt.solution.find(cl => !rt.grid[cl.y][cl.x].locked);
+    rt.rotateTile(free.x, free.y);
+    ok('route: a turn moves on to the green line', rt.coach.step.kind === 'info');
+    rt.handlePointer(5, 5, 'down');
+    ok('route: then asks for the whole route', rt.coach.step.kind === 'trace');
+    for (const cl of rt.solution) {
+        for (let k = 0; k < 4 && rt.coach.step.kind === 'trace'; k++) {
+            const t = rt.grid[cl.y][cl.x];
+            if ((mod.RouteTraceMechanic.rotate({ empty: 0, straight: 5, corner: 3, tee: 7 }[t.type], t.rot) & t.need) === t.need) break;
+            rt.rotateTile(cl.x, cl.y);
+        }
+    }
+    for (let i = 0; i < 30; i++) rt.update(1 / 60);
+    ok('route: tracing wraps the lesson up, the timer waited', rt.solved === 1 && rt.coach.step.key === 'tutorial' && rt.timeLeft === tr);
+    rt.handleKey('Enter');
+    ok('route: lesson marked', s5.raw.tutorial);
+
+    // Every lesson renders.
+    let threw = null;
+    try {
+        const g = new mod.GameManager(makeFakeCanvas(), makeFakeCtx(makeFakeCanvas()));
+        g.levels.useCoach(store(), true); g.levels.startStage(stageCfg(CAMPAIGN, 0, 0)); g.levels.render(ctx, 960, 640, 0.5);
+        for (const [Cls, act] of [[mod.StackOverflowMechanic, 2], [mod.OrbitalShieldMechanic, 3], [mod.SignalLockMechanic, 4], [mod.RouteTraceMechanic, 5]]) {
+            const m = new Cls(Object.assign({ rng: makeRng(9) }, params(act)));
+            m.useCoach(store(), true);
+            m.init({ width: 960, height: 640 });
+            m.render(ctx, 960, 640, 0, 1);
+        }
+    } catch (e) { threw = e.stack; }
+    ok('every lesson renders', threw === null, threw);
+
+    // Host: Act 1 gets its store; a mouse click passes a bubble.
+    const gm = new mod.GameManager(makeFakeCanvas(), makeFakeCtx(makeFakeCanvas()));
+    const S = gm.state.STATES;
+    gm._startStage(1, 0);
+    ok('host: act 1 stage 1 opens with the lesson', gm.levels.coach && gm.levels.coach.blocks);
+    settle(gm, S.LEVEL);
+    const step0 = gm.levels.coach.step;
+    ok('host: a click passes a lesson bubble', gm._hitTestUI(480, 300, 'click') === true && gm.levels.coach.step !== step0);
+    gm.progress.completeStage(1, 0, 10);
+    ok('host: later stages have no lesson', gm._startStage(1, 1) && !gm.levels.coach);
 });
 
 // ─────────────────────────────────────────────

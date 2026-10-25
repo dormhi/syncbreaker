@@ -22,6 +22,10 @@
    MOBILE: the whole screen is the drop button (tap anywhere), and the
    HUD text is sized to stay legible when the 960x640 canvas is scaled
    down to a phone.
+
+   LESSON (Coach, useCoach): the first stage opens with the goal line,
+   the crane and one practice drop (a lost frame costs nothing there).
+   Shown once (sb_coach_stack).
    ========================================= */
 
 const _PhysicsMechanicBaseSO = (typeof PhysicsMechanic !== 'undefined') ? PhysicsMechanic : class {};
@@ -109,6 +113,42 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
 
         this.world.onCollision((a, b) => this._onContact(a, b));
         this._hangNext();
+
+        this.coach = null;
+        if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
+            this.coach = new Coach(this.coachStore).push(
+                { kind: 'info', rects: 'line', text: `Rebuild the firewall: stack ${this.targetBlocks} blocks up to the STACK LIMIT line.` },
+                { kind: 'info', rects: 'crane', text: { desktop: 'The crane swings the next block. Press SPACE (or click) to drop it.', touch: 'The crane swings the next block. Tap anywhere to drop it.' } },
+                { kind: 'drop', rects: 'crane', text: 'Drop your first block onto the platform.' },
+                { kind: 'placed', text: 'Watch it fall: it keeps some of the crane\'s sideways swing.' },
+                { kind: 'info', key: 'tutorial', text: 'Good! Let go a little EARLY so the swing carries the block over the tower. Reach the line and let the tower stand still for a moment.' }
+            );
+        }
+    }
+
+    /** Lesson on the first stage; the host passes a per-game store. */
+    useCoach(store, firstStage) {
+        this.coachStore = store || null;
+        this.firstStage = !!firstStage;
+    }
+
+    update(dt) {
+        // An info bubble freezes the scene (crane and physics).
+        if (this.coach) {
+            this.coach.update(dt || this.stepDt);
+            if (!this.coach.active) this.coach = null;
+            else if (this.coach.blocks) return;
+        }
+        super.update(dt);
+    }
+
+    render(ctx, W, H, gameTime, alpha = 1) {
+        super.render(ctx, W, H, gameTime, alpha);
+        if (!this.coach || !this.coach.active) return;
+        const r = this.coach.step.rects;
+        const rects = r === 'line' ? [{ x: this.cx - 300, y: this.targetY - 22, w: 600, h: 34 }]
+            : r === 'crane' ? [{ x: this.cx - this.craneAmp - 70, y: this.railY - 10, w: 2 * this.craneAmp + 140, h: this.hookY - this.railY + this.blockH + 24 }] : [];
+        this.coach.render(ctx, W, H, rects, { at: 'bottom' });
     }
 
     // ── Crane (analytic) ──
@@ -145,6 +185,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
      * crane position that was on screen at that moment.
      */
     drop(inputOffset = 0) {
+        if (this.coach && this.coach.blocks) { this.coach.next(); return false; }
         if (!this.canDrop) return false;
         const M = this.world.M;
         const off = Math.max(0, Math.min(this.stepDt, inputOffset || 0));
@@ -161,6 +202,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         this.hanging = null;
         this.drops++;
         this.releaseX = x;
+        if (this.coach) this.coach.event('drop');
         return true;
     }
 
@@ -183,6 +225,12 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
 
     _loseFrame(entry) {
         this.world.removeBody(entry.body);
+        if (this.coach) {
+            // Lesson: a lost frame is handed back, no life lost.
+            this.drops--;
+            if (this.coach.step && this.coach.step.kind === 'placed') this.coach.step = { kind: 'drop', rects: 'crane', text: 'It fell off — no harm in the lesson. Try again: drop it onto the platform.' };
+            return;
+        }
         this.lives--;
         this.lost++;
         this.flash = 0.35;
@@ -255,6 +303,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
             const rested = this.world.speedOf(f.body) < this.settleSpeed;
             if (rested || this.time - f.landedAt > 0.6) {
                 this.placed.push(f);
+                if (this.coach) this.coach.event('placed');
                 this.falling = null;
                 this.respawnTimer = this.respawnDelay;
                 this._setOmega(this.baseOmega * (1 + this.omegaStep * this.placed.length));

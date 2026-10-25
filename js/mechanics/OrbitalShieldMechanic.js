@@ -17,6 +17,10 @@
 
    Motion is analytic in simulation time (frame-rate independent); render
    uses renderTime() so the drawing matches the interpolated loop.
+
+   LESSON (Coach, useCoach): the first stage opens with the ports, the
+   shield, and practice until one packet is blocked (breaches cost
+   nothing there). Shown once (sb_coach_orbital).
    ========================================= */
 
 const _MechanicBaseOS = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
@@ -71,6 +75,22 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         this._lastPort = 0;
         this._lastArrive = 1.2; // first packet arrives after a short lead-in
         this._planAhead();
+
+        this.coach = null;
+        if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
+            this.coach = new Coach(this.coachStore).push(
+                { kind: 'info', rects: 'ring', text: 'Attack packets will fly in at these PORTS around the core.' },
+                { kind: 'info', rects: 'ring', text: { desktop: 'Move your SHIELD to the port that BLINKS: click that port, or use ← →.', touch: 'Move your SHIELD to the port that BLINKS: tap that port.' } },
+                { kind: 'block', rects: 'ring', text: 'Here they come — block one! Packets that get through cost nothing yet.' },
+                { kind: 'info', key: 'tutorial', text: `Blocked! Stop ${this.blocksNeeded} packets to close the ports. From now on every packet that gets through costs a life.` }
+            );
+        }
+    }
+
+    /** Lesson on the first stage; the host passes a per-game store. */
+    useCoach(store, firstStage) {
+        this.coachStore = store || null;
+        this.firstStage = !!firstStage;
     }
 
     /** Continue after a successful recovery: one life, fresh schedule. */
@@ -153,6 +173,12 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
     update(dt) {
         if (!this.active) return;
         this.stepDt = dt || this.stepDt;
+        // An info bubble freezes the scene.
+        if (this.coach) {
+            this.coach.update(this.stepDt);
+            if (!this.coach.active) this.coach = null;
+            else if (this.coach.blocks) return;
+        }
         this.time += this.stepDt;
         const t = this.time;
 
@@ -181,6 +207,11 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
                 this.blocked++;
                 this._burst(pos.x, pos.y, '#f59e0b', 10);
                 if (typeof Sound !== 'undefined' && Sound.playGood) Sound.playGood(OrbitalShieldMechanic.SOUND);
+                if (this.coach) this.coach.event('block');
+            } else if (this.coach) {
+                // Lesson: a breach is only shown.
+                this._burst(pos.x, pos.y, '#ef4444', 14);
+                if (typeof Sound !== 'undefined' && Sound.playMiss) Sound.playMiss();
             } else {
                 this.lives--;
                 this.breaches++;
@@ -257,6 +288,10 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
     }
 
     handleKey(code) {
+        if (this.coach && this.coach.blocks) {
+            if (code === 'Space' || code === 'Enter') this.coach.next();
+            return true;
+        }
         if (code === 'ArrowLeft' || code === 'KeyA') return this.moveShield(-1);
         if (code === 'ArrowRight' || code === 'KeyD') return this.moveShield(1);
         return false;
@@ -264,6 +299,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
 
     handlePointer(x, y, phase) {
         if (phase && phase !== 'down') return false;
+        if (this.coach && this.coach.blocks) { this.coach.next(); return true; }
         if (Math.hypot(x - this.cx, y - this.cy) < 24) return true;
         return this.setShield(this.nearestPort(x, y));
     }
@@ -359,6 +395,11 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         }
 
         this._renderHud(ctx, W, H);
+        if (this.coach && this.coach.active) {
+            const R = this.shieldR + 34;
+            const rects = this.coach.step.rects === 'ring' ? [{ x: this.cx - R, y: this.cy - R, w: 2 * R, h: 2 * R }] : [];
+            this.coach.render(ctx, W, H, rects, { at: 'top' });
+        }
     }
 
     _renderHud(ctx, W, H) {

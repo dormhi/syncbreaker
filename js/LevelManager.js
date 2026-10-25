@@ -2,6 +2,10 @@
    LevelManager.js — Timing Bar runner
    Plays one Timing Bar stage (startStage) or Endless. Campaign data
    and progress live in Campaign.js / CampaignProgress.js.
+
+   The first stage opens with a lesson (Coach, useCoach): the bar, the
+   zone, one practice hit (misses are free, the timer waits), then the
+   goal. Shown once (sb_coach_timingbar).
    ========================================= */
 
 class LevelManager {
@@ -37,6 +41,11 @@ class LevelManager {
         // Particles (simple)
         this.particles = [];
 
+        // Lesson (Coach) on the first stage
+        this.coachStore = null;
+        this.coachFirst = false;
+        this.coach = null;
+
         // Theme animation state
         this.hitFlashTimer = 0;
         this.gameTime = 0;
@@ -48,6 +57,12 @@ class LevelManager {
      * @param {object} cfg { id (theme id), name, desc, barSpeed, targetSize,
      *                       requiredHits, maxTime, lives }
      */
+    /** Lesson on the first stage; the host passes a per-game store. */
+    useCoach(store, firstStage) {
+        this.coachStore = store || null;
+        this.coachFirst = !!firstStage;
+    }
+
     startStage(cfg) {
         if (!cfg) return false;
         const level = cfg;
@@ -78,18 +93,35 @@ class LevelManager {
         this.timingBar.reset(level.barSpeed, level.targetSize);
         this._syncZone();
         this._initBgObjects();
+        this.coach = null;
+        if (this.coachStore && this.coachFirst && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
+            this.coach = new Coach(this.coachStore).push(
+                { kind: 'info', rects: 'bar', text: 'An infected node! A marker sweeps back and forth along this bar.' },
+                { kind: 'info', rects: 'zone', text: { desktop: 'Press SPACE while the marker is inside the glowing ZONE.', touch: 'Tap anywhere while the marker is inside the glowing ZONE.' } },
+                { kind: 'hit', rects: 'bar', text: { desktop: 'Your turn: press SPACE on the zone. Misses don\'t count yet, and the timer waits.', touch: 'Your turn: tap when the marker is in the zone. Misses don\'t count yet, and the timer waits.' } },
+                { kind: 'info', key: 'tutorial', text: `HIT! Hits near the centre are PERFECT and build a COMBO. Land ${level.requiredHits} hits before the timer runs out — every miss costs a life.` }
+            );
+        }
+        this.coachFirst = false;
         return true;
     }
 
     update(dt) {
         if (!this.currentLevel || this.levelComplete || this.levelFailed) return;
 
+        // Lesson: an info bubble freezes the stage; the timer waits for the whole lesson.
+        if (this.coach) {
+            this.coach.update(dt);
+            if (!this.coach.active) this.coach = null;
+            else if (this.coach.blocks) return;
+        }
+
         // Animation timers
         this.gameTime += dt;
         if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt * 3;
 
         // Timer
-        this.timer -= dt;
+        if (!this.coach) this.timer -= dt;
         if (this.timer <= 0) {
             this.timer = 0;
             this._checkEnd();
@@ -122,6 +154,7 @@ class LevelManager {
 
     hit(inputOffset = 0) {
         if (!this.currentLevel || this.levelComplete || this.levelFailed) return;
+        if (this.coach && this.coach.blocks) { this.coach.next(); return; }
 
         // Sub-frame resolution: sample the bar at the exact moment the
         // player pressed, not at the last rendered frame.
@@ -148,6 +181,15 @@ class LevelManager {
             }
             this.hitCount++;
             if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+            if (this.coach) this.coach.event('hit');
+        } else if (this.coach) {
+            // Lesson: a miss is only shown, it costs nothing.
+            this.combo = 0;
+            this.lastHitResult = 'miss';
+            this.hitAnimTimer = 0.5;
+            this._spawnParticles(pos, theme.hitColors.miss, 6);
+            Sound.playMiss();
+            return;
         } else {
             this.combo = 0;
             this.lives--;
@@ -387,6 +429,13 @@ class LevelManager {
 
         // Level info
         this._renderInfo(ctx, W, H);
+
+        if (this.coach && this.coach.active) {
+            const step = this.coach.step;
+            const rects = step.rects === 'bar' ? [{ x: barX - 14, y: barY - 34, w: barW + 28, h: 68 }]
+                : step.rects === 'zone' ? [{ x: zoneX - 8, y: barY - 22, w: zoneW + 16, h: 44 }] : [];
+            this.coach.render(ctx, W, H, rects, { at: 'top' });
+        }
     }
 
     _renderInfo(ctx, W, H) {
@@ -435,6 +484,7 @@ class LevelManager {
      */
     startEndless() {
         this.endlessMode = true;
+        this.coach = null;
         this.currentLevel = {
             id: 999,
             name: 'ENDLESS_MODE',

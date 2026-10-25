@@ -3476,6 +3476,8 @@ class GameManager {
         const S = this.state.STATES;
 
         if (game.kind === 'bar') {
+            // Teaches itself: a lesson on the first stage (Coach).
+            this.levels.useCoach(this._coachStore(act.game), index === 0);
             this.levels.startStage(Object.assign({
                 id: act.themeId,
                 name: `${act.key} · ${stage.tier}`,
@@ -3682,6 +3684,12 @@ class GameManager {
             return true;
         }
 
+        // A mouse click passes a Timing Bar lesson bubble (SPACE does too).
+        if (this.state.currentState === this.state.STATES.LEVEL && this.levels.coach && this.levels.coach.blocks) {
+            this.levels.coach.next();
+            return true;
+        }
+
         if (this.state.currentState === this.state.STATES.HUB &&
             this._energyEggCell !== null &&
             this.energy.currentEnergy < this.energy.maxEnergy) {
@@ -3728,6 +3736,7 @@ class GameManager {
         this._pendingInputOffset = 0;
         this._lastSimWall = (typeof performance !== 'undefined') ? performance.now() : 0;
 
+        if (typeof Coach !== 'undefined') Coach.inputMode = () => this._inputMode();
         this.input = new InputManager(this.canvas, {
             hitTestUI: (x, y, source) => this._hitTestUI(x, y, source),
             onMove: (x, y) => this._handleMove(x, y),
