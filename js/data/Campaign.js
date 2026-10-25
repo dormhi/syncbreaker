@@ -200,8 +200,30 @@ const CAMPAIGN = {
                 { tier: 'EXPERT', params: { disks: 2, cols: 6, rows: 6, pieceMin: 7, pieceMax: 8, sizeMin: 4, sizeMax: 5, blockedMin: 2, blockedMax: 2, image: true, twinMin: 2, twinMax: 3, penaltyTime: 10, timeLimit: 250 } }
             ]
         },
-        // Act 9: a test of knowledge and reasoning — no timer, no lives.
-        { id: 9, key: 'FINAL_AUDIT', done: 'audit passed',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] },
+        {
+            id: 9,
+            key: 'FINAL_AUDIT', done: 'audit passed',
+            story: 'Prove the system is clean — knowledge and logic only',
+            game: 'checksum',
+            themeId: 9,
+            available: true,
+            controls: 'Goal: turn every number grey · fill cells to match each row and column',
+            hint: {
+                desktop: 'Click to fill, right click for ✕ · GOAL: turn every number grey',
+                touch: 'Tap to fill, pick ✕ to mark empty · GOAL: turn every number grey'
+            },
+            // A nonogram: no timer, no lives, no way to lose (docs/ACT_PLAN.md).
+            // Every puzzle has one solution and needs no guessing (line solver);
+            // `minSweeps` = solver sweeps it needs, i.e. how long the chains of
+            // reasoning get. DRAFT tiers, pending a playtest and approval.
+            stages: [
+                { tier: 'EASY',      params: { rows: 8,  cols: 8,  density: 0.55, smooth: 1, minSweeps: 3 } },
+                { tier: 'NORMAL',    params: { rows: 10, cols: 10, density: 0.55, smooth: 1, minSweeps: 4 } },
+                { tier: 'HARD',      params: { rows: 10, cols: 10, density: 0.5,  smooth: 0, minSweeps: 6 } },
+                { tier: 'VERY HARD', params: { rows: 12, cols: 12, density: 0.55, smooth: 1, minSweeps: 6 } },
+                { tier: 'EXPERT',    params: { rows: 12, cols: 12, density: 0.5,  smooth: 0, minSweeps: 9 } }
+            ]
+        },
         // Final act (HANDOVER status, outside the network layers): give control
         // back to the rightful owner and teach them to keep it. Educational.
         { id: 10, key: 'RETURN_CONTROL', done: 'control returned', story: 'Hand the system back to its owner — and teach them to keep it safe', game: null, themeId: 10, available: false, stages: [] }
@@ -255,7 +277,10 @@ CAMPAIGN.starRules = (() => {
             const t = { 'EASY': [50, 25], 'NORMAL': [90, 40], 'HARD': [100, 45], 'EXPERT': [90, 40] }[tier] || [Infinity, Infinity];
             const stars = s.timeLeft >= t[0] ? 3 : s.timeLeft >= t[1] ? 2 : 1;
             return (stars === 3 && s.penalties > 0) ? 2 : stars;
-        }
+        },
+        // Checksum Grid (DRAFT, pending approval): no timer, so audit errors
+        // decide: none = 3, up to two = 2.
+        checksum: (s) => s.auditErrors === 0 ? 3 : s.auditErrors <= 2 ? 2 : 1
     };
 })();
 

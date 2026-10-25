@@ -599,7 +599,8 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('act 6 is playable with 4 stages', acts[5].available && acts[5].game === 'cut' && acts[5].stages.length === 4);
     ok('act 7 is playable with 4 stages', acts[6].available && acts[6].game === 'bomb' && acts[6].stages.length === 4);
     ok('act 8 is playable with 4 stages', acts[7].available && acts[7].game === 'defrag' && acts[7].stages.length === 4);
-    ok('acts 9-10 are in development', acts.slice(8).every(a => !a.available && a.stages.length === 0));
+    ok('act 9 is playable with 5 stages', acts[8].available && acts[8].game === 'checksum' && acts[8].stages.length === 5);
+    ok('act 10 is in development', !acts[9].available && acts[9].stages.length === 0);
     const themes = loadLevelManager().LEVEL_THEMES;
     ok('every act has its own theme', acts.every(a => !!themes[a.themeId]) &&
         new Set(acts.map(a => a.themeId)).size === acts.length);
@@ -636,7 +637,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(9) && !P.isActAvailable(9));
+    ok('dev acts are never unlocked', !P.isActUnlocked(10) && !P.isActAvailable(10));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -671,9 +672,12 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate 7 playable once act 7 is done (act 8 exists)', P.isActComplete(7) && P.isGatePlayable(7));
     P.openGate(7);
     for (let i = 0; i < 4; i++) P.completeStage(8, i, 10);
-    ok('gate 8 not playable while act 9 is in development', P.isActComplete(8) && !P.isGatePlayable(8));
+    ok('gate 8 playable once act 8 is done (act 9 exists)', P.isActComplete(8) && P.isGatePlayable(8));
+    P.openGate(8);
+    for (let i = 0; i < 5; i++) P.completeStage(9, i, 10);
+    ok('gate 9 not playable while act 10 is in development', P.isActComplete(9) && !P.isGatePlayable(9));
     ok('endless still locked (final act not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 8);
+    ok('current act points at the last open act', P.currentActId() === 9);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -815,8 +819,8 @@ suite('Act map HUB + gates', () => {
 
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    gm._mapGo(8);
-    btn('act9').onClick();
+    gm._mapGo(9);
+    btn('act10').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
     gm._mapGo(1);
     btn('act2').onClick();
@@ -877,7 +881,13 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 4; i++) gm.progress.completeStage(8, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(8);
-    ok('gate 8 waits for act 9', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('gate 8 starts once act 8 is done', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic.speedScale === mod.CAMPAIGN.gates[7].speedScale);
+    gm.progress.openGate(8);
+    for (let i = 0; i < 5; i++) gm.progress.completeStage(9, i, 100);
+    settle(gm, S.HUB);
+    gm._tryStartGate(9);
+    ok('gate 9 waits for act 10', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -4008,6 +4018,182 @@ suite('Acts 1-5 teach themselves (Coach lessons)', () => {
     ok('host: a click passes a lesson bubble', gm._hitTestUI(480, 300, 'click') === true && gm.levels.coach.step !== step0);
     gm.progress.completeStage(1, 0, 10);
     ok('host: later stages have no lesson', gm._startStage(1, 1) && !gm.levels.coach);
+});
+
+// ─────────────────────────────────────────────
+suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
+    const mod = loadGameManager();
+    const { ChecksumGridMechanic: CG, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[8];
+    const tiers = act.stages.map(st => st.params);
+    const make = (params, seed) => {
+        const m = new CG(Object.assign({ rng: makeRng(seed) }, params));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+
+    // The line solver on known cases.
+    ok('runs: block lengths in order', CG.runs([1, 1, 0, 1, 0, 0, 1, 1, 1]).join() === '2,1,3' && CG.runs([0, 0]).length === 0);
+    ok('line solver: overlap of a long block', CG.solveLine([4], [-1, -1, -1, -1, -1]).join() === '-1,1,1,1,-1');
+    ok('line solver: a full line', CG.solveLine([2, 2], [-1, -1, -1, -1, -1]).join() === '1,1,0,1,1');
+    ok('line solver: an empty clue clears the line', CG.solveLine([], [-1, -1, -1]).join() === '0,0,0');
+    ok('line solver: a contradiction is null', CG.solveLine([3], [1, 0, -1, -1]) === null);
+
+    // Independent check: count solutions of small grids by brute force.
+    const countSolutions = (rows, cols, R, C, cap = 2) => {
+        let n = 0;
+        const g = new Array(rows * cols).fill(0);
+        const rowOptions = R.map(clue => {
+            const out = [];
+            for (let m = 0; m < (1 << cols); m++) {
+                const line = Array.from({ length: cols }, (x, k) => (m >> k) & 1);
+                const r = CG.runs(line);
+                if (r.length === clue.length && r.every((v, k) => v === clue[k])) out.push(line);
+            }
+            return out;
+        });
+        const rec = (r) => {
+            if (n >= cap) return;
+            if (r === rows) {
+                for (let c = 0; c < cols; c++) {
+                    const col = []; for (let k = 0; k < rows; k++) col.push(g[k * cols + c]);
+                    const got = CG.runs(col);
+                    if (got.length !== C[c].length || got.some((v, k) => v !== C[c][k])) return;
+                }
+                n++;
+                return;
+            }
+            for (const line of rowOptions[r]) { line.forEach((v, c) => { g[r * cols + c] = v; }); rec(r + 1); }
+        };
+        rec(0);
+        return n;
+    };
+
+    tiers.forEach((p, t) => {
+        const tag = act.stages[t].tier;
+        let solvable = true, size = true, deep = true, unique = true;
+        for (let seed = 1; seed <= 6; seed++) {
+            const m = make(p, seed * 17 + t);
+            const sol = CG.solve(m.rows, m.cols, m.rowClues, m.colClues);
+            if (!sol || !sol.solved || sol.grid.some((v, i) => v !== m.solution[i])) solvable = false;
+            if (m.rows !== p.rows || m.cols !== p.cols || m.cells.some(v => v !== 0)) size = false;
+            if (m.sweeps < p.minSweeps) deep = false;
+            if (t === 0 && seed <= 2 && countSolutions(m.rows, m.cols, m.rowClues, m.colClues) !== 1) unique = false;
+        }
+        ok(`${tag}: the line solver rebuilds the picture (no guessing)`, solvable);
+        ok(`${tag}: ${p.rows}×${p.cols}, starts empty`, size);
+        ok(`${tag}: needs at least ${p.minSweeps} solver sweeps`, deep);
+        if (t === 0) ok(`${tag}: brute force finds exactly one solution`, unique);
+    });
+
+    // Controls: tap fills, tap again clears, ✕, drag along a line, undo.
+    const m = make(tiers[0], 5);
+    const L = m.layout();
+    const at = (r, c) => ({ x: L.x + (c + 0.5) * L.cell, y: L.y + (r + 0.5) * L.cell });
+    const tap = (r, c) => { const p = at(r, c); m.handlePointer(p.x, p.y, 'down'); m.handlePointer(p.x, p.y, 'up'); };
+    tap(0, 0);
+    ok('tap fills a cell', m.cells[0] === 1);
+    tap(0, 0);
+    ok('tapping it again clears it', m.cells[0] === 0);
+    const bm = m.buttons().mark;
+    m.handlePointer(bm.x + 5, bm.y + 5, 'down');
+    tap(0, 1);
+    ok('✕ mode marks a cell', m.mode === 'mark' && m.cells[1] === 2);
+    const bf = m.buttons().fill;
+    m.handlePointer(bf.x + 5, bf.y + 5, 'down');
+    const a = at(2, 1), b = at(2, 6), off = at(4, 6);
+    m.handlePointer(a.x, a.y, 'down');
+    m.handlePointer(b.x, b.y, 'move');
+    m.handlePointer(off.x, off.y, 'move');   // drifting off the row keeps the row
+    m.handlePointer(off.x, off.y, 'up');
+    const row2 = m.cells.slice(2 * m.cols, 2 * m.cols + m.cols);
+    ok('drag fills along the row of the first move', row2.slice(1, 7).every(v => v === 1) && row2[0] === 0 && m.cells[4 * m.cols + 6] === 0);
+    m.undoLast();
+    ok('undo takes back the whole stroke', m.cells.slice(2 * m.cols, 3 * m.cols).every(v => v === 0) && m.cells[1] === 2);
+    ok('right click marks ✕', m.handleAltPointer(at(3, 3).x, at(3, 3).y) && m.cells[3 * m.cols + 3] === 2);
+
+    // Audit: wrong cells count once per audit that finds any.
+    const am = make(tiers[0], 6);
+    ok('audit with no mistakes is free', am.audit() && am.auditErrors === 0);
+    const wrongCell = am.solution.findIndex(v => v === 0);
+    am.cells[wrongCell] = 1;
+    am.audit();
+    ok('an audit that finds a mistake counts and lights it', am.auditErrors === 1 && am.audited.cells.has(wrongCell));
+    am.cells[wrongCell] = 0;
+
+    // Solving: matching every checksum wins, never fails.
+    am.solution.forEach((v, i) => { if (v) am.cells[i] = 1; });
+    am._checkDone();
+    ok('every checksum matching passes the audit', am.result === 'success' && am.linesOk === am.rows + am.cols);
+    ok('score and stars follow audit errors', am.score === 850 &&
+        CAMPAIGN.starsFor('checksum', 'EASY', { auditErrors: 0 }, false) === 3 &&
+        CAMPAIGN.starsFor('checksum', 'EASY', { auditErrors: 2 }, false) === 2 &&
+        CAMPAIGN.starsFor('checksum', 'EASY', { auditErrors: 3 }, false) === 1);
+    const idle = make(tiers[4], 7);
+    for (let i = 0; i < 60 * 60; i++) idle.update(1 / 60);
+    ok('no timer: an hour later nothing has failed', idle.result === null);
+
+    // RULES box: always there, rotates, a tap shows the next one.
+    const rm = make(tiers[2], 12);
+    ok('rules box: reminders from TipBar.RULES', rm.rules && rm.rules.tips.length === mod.TipBar.RULES.checksum.length && /GOAL: turn every number grey/.test(rm.rules.current('desktop')));
+    for (let i = 0; i < 60 * 10; i++) rm.update(1 / 60);
+    ok('rules box: rotates on its own', rm.rules.index === 1);
+    const rb = rm.buttons().rules;
+    rm.handlePointer(rb.x + 10, rb.y + 10, 'down');
+    ok('rules box: a tap shows the next one, no cell changes', rm.rules.index === 2 && rm.cells.every(v => v === 0));
+    const ctl = mod.TipBar.RULES.checksum.find(t => typeof t === 'object');
+    ok('rules box: touch wording on phones', /Tap fills/.test(ctl.touch) && /right click/.test(ctl.desktop));
+    ok('lesson spells out how to win', (() => { const c = new CG(Object.assign({ rng: makeRng(13) }, tiers[0])); c.useCoach({ seen: () => false, mark: () => {} }, true); c.init({}); return [c.coach.step].concat(c.coach.queue).some(st => /HOW TO WIN/.test(st.text)); })());
+
+    // Keyboard
+    const km = make(tiers[0], 8);
+    km.handleKey('ArrowRight'); km.handleKey('ArrowDown'); km.handleKey('Space');
+    ok('arrows + SPACE fill', km.cells[1 * km.cols + 1] === 1);
+    km.handleKey('KeyX');
+    ok('X toggles ✕ on the cell', km.cells[1 * km.cols + 1] === 2);
+    km.handleKey('KeyZ');
+    ok('Z undoes', km.cells[1 * km.cols + 1] === 1);
+
+    // Lesson
+    const st = (() => { const seen = {}; return { seen: k => !!seen[k], mark: k => { seen[k] = true; }, raw: seen }; })();
+    const lm = new CG(Object.assign({ rng: makeRng(9) }, tiers[0]));
+    lm.useCoach(st, true);
+    lm.init({ width: 960, height: 640 });
+    ok('lesson: opens on the checksums, the board waits', lm.coach && lm.coach.blocks && (lm.handlePointer(at(0, 0).x, at(0, 0).y, 'down'), lm.cells[0] === 0));
+    for (let k = 0; k < 5 && lm.coach.blocks; k++) lm.handleKey('Space');
+    ok('lesson: then asks for a fill', lm.coach.step.kind === 'fill');
+    const p00 = at(0, 0);
+    lm.handlePointer(p00.x, p00.y, 'down'); lm.handlePointer(p00.x, p00.y, 'up');
+    ok('lesson: then for a ✕', lm.coach.step.kind === 'mark');
+    lm.handleAltPointer(at(1, 1).x, at(1, 1).y);
+    ok('lesson: then grey checksums, UNDO and AUDIT', lm.coach.step.kind === 'info' && lm.coach.step.rects === 'tools');
+    lm.handleKey('Enter'); lm.handleKey('Enter');
+    ok('lesson: marked once done', st.raw.tutorial && !lm.coach.active);
+
+    // Render: empty, mid-game with an audit, solved, lesson.
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try {
+        tiers.forEach((p, t) => { const r = make(p, 30 + t); r.render(ctx, 960, 640); r.kbd = true; r.cells[0] = 1; r.cells[1] = 2; r.audit(); r.render(ctx, 960, 640); });
+        am.update(1 / 60); am.render(ctx, 960, 640);
+        const c2 = new CG(Object.assign({ rng: makeRng(10) }, tiers[0])); c2.useCoach(st.raw ? { seen: () => false, mark: () => {} } : null, true); c2.init({}); c2.render(ctx, 960, 640);
+    } catch (e) { threw = e.stack; }
+    ok('every tier, an audit, the solved grid and the lesson render', threw === null, threw);
+    // Biggest grid still leaves comfortable cells and clears the pause button.
+    const big = make(tiers[4], 11).layout();
+    ok('12×12 layout: cells ≥ 30 px, clues right of the ⏸ button', big.cell >= 30 && big.x - big.clueW >= 72);
+
+    // Host
+    const gm = new mod.GameManager(makeFakeCanvas(), makeFakeCtx(makeFakeCanvas()));
+    for (let a2 = 1; a2 <= 8; a2++) {
+        for (let i = 0; i < CAMPAIGN.acts[a2 - 1].stages.length; i++) gm.progress.completeStage(a2, i, 10);
+        gm.progress.openGate(a2);
+    }
+    ok('act 9 opens after gate 8', gm.progress.isActUnlocked(9) && gm.progress.isStageUnlocked(9, 0));
+    gm._startStage(9, 0);
+    ok('stage starts in the MINIGAME host, drag game', gm.state.pendingContext.mechanic instanceof CG && gm.state.pendingContext.mechanic.wantsDrag);
+    ok('stage summary line', gm._stageSummary(act, act.stages[0]) === '8×8 · NO TIMER');
+    ok('registry: nothing to revive', mod.GameRegistry.get('checksum').revive === false);
 });
 
 // ─────────────────────────────────────────────

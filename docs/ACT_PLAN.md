@@ -29,7 +29,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | **Logic Bomb** (modüler bomba: süre + arıza) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 6) |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | **Defrag** (yerleştirme bulmacası + süre) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 7) |
-| 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
+| 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Checksum Grid** (nonogram: süre yok, can yok) | 🛠 Geliştiriliyor, 5 aşama (Faz 8) |
 | 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Eğitici final** (bölüm 3) | 🛠 Geliştiriliyor |
 
 - Act 10, PERIMETER / INTERNAL / CORE katmanlarından **bağımsız** bir statüde: **HANDOVER**. Haritada kendi rengi (turkuaz) ve kendi etiketi var.
@@ -482,6 +482,38 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Refleks, zamanlama ya da el becerisi istemez. Oyuncunun bilgisini ve akıl yürütmesini sınar: mantık, çıkarım, örüntü ya da bilgi soruları gibi.
 - Süre sınırı yok, can yok. Kesin format birlikte belirlenecek.
 
+**Eklenen kararlar (2026-10-25, kullanıcı):**
+- **5 aşama.**
+- Final act havasında: **baştan sona zor**.
+- Süre sınırı ve can sınırı yok. Oyuncu bitirene kadar istediği kadar deneyebilir; oyun hiçbir zaman "kaybettin" demez.
+- **Oyun: Checksum Grid** (2026-10-25'te dört öneri arasından seçildi: A Checksum Grid / nonogram, B Infection Sweep / tahminsiz mayın tarlası, C Root Cause / mantık ızgarası, D Integrity Lights / Lights Out).
+
+**Checksum Grid:**
+- Çekirdeğin bellek haritası bir ızgara. Her satırın solunda ve her sütunun üstünde bir **sağlama toplamı (checksum)** var: "3 1 2", o satırda sırayla 3, 1 ve 2 dolu hücreden oluşan bloklar olduğunu söyler (aralarında en az bir boşluk). Oyuncu bu toplamlardan temiz haritayı yeniden kuruyor. Bitince bir amblem ortaya çıkıyor.
+- **Her bulmaca tek çözümlü ve tahminsiz:** üretici, satır satır mantıkla (line solver) baştan sona çözülebildiğini kontrol ediyor. Zorluk, çözücünün kaç tur gerektirdiğiyle ölçülüyor (uzun mantık zincirleri = daha çok tur).
+- **Kontrol:** FILL ya da ✕ (MARK) modu seçiliyor, hücreye dokunmak o modu uyguluyor; dolu hücreye tekrar dokunmak temizliyor. Parmakla ya da fareyle sürükleyince aynı işlem bir satır ya da sütun boyunca uygulanıyor (ilk hareket yönüne kilitlenir). Masaüstünde sağ tık her zaman ✕. Klavye: oklar, Space = doldur, X = ✕, Z / Backspace = geri al, Enter = AUDIT.
+- **UNDO** son hamleyi (bir sürükleme dahil) geri alıyor.
+- Satırı sağlama toplamına uyan sayılar griye dönüyor (doğru çözüm olup olmadığını söylemez, sadece o satırın sayıya uyduğunu).
+- **Bitirme kuralı her an ekranda (2026-10-25, kullanıcı oyunu anlamadı):** sağ panelde sarı bir GOAL kutusu: "Turn EVERY number grey" ve bir ilerleme çubuğu (kaç satır + sütun uyuyor). Aynı kural dersin ayrı bir adımında ("HOW TO WIN"), RULES kutusunun ilk maddesinde, alt ipucunda ve rehberde de yazıyor.
+- **RULES kutusu:** sağ panelde dönen kural hatırlatmaları (`TipBar.RULES.checksum`), dokununca sıradakine geçer.
+- **AUDIT:** yanlış doldurulmuş ve yanlış ✕'lenmiş hücreleri kırmızı yakar. Hata bulan her AUDIT bir **denetim hatası** sayılır; hata bulmazsa ücretsizdir.
+- Bütün satır ve sütunlar toplamlara uyunca aşama biter (tek çözüm olduğu için bu kesin doğrudur).
+- Süre yok, can yok, kaybetme yok. Revive yok.
+
+**Aşamalar (taslak):**
+
+| | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Izgara | 8×8 | 10×10 | 10×10 | 12×12 | 12×12 |
+| Çözücü turu (en az) | 3 | 4 | 6 | 6 | 9 |
+| Desen | yumuşatılmış | yumuşatılmış | ham | yumuşatılmış | ham |
+
+**Yıldızlar (taslak):** 3 yıldız = hiç denetim hatası yok; 2 yıldız = en fazla 2; 1 yıldız = bitirmek.
+**Skor:** 1000 − her denetim hatası için 150 (en az 250).
+**Ders (Coach):** ilk aşamada sağlama toplamlarının anlamı, bir hücre doldurma, bir ✕ koyma, gri sayılar ve AUDIT anlatılıyor. Bir kez gösteriliyor (`sb_coach_checksum`).
+**Sonsuz mod uyumu:** ızgaralar büyüyüp çözücü turu artırılabilir.
+**Not:** aşamadan çıkınca yarım kalan ızgara kaybolur. Uzun bulmacalar için ileride kaydetme düşünülebilir.
+
 ### Act 10: RETURN_CONTROL, final act 🛠 (plan, 2026-10-23)
 
 **Tema:** Saldırgan temizlendi ve sistem doğrulandı. Şimdi erişim **asıl sahibine geri veriliyor**. Oyuncu artık savunan kişi değil, sistemi sahibine teslim eden ve ona sistemi güvende tutmayı öğreten kişi.
@@ -491,13 +523,16 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - **Eğitici içerik ağırlıklı.** Oyuncu oynarken gerçek hayatta işine yarayacak güvenlik alışkanlıklarını öğrenmeli.
 - **Bağımsız statü: HANDOVER.** PERIMETER / INTERNAL / CORE katmanlarının dışında. Haritadaki üst rayda kendi parantezi ve etiketi var, rengi turkuaz (`#2dd4bf`). Arka plan atmosferi sakin: sistem artık temiz.
 - Kodda şimdilik "IN DEVELOPMENT" olarak duruyor (`available: false`): tema ve ikon (açık kilit) hazır, oyun yok.
+- **6 aşama** (2026-10-25, kullanıcı).
+- **Format (2026-10-25, kullanıcı):** her aşama, bu tür bir saldırıdan sonra **gerçek hayatta yaşanan bir durumu** canlandıran eğitici bir simülasyon. Örnek, ilk aşama: **virüs taraması simülasyonu**. Sahip sistemi geri alırken yeni dosyalar geliyor; oyuncu dosyaları virüs taramasından geçiriyor, virüslü olanları önden ayıklayıp atıyor ve sahibe sadece temiz dosyaları ulaştırıyor.
 - Yetki seviyesi: Act 10 bitince oyuncu **L10 GUARDIAN** olur.
 - **Kapı 9** (Act 9 → 10) Packet Purge ayarı Act 10 ile birlikte belirlenecek.
 
 **Birlikte karar verilecekler (sırası gelince):**
 - Oyunun formatı ve mekaniği. Act 9 zaten bilgi ve mantık sınavı olduğu için Act 10'un ondan farkı net olmalı: Act 9 **sınar**, Act 10 **öğretir**.
 - Öğretilecek konular. Örnek fikirler: güçlü parola ve parola yöneticisi, iki aşamalı doğrulama, oltalama (phishing) e-postasını tanıma, güncellemeler, yedekleme, şüpheli bağlantı ve dosyalar.
-- Süre ve can olup olmayacağı. Aşama sayısı (3–5).
+- Süre ve can olup olmayacağı.
+- Kalan 5 aşamanın konuları (ilk aşama: virüs taraması).
 - Yıldız kuralları (UI-5'teki gibi bot taramasıyla ya da eğitici içeriğe uygun başka bir ölçüyle).
 - Sonsuz moda nasıl uyacağı (bölüm 8b).
 
@@ -607,7 +642,7 @@ Her fazın kabul şartları:
 | 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5 | ✅ Yayında (2026-10-24) |
 | 6 | Act 7 Logic Bomb (süre + arıza, 4 aşama, bölüm 3) ve Kapı 6 | ✅ Yayında, taslak kademelerle (2026-10-24) |
 | 7 | Act 8 Defrag (yerleştirme bulmacası, 4 aşama, bölüm 3) ve Kapı 7 | 🛠 Geliştiriliyor |
-| 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
+| 8 | Act 9 Checksum Grid (nonogram, 5 aşama, bölüm 3) ve Kapı 8 | 🛠 Geliştiriliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
 | Son | Yeni çok oyunlu sonsuz mod tamamlanınca: **herkesin verileri tamamen silinir** (bölüm 5b). | Bekliyor |
 
@@ -687,3 +722,5 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 23. **Act 7:** Logic Bomb (2026-10-24). Modüler bir payload kasası: veri hatları (kural kartı), tetik devresi (mantık kapıları), sembol tuş takımı ve basılı tut düğmesi. Ortak geri sayım ve arıza sınırı var, fizik yok. Telefon için bir anda tek modül ve onun kartı gösteriliyor. Kademeler ve yıldızlar taslak, onay bekliyor. İlk oyun testinden sonra (aynı gün) Uzman kaldırıldı (4 aşama), her aşama tek yeni şey getiriyor, devre canlı oldu, kılavuz yeniden düzenlendi ve ilk modül adım adım ders oldu.
 24. **Act 8:** Defrag (2026-10-25). Çekirdek diski bir ızgara, yedekten gelen Tetris benzeri bloklar sürüklenip boş sektörlere yerleştiriliyor, disk tamamen doldurulunca geri yükleniyor. Süre baskısı, can yok. Uzman aşaması A + B karışımı: bazı parçaların bozuk ikizi var, temiz görüntüyle karşılaştırılıp çöpe atılıyor.
 25. **Act 1–5 dersleri (2026-10-25):** ilk aşamalar kısa, oynatarak öğreten bir dersle açılıyor. Ders boyunca süre durur, hata sayılmaz. Ortak altyapı `Coach`.
+26. **Act 9 ve Act 10 (2026-10-25):** Act 9 5 aşamalı, baştan sona zor, süre ve can sınırı yok (oyuncu bitirene kadar dener). Act 10 6 aşamalı; her aşama gerçek hayattaki bir durumu canlandıran eğitici bir simülasyon, ilki virüs taraması (gelen dosyaları tarayıp virüslüleri ayıklamak, sahibe temiz dosyaları ulaştırmak).
+27. **Act 9:** Checksum Grid (2026-10-25). Nonogram: satır ve sütun sağlama toplamlarından temiz bellek haritası yeniden kuruluyor. Tek çözümlü, tahminsiz bulmacalar. Süre, can ve kaybetme yok; yıldızlar denetim (AUDIT) hatalarına göre.

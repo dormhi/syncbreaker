@@ -4,6 +4,9 @@
    One dim line at the bottom of menu screens. Tips rotate with a soft
    cross-fade and adapt to the last input used: a tip may be a string, or
    { desktop, touch } with a variant per input kind.
+
+   TipBar.RULES: in-game rule reminders a game shows while it is played
+   (it keeps its own TipBar for the rotation and draws the box itself).
    ========================================= */
 
 class TipBar {
@@ -138,10 +141,31 @@ TipBar.ACT = {
         'EXPERT: compare each block with the CLEAN SNAPSHOT — corrupted copies go to TRASH',
         'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
     ],
+    checksum: [
+        'Start with the big numbers: a block longer than half the line always fills its middle',
+        'A line whose checksum is complete: mark the rest with ✕',
+        'Grey checksums already match — rows and columns help each other',
+        'AUDIT is free when there is no mistake; a wrong audit costs a star',
+        'No timer here: take your time and never guess'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',
         'The tower must stand still above the line for a moment to count'
+    ]
+};
+
+// In-game rule reminders: how the game works, for a player who forgot.
+TipBar.RULES = {
+    checksum: [
+        'GOAL: turn every number grey. A number greys out when its row or column matches it.',
+        'The numbers are blocks of filled cells, in order: "3 1" = 3 filled, a gap, then 1.',
+        'Every row (numbers on the left) and every column (numbers on top) must match.',
+        'Blocks in one line always have at least one empty cell between them.',
+        { desktop: 'Click fills a cell · right click marks it ✕ (empty) · drag to do a whole line.', touch: 'Tap fills a cell · pick ✕ to mark it empty · drag to do a whole line.' },
+        'A block longer than half its line always covers the middle of the line.',
+        'AUDIT shows wrong cells: free when there are none, it costs a star when there are.',
+        'No timer, no lives: never guess — every grid can be solved by logic.'
     ]
 };
 

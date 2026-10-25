@@ -3051,6 +3051,7 @@ class GameManager {
         if (act.game === 'cut') return `${p.networks} NETWORKS · ${p.lives}♥`;
         if (act.game === 'bomb') return `${p.payloads} PAYLOADS · ${p.timeLimit}s`;
         if (act.game === 'defrag') return `${p.disks} DISKS · ${p.cols}×${p.rows} · ${p.timeLimit}s`;
+        if (act.game === 'checksum') return `${p.cols}×${p.rows} · NO TIMER`;
         return '';
     }
 
@@ -4076,6 +4077,7 @@ GameManager.GUIDE_PAGES = [
             ['Network Cut', 'Click twice · arrows + SPACE', 'Tap a cable twice'],
             ['Logic Bomb', '1-4 / Tab · arrows + SPACE', 'Tap tabs and parts'],
             ['Defrag', 'Drag · right click turns · Tab, R', 'Drag · tap to turn'],
+            ['Checksum Grid', 'Click / right click · arrows, SPACE, X', 'Tap · pick ✕ · drag'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -4092,6 +4094,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'NETWORK CUT', text: 'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue owner lines cost a life; thick cables need two cuts.' },
             { head: 'LOGIC BOMB', text: 'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.' },
             { head: 'DEFRAG', text: 'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.' },
+            { head: 'CHECKSUM GRID', text: 'Goal: turn every number grey. The numbers are the blocks of filled cells in that row or column, in order ("3 1" = 3 filled, a gap, then 1); a number greys out when its line matches. Mark cells you know are empty with ✕. No timer, no lives. AUDIT shows mistakes, but each audit that finds one costs a star.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },

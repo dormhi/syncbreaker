@@ -70,6 +70,14 @@ const GameRegistry = {
         create: (params) => new DefragMechanic(Object.assign({}, params))
     },
 
+    // No timer, no lives: it cannot be failed, so there is nothing to revive.
+    checksum: {
+        kind: 'mechanic',
+        revive: false,
+        title: 'CHECKSUM GRID',
+        create: (params) => new ChecksumGridMechanic(Object.assign({}, params))
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 
