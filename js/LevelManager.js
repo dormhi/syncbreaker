@@ -451,7 +451,7 @@ class LevelManager {
         // Description
         ctx.fillStyle = '#64748b';
         ctx.font = '400 14px Rajdhani';
-        ctx.fillText(this.currentLevel.desc, W / 2, 95);
+        ctx.fillText(UITheme.t(this.currentLevel.desc), W / 2, 95);
 
         // Progress
         ctx.fillText(`Hit: ${this.hitCount}/${this.currentLevel.requiredHits}`, W / 2, 115);

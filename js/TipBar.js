@@ -2,8 +2,9 @@
    TipBar.js — Quiet rotating hint line (HUB / act screen)
 
    One dim line at the bottom of menu screens. Tips rotate with a soft
-   cross-fade and adapt to the last input used: a tip may be a string, or
-   { desktop, touch } with a variant per input kind.
+   cross-fade and adapt to the last input used: a tip may be a string,
+   { desktop, touch } with a variant per input kind, or { text, vars }
+   for a translated text with placeholders.
 
    TipBar.RULES: in-game rule reminders a game shows while it is played
    (it keeps its own TipBar for the rotation and draws the box itself).
@@ -40,8 +41,9 @@ class TipBar {
     current(mode) {
         const tip = this.tips[this.index];
         if (!tip) return '';
-        const text = typeof tip === 'string' ? tip : (mode === 'touch' ? tip.touch : tip.desktop) || tip.desktop || tip.touch || '';
-        return typeof I18n !== 'undefined' ? I18n.t(text) : text;
+        const text = typeof tip === 'string' ? tip
+            : tip.text || (mode === 'touch' ? tip.touch : tip.desktop) || tip.desktop || tip.touch || '';
+        return typeof I18n !== 'undefined' ? I18n.t(text, tip.vars) : text;
     }
 
     /** Opacity of the current tip (fades at both ends of its slot). */
@@ -93,7 +95,7 @@ TipBar.MAP = [
     'Clear every stage of an act, then breach its gate to open the next one',
     { desktop: 'Press H for the field guide', touch: 'Tap ? for the field guide' },
     'Energy refills over time — keep a cell for the recovery protocol',
-    `Endless Mode unlocks after ACT ${typeof CAMPAIGN !== 'undefined' ? CAMPAIGN.finalAct : 9}`
+    { text: 'Endless Mode unlocks after ACT {n}', vars: { n: typeof CAMPAIGN !== 'undefined' ? CAMPAIGN.finalAct : 10 } }
 ];
 
 TipBar.ACT = {

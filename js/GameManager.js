@@ -1729,7 +1729,9 @@ class GameManager {
 
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('body', 500);
-        ctx.fillText(this.ui._fitText(UITheme.t(act.story), w - 44), left + 22, top + 160);
+        const story = UITheme.t(act.story);
+        UITheme.fitFont(ctx, story, w - 44, 'body', 500);
+        ctx.fillText(this.ui._fitText(story, w - 44), left + 22, top + 160);
 
         // Tier row / dev tag
         if (status === 'dev') {
@@ -2995,7 +2997,7 @@ class GameManager {
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '700 22px Orbitron, OrbitronTR';
-        ctx.fillText('FIELD GUIDE', W / 2, L.y + 42);
+        ctx.fillText(UITheme.t('FIELD GUIDE'), W / 2, L.y + 42);
 
         const left = L.x + 48, maxW = L.w - 104;
         const startY = L.viewTop + 26;
@@ -3011,18 +3013,18 @@ class GameManager {
             ctx.textAlign = 'left';
             ctx.font = '700 14px Orbitron, OrbitronTR';
             ctx.fillStyle = touch ? '#64748b' : '#3b82f6';
-            ctx.fillText('KEYBOARD / MOUSE', colA, y);
+            ctx.fillText(UITheme.t('KEYBOARD / MOUSE'), colA, y);
             ctx.fillStyle = touch ? '#3b82f6' : '#64748b';
-            ctx.fillText('TOUCH', colB, y);
+            ctx.fillText(UITheme.t('TOUCH'), colB, y);
             y += 30;
             for (const [what, desk, tap] of page.table) {
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '600 16px Rajdhani';
-                ctx.fillText(what, left, y);
+                ctx.fillText(UITheme.t(what), left, y);
                 ctx.fillStyle = touch ? '#64748b' : '#e2e8f0';
-                ctx.fillText(desk, colA, y);
+                ctx.fillText(UITheme.t(desk), colA, y);
                 ctx.fillStyle = touch ? '#e2e8f0' : '#64748b';
-                ctx.fillText(tap, colB, y);
+                ctx.fillText(UITheme.t(tap), colB, y);
                 y += 32;
             }
         } else {
@@ -3031,12 +3033,13 @@ class GameManager {
                 if (item.head) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '700 14px Orbitron, OrbitronTR';
-                    ctx.fillText(item.head, left, y);
+                    ctx.fillText(UITheme.t(item.head), left, y);
                     y += 22;
                 }
                 ctx.fillStyle = '#cbd5e1';
                 ctx.font = '400 17px Rajdhani';
-                for (const line of this._wrapText(ctx, item.text, maxW, 3)) {
+                // Turkish runs longer: room for more lines (the page scrolls).
+                for (const line of this._wrapText(ctx, UITheme.t(item.text, item.vars), maxW, 8)) {
                     ctx.fillText(line, left, y);
                     y += 23;
                 }
@@ -4165,7 +4168,7 @@ GameManager.GUIDE_PAGES = [
     {
         title: 'MISSION',
         items: [
-            { text: `An attacker is inside the system. ${CAMPAIGN.acts.length} acts stand between them and full control.` },
+            { text: 'An attacker is inside the system. {n} acts stand between them and full control.', vars: { n: CAMPAIGN.acts.length } },
             { head: 'ACTS & STAGES', text: 'Each act is one game. Its stages are that game\'s difficulty tiers — clear them in order to complete the act.' },
             { head: 'GATES', text: 'A cleared act opens its gate. Breach the gate (Packet Purge) to reach the next act. Acts marked IN DEVELOPMENT are on their way.' }
         ]
@@ -4211,7 +4214,7 @@ GameManager.GUIDE_PAGES = [
         items: [
             { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
             { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock, Route Trace, Logic Bomb and Defrag you get 20 more seconds. Twice per stage.' },
-            { head: 'ENDLESS MODE', text: `Unlocks after ACT ${CAMPAIGN.finalAct}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.` }
+            { head: 'ENDLESS MODE', text: 'Unlocks after ACT {n}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.', vars: { n: CAMPAIGN.finalAct } }
         ]
     }
 ];

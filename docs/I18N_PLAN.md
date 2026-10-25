@@ -1,6 +1,6 @@
 # SyncBreaker — Türkçe dil desteği planı
 
-> Durum (2026-10-26): **Faz 1 commit edildi (push yok). Faz 2 de commit edildi (push yok)** (menü, durum raporu, HUB, act ekranı, kapılar, duraklatma paneli, sonuç / başarısızlık ekranları, enerji mesajları, tebrik ekranı; ayrıca Orbitron'a Ğ yedeği). 1092 test geçiyor. Sıradaki: **Faz 3**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
+> Durum (2026-10-26): **Faz 1 ve Faz 2 commit edildi (push yok). Faz 3 de commit edildi (push yok)** (TIP satırları, RULES kutusu, saha rehberi, act hikâyeleri, kontrol ve ilk aşama ipucu satırları). 1097 test geçiyor. Sıradaki: **Faz 4**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
 
 ## 1. Kurallar (kullanıcı, 2026-10-25)
 
@@ -39,7 +39,7 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 |---|---|---|
 | **1** | Altyapı (`I18n`), dil düğmesi + seçici, sözlük dosyası, ortak çizim noktalarının çeviriden geçmesi. Metin çevirisi yok (sadece seçicinin kendi yazıları). | ✅ Uygulandı |
 | **2** | Ana menü, durum raporu, HUB (harita, kartlar, ray), act ekranı, kapılar, duraklatma paneli, oyun sonu / sonuç ekranları, enerji ve recovery mesajları, tebrik ekranı. | ✅ Uygulandı |
-| 3 | TIP satırları (`TipBar.MAP`, `TipBar.ACT`, `TipBar.RULES`), oyun kılavuzu (`GUIDE_PAGES`), act hikâyeleri, kontrol ve alt ipucu satırları (`Campaign.js`). | Bekliyor |
+| **3** | TIP satırları (`TipBar.MAP`, `TipBar.ACT`, `TipBar.RULES`), oyun kılavuzu (`GUIDE_PAGES`), act hikâyeleri, kontrol ve alt ipucu satırları (`Campaign.js`). | ✅ Uygulandı |
 | 4 | Act 1–5: dersler ve oyun içi yazılar (HUD, mesajlar). | Bekliyor |
 | 5 | Act 6–8: Network Cut, Logic Bomb (kural kartı üretici dahil), Defrag. | Bekliyor |
 | 6 | Act 9 Checksum Grid ve Act 10 görevleri (en çok içerik). | Bekliyor |
@@ -59,3 +59,5 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 - Türkçe ekler sayıdan sonra değişir (ACT 2'ye, 6'ya, 10'a): sayılı metinler ek gerektirmeyecek şekilde kuruldu ("Kapıyı kır: KAPI 6 → ACT 7", "Endless Mode, ACT 10 bitince açılır").
 - Faz 2 sözcük seçimleri (kullanıcı onayına açık): gate → **KAPI**, stage → **aşama**, act → **ACT** (ekranda), "← ACTS" → **← HARİTA**, "← ACT" (başarısızlık ekranı) → **← AŞAMALAR**, SECURED → **GÜVENDE**, ACCESS GRANTED → **ERİŞİM SAĞLANDI**, CLEARANCE → **YETKİ** (seviye adları L4 OPERATOR gibi İngilizce), packet → **PAKET**, Endless "run" → **koşu**. Katman adları (PERIMETER, INTERNAL, CORE, HANDOVER) İngilizce kaldı.
 - Test: `tests/run.js` "phase 2" grubu, Faz 2 dosyalarında `UITheme.t('…')` ile geçen her metnin Türkçesi olduğunu ve yer tutucuların (`{n}`) korunduğunu denetler. Sonraki fazlarda dosya listesine o fazın dosyaları eklenir.
+- Faz 3: TIP satırı `{ text, vars }` da olabilir (yer tutuculu ipucu, ör. "Endless Mode, ACT {n} bitince açılır"); rehber maddeleri de `vars` taşıyabilir. Rehber metni Türkçede uzadığı için en fazla 8 satıra sarılır (sayfa kayar). Act kartındaki hikâye 316 px'e sığmalı: uzun Türkçe hikâyeler kısaltıldı, sığmazsa yazı küçülür. Rehberde oyun adları ve tuş adları (SPACE, Esc, H) İngilizce kalır; "line" (nonogram) **satır** diye çevrildi. Route Trace tahtasındaki YOU / ATTACKER etiketleri ipuçlarında İngilizce geçiyor; Faz 4'te tahtada çevrilirse ipuçları da güncellenmeli. Act 10 ipucundaki "TASK line" → **Görev satırı** (görev çerçevesi Faz 6'da çevrilince aynı kelime kullanılmalı).
+- Test: "phase 3" grubu bütün TIP / RULES satırlarının, act hikâye / kontrol / ipucu satırlarının ve rehber metinlerinin Türkçesi olduğunu, rehberin Türkçe çizildiğini ve hiçbir satırın "…" ile kesilmediğini denetler.

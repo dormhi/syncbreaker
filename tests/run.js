@@ -4473,6 +4473,65 @@ suite('Languages (I18n) — phase 2: menu, HUB, act screen, pause, results', () 
 });
 
 // ─────────────────────────────────────────────
+suite('Languages (I18n) — phase 3: TIP lines, field guide, act stories', () => {
+    const mod = loadGameManager();
+    const { I18n, CAMPAIGN, TipBar, GameManager } = mod;
+    const tr = I18n.dict.tr;
+    const has = (t) => Object.prototype.hasOwnProperty.call(tr, t);
+    const texts = (tip) => typeof tip === 'string' ? [tip] : (tip.text ? [tip.text] : [tip.desktop, tip.touch]);
+    const missing = [];
+    const need = (t) => { if (t && !has(t)) missing.push(t); };
+    // TIP lines and the RULES box
+    TipBar.MAP.forEach(t => texts(t).forEach(need));
+    Object.values(TipBar.ACT).forEach(v => [].concat(v).forEach(t => texts(t).forEach(need)));
+    Object.values(TipBar.RULES).forEach(v => v.forEach(t => texts(t).forEach(need)));
+    // Act stories, controls and first-stage hints
+    for (const a of CAMPAIGN.acts) {
+        need(a.story); need(a.controls);
+        if (a.hint) { need(a.hint.desktop); need(a.hint.touch); }
+    }
+    // Field guide: game names, keys and ENDLESS MODE stay English by rule.
+    const english = new Set(['Esc', 'SPACE', 'H', 'ENDLESS MODE', 'HANDOVER (ACT 10)']
+        .concat(GameManager.GUIDE_PAGES[2].items.map(i => i.head))
+        .concat(GameManager.GUIDE_PAGES[1].table.map(r => r[0]).filter(w => !/^(Menus|Go back|Handover missions|Field guide)$/.test(w))));
+    for (const page of GameManager.GUIDE_PAGES) {
+        need(page.title);
+        (page.items || []).forEach(i => { if (!english.has(i.head)) need(i.head); need(i.text); });
+        (page.table || []).forEach(row => row.forEach(c => { if (!english.has(c)) need(c); }));
+    }
+    ok(`every phase 3 text has a Turkish entry${missing.length ? ' (missing: ' + missing.join(' | ') + ')' : ''}`, missing.length === 0);
+
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    const tb = new TipBar();
+    tb.setTips('map', TipBar.MAP);
+    tb.index = TipBar.MAP.length - 1;
+    ok('a tip with placeholders is filled in Turkish', tb.current('desktop') === `Endless Mode, ACT ${CAMPAIGN.finalAct} bitince açılır`);
+    // The field guide draws in Turkish, every page, without cutting text short.
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    I18n.set('tr', store);   // the constructor reads the saved language again
+    const S = gm.state.STATES;
+    gm.state.currentState = S.GUIDE;
+    gm.state.transitioning = false;
+    gm.state._handlers[S.GUIDE].enter({ page: 0 });
+    let all = '';
+    for (let i = 0; i < GameManager.GUIDE_PAGES.length; i++) {
+        gm._setGuidePage(i);
+        drawn.length = 0;
+        gm.render(ctx, 0);
+        all += drawn.join(' \n ');
+    }
+    ok('field guide in Turkish', all.includes('SAHA REHBERİ') && all.includes('KLAVYE / FARE') && all.includes('Sisteme bir saldırgan sızdı'));
+    ok('field guide: game names stay English', all.includes('NETWORK CUT') && all.includes('Signal Lock'));
+    ok('field guide: no line is cut short with …', !/…/.test(all));
+    I18n.set('en', store);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);
