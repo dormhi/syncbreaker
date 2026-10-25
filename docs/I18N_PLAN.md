@@ -1,6 +1,6 @@
 # SyncBreaker — Türkçe dil desteği planı
 
-> Durum (2026-10-26): **Faz 1–4 commit edildi (push yok). Faz 5 de commit edildi (push yok)** (Network Cut, Logic Bomb ve kural kartı üreticisi, Defrag: dersler, açıklamalar, HUD, mesajlar). 1106 test geçiyor. Sıradaki: **Faz 6**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
+> Durum (2026-10-26): **Faz 1–5 commit edildi (push yok). Faz 6 da commit edildi (push yok)** (Checksum Grid; Act 10 görev çerçevesi ve altı görevin bütün içeriği). 1111 test geçiyor. Sıradaki: **Faz 7** (son faz), kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
 
 ## 1. Kurallar (kullanıcı, 2026-10-25)
 
@@ -44,7 +44,7 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 | **3** | TIP satırları (`TipBar.MAP`, `TipBar.ACT`, `TipBar.RULES`), oyun kılavuzu (`GUIDE_PAGES`), act hikâyeleri, kontrol ve alt ipucu satırları (`Campaign.js`). | ✅ Uygulandı |
 | **4** | Act 1–5: dersler ve oyun içi yazılar (HUD, mesajlar). | ✅ Uygulandı |
 | **5** | Act 6–8: Network Cut, Logic Bomb (kural kartı üretici dahil), Defrag. | ✅ Uygulandı |
-| 6 | Act 9 Checksum Grid ve Act 10 görevleri (en çok içerik). | Bekliyor |
+| **6** | Act 9 Checksum Grid ve Act 10 görevleri (en çok içerik). | ✅ Uygulandı |
 | 7 | Kalanlar: Endless, leaderboard, operatör profili formu (DOM), lockpick / Code Breaker, Dual Ring, Packet Purge. Son kontrol: bütün ekranlar iki dilde, telefon ve masaüstü. | Bekliyor |
 
 ## 5. Bir faza başlarken / devam ederken (notlar)
@@ -67,3 +67,6 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 - Test: "phase 4" grubu Act 1–5 dosyalarındaki çizilen metinlerin ve ders adımlarının (text / desktop / touch) Türkçesini, vuruş kelimelerini ve ders yer tutucularını denetler.
 - Faz 5: **Logic Bomb kural kartları oyuncunun dilinde üretilir** (`lbT`, modül oluşurken; dil sadece ana menüde değişir). Cümleler Türkçe kalıplardan kurulur ("EĞER hiç KIRMIZI hat yoksa → ilk MAVİ hattı kes"), kural kontrolü ve çözücü metne bakmadığı için aynı tohum iki dilde aynı kartı verir. Kılavuzdaki renkli kelimeler Türkçe renk adlarını da tanır (KIRMIZI, MAVİ, SARI, BEYAZ, YEŞİL), pembe kelimeler EĞER / YOKSA / ADIM. Düğme yazıları da çevrildi (ABORT → İPTAL, HOLD → BEKLE, DETONATE → PATLAT, PRESS → BAS; Faz 3'teki TRIGGER ipucu da PATLAT'a güncellendi). İngilizce kalanlar: modül adları ve başlıkları (LINES, TRIGGER, CIPHER, SWITCH, DATA LINES, KILL SWITCH…), MANUAL, STRIKE / STRIKES, SIG ve bayraklar (NET, SYS…), PAYLOAD; Network Cut'ta ATK / CORE / OWNER tahta etiketleri; Defrag'da CLEAN SNAPSHOT ve TRASH.
 - Test: "phase 5" grubu üç oyunun metinlerini (ders adımları, açıklamalar, mesajlar, kılavuz hedefleri, renk açıklamaları) ve Türkçe üretilen yüzlerce Logic Bomb kural kartında İngilizce kalıp kalmadığını denetler.
+- Faz 6: Görevlerin çizim yardımcıları (`hmText`, `hmPanel`, görev çerçevesi) çeviriden geçer; sayılı ve adlı cümleler yer tutuculu anahtarlarla kurulur (`hmT('Scan packet {n}: {name}', …)`). Veriler (dosya kaynakları, notlar, e-posta adı / konu / gövde / açıklama, program adları ve riskleri, yedek yerleri) çevrilir; **e-posta adresleri, gerçek bağlantı adresleri, dosya adları, sürüm numaraları ve eski parolalar olduğu gibi kalır** (phishing dersi bunlara bakarak verilir). Parola cümlesi kelimeleri de Türkçe (nehir, lamba…). Türkçe metinde `toLowerCase` kullanılmaz: küçük harfli hâl ayrı anahtar (`documents`, `in centuries`). İngilizce kalanlar: görev / aşama adları (SCAN, PASSWORD…), PHISHING, AUDIT, PayPal. "SAFE" artık her yerde **GÜVENLİ** (Network Cut'taki CORE etiketi dahil).
+- Görev geri bildirim satırı uzun metinde iki satıra bölünür (sıkıştırılmaz); Checksum Grid'in HEDEF kutusundaki satır kutuya sığacak kadar küçülür (İngilizcesi de kutuya ancak sığıyordu).
+- Test: "phase 6" grubu Checksum ve görev dosyalarındaki bütün metin dizelerini (yorumlar hariç) tarar; kod kelimeleri, dosya adları, adresler ve kural gereği İngilizce kalanlar dışında hepsinin Türkçesi olmalı. Altı görevin GÖREV satırı Türkçe çizilmeli.

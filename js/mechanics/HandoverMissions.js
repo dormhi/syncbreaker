@@ -14,6 +14,9 @@
 
 const _MissionBaseHM = (typeof MissionMechanic !== 'undefined') ? MissionMechanic : class {};
 
+/** Text in the player's language; addresses, file names and numbers have no entry and stay as they are. */
+const hmT = (text, vars) => (typeof UITheme !== 'undefined' ? UITheme.t(text, vars) : text);
+
 /** Shared drawing: a framed box with an optional title. */
 function hmPanel(ctx, x, y, w, h, title, color = 'rgba(45,212,191,0.5)') {
     UITheme.panel(ctx, x, y, w, h, { chamfer: 10, fill: 'rgba(10,16,24,0.88)', stroke: color });
@@ -22,7 +25,7 @@ function hmPanel(ctx, x, y, w, h, title, color = 'rgba(45,212,191,0.5)') {
     ctx.font = '700 13px Orbitron, OrbitronTR';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(title, x + 14, y + 18);
+    ctx.fillText(hmT(title), x + 14, y + 18);
 }
 
 function hmText(ctx, text, x, y, size = 17, color = '#e2e8f0', weight = 600, align = 'left', maxW) {
@@ -30,6 +33,7 @@ function hmText(ctx, text, x, y, size = 17, color = '#e2e8f0', weight = 600, ali
     ctx.font = `${weight} ${size}px Rajdhani`;
     ctx.textAlign = align;
     ctx.textBaseline = 'middle';
+    text = hmT(text);
     if (maxW) ctx.fillText(text, x, y, maxW); else ctx.fillText(text, x, y);
 }
 
@@ -99,7 +103,7 @@ class VirusScanMission extends _MissionBaseHM {
     _resolve(file, keep) {
         if (file.verdict === 'infected') {
             file.done = 'quarantined';
-            this.tell(`${file.name} quarantined: it can never run.`);
+            this.tell(hmT('{file} quarantined: it can never run.', { file: file.name }));
             return;
         }
         if (keep === !file.bad) {
@@ -115,7 +119,7 @@ class VirusScanMission extends _MissionBaseHM {
     _send() {
         const clean = this.files.filter(f => f.verdict === 'clean' || f.done === 'kept').length;
         this.delivered += clean;
-        this.tell(`${clean} clean files delivered to the owner.`);
+        this.tell(hmT('{n} clean files delivered to the owner.', { n: clean }));
         this.packet++;
         if (this.packet >= this.packets.length) {
             this.phase = 'done';
@@ -128,7 +132,7 @@ class VirusScanMission extends _MissionBaseHM {
         }
         this.phase = 'ready';
         this.progress = 0;
-        this.task = `Scan packet ${this.packet + 1}: ${this.packets[this.packet].name.toLowerCase()}`;
+        this.task = hmT('Scan packet {n}: {name}', { n: this.packet + 1, name: hmT(this.packets[this.packet].name.toLowerCase()) });   // lower-case key: no toLowerCase on Turkish text
         if (this.packet === 2) this.teach('EVENT · A USB stick was found in the parking lot, labelled "TAX 2025". Attackers drop sticks on purpose. Never plug one in unscanned — here it goes into the scanner first.');
     }
 
@@ -136,7 +140,7 @@ class VirusScanMission extends _MissionBaseHM {
 
     buttons() {
         const out = [];
-        if (this.phase === 'ready') out.push({ id: 'scan', x: 692, y: 440, w: 226, h: 72, label: `SCAN PACKET ${this.packet + 1}`, tone: 'primary', onTap: () => { this.phase = 'scanning'; this.progress = 0; this.task = 'Scanning…'; } });
+        if (this.phase === 'ready') out.push({ id: 'scan', x: 692, y: 440, w: 226, h: 72, label: hmT('SCAN PACKET {n}', { n: this.packet + 1 }), tone: 'primary', onTap: () => { this.phase = 'scanning'; this.progress = 0; this.task = 'Scanning…'; } });
         if (this.phase === 'review') {
             this.files.forEach((f, i) => {
                 if (f.done || f.verdict === 'clean') return;
@@ -157,7 +161,7 @@ class VirusScanMission extends _MissionBaseHM {
     drawScene(ctx) {
         if (this.phase === 'done') return;
         const p = this.packets[this.packet];
-        hmPanel(ctx, 30, 110, 630, 420, `PACKET ${this.packet + 1}/3 · ${p.name}`);
+        hmPanel(ctx, 30, 110, 630, 420, hmT('PACKET {n}/3 · {name}', { n: this.packet + 1, name: hmT(p.name) }));
         const show = this.phase === 'review';
         p.files.forEach((f, i) => {
             const r = this.rowRect(i);
@@ -168,23 +172,24 @@ class VirusScanMission extends _MissionBaseHM {
             ctx.fillStyle = color;
             ctx.fillRect(r.x, r.y, 5, r.h);
             hmText(ctx, f.name, r.x + 18, r.y + 22, 18, f.done === 'quarantined' || f.done === 'deleted' ? '#64748b' : '#f1f5f9', 700);
-            const status = !show ? 'waiting for scan'
-                : f.done ? f.done.toUpperCase()
-                : f.verdict === 'clean' ? 'CLEAN' : f.verdict === 'infected' ? `INFECTED · ${f.note}` : `SUSPICIOUS · from ${f.from}: ${f.note}`;
+            const status = !show ? hmT('waiting for scan')
+                : f.done ? hmT(f.done.toUpperCase())
+                : f.verdict === 'clean' ? hmT('CLEAN') : f.verdict === 'infected' ? hmT('INFECTED · {note}', { note: hmT(f.note) })
+                : hmT('SUSPICIOUS · from {from}: {note}', { from: hmT(f.from), note: hmT(f.note) });
             // Up to two lines, clear of the buttons while a file waits for a decision.
             const room = show && !f.done && f.verdict !== 'clean' ? r.w - 250 : r.w - 30;
             ctx.fillStyle = color;
             ctx.font = '600 15px Rajdhani';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
-            this.wrap(ctx, show ? status : `from ${f.from}`, r.x + 18, r.y + 48, room, 18);
+            this.wrap(ctx, show ? status : hmT('from {from}', { from: hmT(f.from) }), r.x + 18, r.y + 48, room, 18);
         });
         if (this.phase === 'scanning') {
             ctx.fillStyle = 'rgba(15,23,42,0.9)';
             ctx.fillRect(700, 452, 210, 16);
             ctx.fillStyle = '#2dd4bf';
             ctx.fillRect(700, 452, 210 * this.progress, 16);
-            hmText(ctx, `SCANNING… ${Math.round(this.progress * 100)}%`, 805, 492, 16, '#5eead4', 700, 'center');
+            hmText(ctx, hmT('SCANNING… {p}%', { p: Math.round(this.progress * 100) }), 805, 492, 16, '#5eead4', 700, 'center');
         }
         // The owner's folder
         hmPanel(ctx, 680, 110, 250, 420, 'OWNER\'S FOLDER');
@@ -208,14 +213,14 @@ const HM_WORDS = ['river', 'lamp', 'orbit', 'cactus', 'violet', 'thunder', 'pock
 class PasswordMission extends _MissionBaseHM {
     start() {
         this.accounts = [
-            { name: 'E-MAIL', old: 'sunshine1' },
-            { name: 'BANK', old: 'Fluffy2019' },
-            { name: 'SOCIAL', old: 'qwerty123' }
+            { name: hmT('E-MAIL'), old: 'sunshine1' },
+            { name: hmT('BANK'), old: 'Fluffy2019' },
+            { name: hmT('SOCIAL'), old: 'qwerty123' }
         ];
         this.index = 0;
         this.phase = 'old';         // old -> build -> (next) -> vault -> done
         this.words = [];
-        this.bank = this._shuffle(HM_WORDS.slice()).slice(0, 10);
+        this.bank = this._shuffle(HM_WORDS.map(w => hmT(w))).slice(0, 10);
         this.oldTested = false;
         this.task = 'Test the old e-mail password';
         this.teach(
@@ -247,21 +252,21 @@ class PasswordMission extends _MissionBaseHM {
         if (this.words.length < 4) { this.tell('Use at least FOUR random words — every extra word makes it far harder to crack.', false); return; }
         const used = this.accounts.slice(0, this.index).find(a => a.pw === this.phrase);
         if (used) {
-            this.tell(`That is the ${used.name} password! One leak would open both accounts. Build a different one.`, false, 4.5);
+            this.tell(hmT('That is the {name} password! One leak would open both accounts. Build a different one.', { name: used.name }), false, 4.5);
             return;
         }
         this.account.pw = this.phrase;
-        this.tell(`New ${this.account.name} password set: cracked ${PasswordMission.crackTime(PasswordMission.bits(null, this.words.length))[0].toLowerCase()}.`);
+        this.tell(hmT('New {name} password set: cracked {time}.', { name: this.account.name, time: hmT(PasswordMission.crackTime(PasswordMission.bits(null, this.words.length))[0].toLowerCase()) }));
         this.index++;
         this.words = [];
-        this.bank = this._shuffle(HM_WORDS.slice()).slice(0, 10);
+        this.bank = this._shuffle(HM_WORDS.map(w => hmT(w))).slice(0, 10);
         if (this.index >= this.accounts.length) {
             this.phase = 'vault';
             this.task = 'Store the new passwords safely';
             this.teach('Three long, different passwords — nobody can remember those. That is what a PASSWORD MANAGER is for: it remembers them, you remember ONE strong master password.');
             return;
         }
-        this.task = `Build a new ${this.account.name} password`;
+        this.task = hmT('Build a new {name} password', { name: this.account.name });
         if (this.index === 1) this.teach('Tempting: just use the same password for the bank? Attackers try every leaked password on every site ("credential stuffing"). One password per account.');
     }
 
@@ -281,7 +286,7 @@ class PasswordMission extends _MissionBaseHM {
                     onTap: () => { if (this.words.length < 5) this.words.push(w); } });
             });
             out.push({ id: 'del', x: 60, y: 430, w: 170, h: 50, label: '⌫ REMOVE', small: true, disabled: !this.words.length, onTap: () => this.words.pop() });
-            if (this.index > 0) out.push({ id: 'reuse', x: 240, y: 430, w: 220, h: 50, label: `USE ${this.accounts[0].name}'S`, small: true,
+            if (this.index > 0) out.push({ id: 'reuse', x: 240, y: 430, w: 220, h: 50, label: hmT('USE {name}\'S', { name: this.accounts[0].name }), small: true,
                 onTap: () => { this.words = this.accounts[0].pw.split('-'); } });
             out.push({ id: 'set', x: 470, y: 430, w: 170, h: 50, label: 'SET PASSWORD', tone: 'safe', small: true, onTap: () => this._set() });
         }
@@ -300,7 +305,7 @@ class PasswordMission extends _MissionBaseHM {
 
     drawScene(ctx) {
         if (this.phase === 'done') return;
-        hmPanel(ctx, 30, 110, 630, 420, this.phase === 'vault' ? 'PASSWORD MANAGER' : `ACCOUNT ${Math.min(this.index + 1, 3)}/3 · ${this.account ? this.account.name : ''}`);
+        hmPanel(ctx, 30, 110, 630, 420, this.phase === 'vault' ? 'PASSWORD MANAGER' : hmT('ACCOUNT {n}/3 · {name}', { n: Math.min(this.index + 1, 3), name: this.account ? this.account.name : '' }));
         if (this.phase === 'vault') {
             this.accounts.forEach((a, i) => hmText(ctx, `${a.name}   ${'•'.repeat(18)}   ✓`, 60, 170 + i * 40, 19, '#cbd5e1', 700));
         } else {
@@ -315,7 +320,7 @@ class PasswordMission extends _MissionBaseHM {
             ctx.fillStyle = color;
             ctx.fillRect(60, 226, 580 * Math.min(1, bits / 60), 14);
             if (old && !this.oldTested) hmText(ctx, 'Crack time: ?', 60, 262, 17, '#94a3b8', 700);
-            else hmText(ctx, `Crack time: ${label}`, 60, 262, 17, color, 700);
+            else hmText(ctx, hmT('Crack time: {time}', { time: hmT(label) }), 60, 262, 17, color, 700);
         }
         hmPanel(ctx, 680, 110, 250, 420, 'ACCOUNTS');
         this.accounts.forEach((a, i) => {
@@ -431,7 +436,7 @@ class TwoFactorMission extends _MissionBaseHM {
                 }
             }
             hmText(ctx, 'Scanned ✓', 70, 420, 16, '#22c55e', 700);
-            hmText(ctx, `CODE: ${this.entry.padEnd(6, '·')}`, 380, 160, 24, '#f8fafc', 700);
+            hmText(ctx, hmT('CODE: {code}', { code: this.entry.padEnd(6, '·') }), 380, 160, 24, '#f8fafc', 700);
         }
         if (this.phase === 'backup') {
             hmText(ctx, 'Backup codes:  4821-9937   1176-0452   8830-6614 …', 60, 170, 18, '#cbd5e1', 700);
@@ -440,7 +445,7 @@ class TwoFactorMission extends _MissionBaseHM {
         if (this.phase === 'attack' || this.phase === 'push') {
             const t = this.attackT;
             hmText(ctx, 'LOGIN FROM: unknown device · far away', 60, 170, 17, '#fca5a5', 700);
-            hmText(ctx, `Password: ${t > 0.8 ? '•••••••••  ✓ correct' : 'typing…'}`, 60, 214, 18, '#cbd5e1', 600);
+            hmText(ctx, hmT('Password: {state}', { state: hmT(t > 0.8 ? '•••••••••  ✓ correct' : 'typing…') }), 60, 214, 18, '#cbd5e1', 600);
             if (t > 1.6) hmText(ctx, 'Code from the owner\'s phone: ??????', 60, 254, 18, '#cbd5e1', 600);
             if (t > 2.4 || this.phase === 'push') hmText(ctx, '✗ ACCESS DENIED — no code, no entry', 60, 298, 20, '#22c55e', 700);
         }
@@ -493,7 +498,10 @@ class PhishingMission extends _MissionBaseHM {
     start() {
         const bad = this._shuffle(HM_MAILS.filter(m => m.phishing)).slice(0, 3);
         const good = this._shuffle(HM_MAILS.filter(m => !m.phishing)).slice(0, 3);
-        this.mails = this._shuffle(bad.concat(good)).map(m => Object.assign({ done: null, inspected: false }, m));
+        // Shown in the player's language; addresses and real link targets stay as they are.
+        const local = (m) => Object.assign({}, m, { name: hmT(m.name), subject: hmT(m.subject), body: hmT(m.body), why: hmT(m.why),
+            link: m.link ? [hmT(m.link[0]), m.link[1]] : null });
+        this.mails = this._shuffle(bad.concat(good)).map(m => Object.assign({ done: null, inspected: false }, local(m)));
         this.index = 0;
         this.task = 'Check each e-mail: SAFE or PHISHING?';
         this.teach(
@@ -506,7 +514,7 @@ class PhishingMission extends _MissionBaseHM {
 
     _decide(phishing) {
         const m = this.mail;
-        if (phishing !== m.phishing) { this.tell(`Look again. ${m.why}`, false, 6); return; }
+        if (phishing !== m.phishing) { this.tell(hmT('Look again. {why}', { why: m.why }), false, 6); return; }
         m.done = phishing ? 'phishing' : 'safe';
         this.tell(m.why, true, 5);
         this.index++;
@@ -540,10 +548,10 @@ class PhishingMission extends _MissionBaseHM {
         });
         const m = this.mail;
         if (!m) return;
-        hmPanel(ctx, 290, 110, 640, 420, `MESSAGE ${this.index + 1}/${this.mails.length}`);
-        hmText(ctx, `From: ${m.name}`, 310, 158, 18, '#f1f5f9', 700);
+        hmPanel(ctx, 290, 110, 640, 420, hmT('MESSAGE {n}/{total}', { n: this.index + 1, total: this.mails.length }));
+        hmText(ctx, hmT('From: {name}', { name: m.name }), 310, 158, 18, '#f1f5f9', 700);
         hmText(ctx, `<${m.addr}>`, 310, 184, 17, '#fde68a', 700);
-        hmText(ctx, `Subject: ${m.subject}`, 310, 218, 18, '#e2e8f0', 700);
+        hmText(ctx, hmT('Subject: {subject}', { subject: m.subject }), 310, 218, 18, '#e2e8f0', 700);
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '600 17px Rajdhani';
         ctx.textAlign = 'left';
@@ -551,7 +559,7 @@ class PhishingMission extends _MissionBaseHM {
         if (m.attach) hmText(ctx, `📎 ${m.attach}`, 310, 330, 16, '#94a3b8', 700);
         if (m.link) {
             hmText(ctx, `[ ${m.link[0]} ]`, 310, 350, 18, '#60a5fa', 700);
-            if (m.inspected) hmText(ctx, `really goes to: ${m.link[1]}`, 310, 403, 17, '#fde68a', 700);
+            if (m.inspected) hmText(ctx, hmT('really goes to: {url}', { url: m.link[1] }), 310, 403, 17, '#fde68a', 700);
         }
     }
 }
@@ -586,7 +594,7 @@ class UpdateMission extends _MissionBaseHM {
         if (this.progress >= 1) {
             this.updating.from = this.updating.to;
             this.updating.risk = null;
-            this.tell(`${this.updating.name} updated — that hole is closed.`);
+            this.tell(hmT('{name} updated — that hole is closed.', { name: hmT(this.updating.name) }));
             this.updating = null;
             if (!this.popupShown) {
                 this.popupShown = true;
@@ -645,7 +653,7 @@ class UpdateMission extends _MissionBaseHM {
             ctx.fillRect(50, y, 860, 56);
             ctx.fillStyle = a.risk ? '#ef4444' : '#22c55e';
             ctx.fillRect(50, y, 5, 56);
-            hmText(ctx, `${a.name}  ${a.from}${a.risk ? ` → ${a.to}` : ''}`, 68, y + 18, 18, '#f1f5f9', 700);
+            hmText(ctx, `${hmT(a.name)}  ${a.from}${a.risk ? ` → ${a.to}` : ''}`, 68, y + 18, 18, '#f1f5f9', 700);
             hmText(ctx, a.risk || 'UP TO DATE', 68, y + 40, 14, a.risk ? '#fca5a5' : '#86efac', 600);
             if (this.updating === a) {
                 ctx.fillStyle = 'rgba(15,23,42,0.9)';
@@ -662,7 +670,7 @@ class UpdateMission extends _MissionBaseHM {
             hmText(ctx, 'Install CleanerPro NOW to remove them.', 480, 280, 17, '#fecaca', 600, 'center');
             hmText(ctx, 'Offer ends in 00:59', 480, 312, 15, '#fecaca', 600, 'center');
         }
-        if (this.phase === 'auto') hmText(ctx, `Automatic updates: ${this.auto ? 'ON' : 'OFF'}`, 580, 496, 18, this.auto ? '#22c55e' : '#fca5a5', 700);
+        if (this.phase === 'auto') hmText(ctx, this.auto ? 'Automatic updates: ON' : 'Automatic updates: OFF', 580, 496, 18, this.auto ? '#22c55e' : '#fca5a5', 700);
     }
 }
 
@@ -745,14 +753,14 @@ class BackupMission extends _MissionBaseHM {
         if (this.phase === 'handover') {
             hmPanel(ctx, 30, 110, 900, 420, 'HANDOVER CHECKLIST');
             ['Files scanned and clean', 'New passwords in a password manager', 'Two-step verification on', 'Phishing spotted and binned', 'Everything updated, auto-updates on', '3-2-1 backups, one offline']
-                .forEach((t, i) => hmText(ctx, `✓  ${t}`, 80, 160 + i * 38, 19, '#86efac', 700));
+                .forEach((t, i) => hmText(ctx, `✓  ${hmT(t)}`, 80, 160 + i * 38, 19, '#86efac', 700));
             return;
         }
         hmPanel(ctx, 30, 110, 900, 200, '3-2-1 BACKUP PLAN');
         this.copies.forEach((c, i) => {
             const x = 60 + i * 290;
             UITheme.panel(ctx, x, 150, 260, 120, { chamfer: 8, fill: c ? 'rgba(34,197,94,0.12)' : 'rgba(30,41,59,0.6)', stroke: c ? '#22c55e' : 'rgba(100,116,139,0.6)', dashed: !c });
-            hmText(ctx, `COPY ${i + 1}`, x + 130, 180, 15, '#94a3b8', 700, 'center');
+            hmText(ctx, hmT('COPY {n}', { n: i + 1 }), x + 130, 180, 15, '#94a3b8', 700, 'center');
             hmText(ctx, c || '?', x + 130, 220, 17, c ? '#f1f5f9' : '#475569', 700, 'center');
         });
         if (this.phase === 'run' || this.phase === 'restore') {

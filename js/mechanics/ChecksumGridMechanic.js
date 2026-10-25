@@ -340,7 +340,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         if (wrong.size) {
             this.auditErrors++;
             this.audited = { cells: wrong, t: 2.5 };
-            this.message = { text: `AUDIT: ${wrong.size} WRONG CELL${wrong.size > 1 ? 'S' : ''}`, color: '#ef4444', t: 2.5 };
+            this.message = { text: UITheme.t(wrong.size > 1 ? 'AUDIT: {n} WRONG CELLS' : 'AUDIT: {n} WRONG CELL', { n: wrong.size }), color: '#ef4444', t: 2.5 };
             if (typeof Sound !== 'undefined' && Sound.playMiss) Sound.playMiss();
         } else {
             this.audited = null;
@@ -575,9 +575,9 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
             ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2 + 1);
         };
         ctx.save();
-        button(B.fill, '■ FILL', this.mode === 'fill', '#38bdf8');
+        button(B.fill, UITheme.t('■ FILL'), this.mode === 'fill', '#38bdf8');
         button(B.mark, '✕', this.mode === 'mark', '#94a3b8');
-        button(B.undo, '↶ UNDO', false, '#94a3b8');
+        button(B.undo, UITheme.t('↶ UNDO'), false, '#94a3b8');
         button(B.audit, 'AUDIT', false, '#f59e0b');
         // GOAL: the win rule and how far along it is
         const G = B.goal, total = this.rows + this.cols, ok = this.linesOk;
@@ -586,26 +586,30 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#facc15';
         ctx.font = '700 13px Orbitron, OrbitronTR';
-        ctx.fillText('GOAL', G.x + 12, G.y + 15);
+        const tag = UITheme.t('GOAL');
+        ctx.fillText(tag, G.x + 12, G.y + 15);
+        const tagW = ctx.measureText(tag).width;
         ctx.fillStyle = '#fde68a';
-        ctx.font = '700 16px Rajdhani';
-        ctx.fillText('Turn EVERY number grey', G.x + 64, G.y + 15);
+        const goalX = G.x + Math.max(64, 22 + (typeof tagW === 'number' ? tagW : 40));
+        const goal = UITheme.t('Turn EVERY number grey');
+        UITheme.fitFont(ctx, goal, G.x + G.w - 10 - goalX, 'body', 700);
+        ctx.fillText(goal, goalX, G.y + 15);
         ctx.fillStyle = 'rgba(15,23,42,0.9)';
         ctx.fillRect(G.x + 12, G.y + 32, G.w - 24, 12);
         ctx.fillStyle = ok >= total ? '#22c55e' : '#facc15';
         ctx.fillRect(G.x + 12, G.y + 32, (G.w - 24) * ok / total, 12);
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '600 14px Rajdhani';
-        ctx.fillText(`${ok} / ${total} rows + columns match`, G.x + 12, G.y + 59);
+        ctx.fillText(UITheme.t('{ok} / {total} rows + columns match', { ok, total }), G.x + 12, G.y + 59);
         const x = G.x, y = G.y + G.h + 18;
         ctx.fillStyle = this.auditErrors ? '#fca5a5' : '#94a3b8';
         ctx.font = '700 14px Rajdhani';
-        ctx.fillText(`AUDIT ERRORS ${this.auditErrors}  ·  no timer, no lives`, x, y);
+        ctx.fillText(UITheme.t('AUDIT ERRORS {n}  ·  no timer, no lives', { n: this.auditErrors }), x, y);
         this._renderRules(ctx, B.rules);
         if (this.message) {
             ctx.fillStyle = this.message.color;
             ctx.font = '700 16px Orbitron, OrbitronTR';
-            const words = this.message.text.split(' ');
+            const words = UITheme.t(this.message.text).split(' ');
             let line = '', ly = y + 24;
             for (const w of words) {
                 const t = line ? line + ' ' + w : w;
@@ -628,7 +632,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#3b82f6';
         ctx.font = '700 13px Orbitron, OrbitronTR';
-        ctx.fillText('RULES', b.x + 12, b.y + 16);
+        ctx.fillText(UITheme.t('RULES'), b.x + 12, b.y + 16);
         ctx.fillStyle = '#64748b';
         ctx.font = '600 12px Rajdhani';
         ctx.textAlign = 'right';

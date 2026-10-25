@@ -4640,6 +4640,61 @@ suite('Languages (I18n) — phase 5: Network Cut, Logic Bomb, Defrag', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Languages (I18n) — phase 6: Checksum Grid and the Act 10 missions', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const mod = loadGameManager();
+    const { I18n, CAMPAIGN, HandoverMissions } = mod;
+    const tr = I18n.dict.tr;
+    const has = (t) => Object.prototype.hasOwnProperty.call(tr, t);
+    // Every text literal in these files has a Turkish entry, except code words,
+    // file names, addresses, keys and what stays English by rule.
+    const english = new Set(['PayPal', 'PHISHING', 'AUDIT', 'Fluffy2019', 'Space', 'Enter', 'KeyX', 'KeyZ', 'Backspace']);
+    const missing = [];
+    for (const f of ['js/mechanics/HandoverMissions.js', 'js/mechanics/ChecksumGridMechanic.js', 'js/mechanics/MissionMechanic.js']) {
+        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/[^:'"]\/\/ .*$/gm, '');
+        for (const m of src.matchAll(/'((?:[^'\\\n]|\\.)*)'/g)) {
+            const l = m[1].replace(/\\'/g, "'");
+            if (!/[A-Za-z]{2}/.test(l) || english.has(l)) continue;
+            if (/^(#|rgba)|\d+px|^(left|center|right|middle|top|bottom|alphabetic|evenodd)$/.test(l)) continue;
+            if (/^[a-z][a-zA-Z0-9_]*$/.test(l) && !has(l)) continue;              // ids, phases, kinds
+            if (/@|^https?:|\.(pdf|exe|zip|xlsx|docm|mp3|inf|jpg|txt|locked)$/.test(l)) continue;
+            if (!has(l)) missing.push(`${path.basename(f)}: ${l}`);
+        }
+    }
+    ok(`every phase 6 text has a Turkish entry${missing.length ? ' (missing: ' + [...new Set(missing)].join(' | ') + ')' : ''}`, missing.length === 0);
+    ok('no toLowerCase / toUpperCase on translated mission text',
+        !/hmT\([^)]*\)\s*\.\s*to(Lower|Upper)Case/.test(fs.readFileSync(path.join(__dirname, '..', 'js/mechanics/HandoverMissions.js'), 'utf8')));
+
+    // Each mission draws its frame, task and scene in Turkish.
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const act10 = CAMPAIGN.acts.find(a => a.game === 'handover');
+    const seenTask = [];
+    for (const st of act10.stages) {
+        const m = HandoverMissions.create(Object.assign({ rng: makeRng(7) }, st.params));
+        m.init({ width: 960, height: 640 });
+        while (m.coach && m.coach.blocks) m.coach.next();
+        drawn.length = 0;
+        m.render(ctx, 960, 640, 0, 0);
+        seenTask.push(drawn.find(t => t.startsWith('GÖREV · ')) || `(none for ${st.params.mission})`);
+    }
+    ok(`every mission shows its task in Turkish (${seenTask.join(' | ')})`, seenTask.every(t => t.startsWith('GÖREV · ') && !/\bthe\b/.test(t)));
+    const pw = HandoverMissions.create(Object.assign({ rng: makeRng(7) }, act10.stages[1].params));
+    pw.init({ width: 960, height: 640 });
+    ok('passphrase words are Turkish words', pw.bank.every(w => Object.values(tr).includes(w)) && pw.accounts[0].name === 'E-POSTA');
+    I18n.set('en', store);
+    const pwEn = HandoverMissions.create(Object.assign({ rng: makeRng(7) }, act10.stages[1].params));
+    pwEn.init({ width: 960, height: 640 });
+    ok('English missions are unchanged', pwEn.accounts[0].name === 'E-MAIL' && pwEn.bank.length === pw.bank.length);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

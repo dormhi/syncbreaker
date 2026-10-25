@@ -166,7 +166,7 @@ class MissionMechanic extends _MechanicBaseMS {
             ctx.font = '700 15px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(`TASK · ${MissionMechanic.text(this.task)}`, W / 2, 90, W - 80);
+            ctx.fillText(MissionMechanic.text('TASK · {task}', { task: MissionMechanic.text(this.task) }), W / 2, 90, W - 80);
         }
         this.drawScene(ctx, W, H);
         const list = this._controls();
@@ -177,7 +177,18 @@ class MissionMechanic extends _MechanicBaseMS {
             ctx.font = '700 17px Rajdhani';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(this.feedback.text, W / 2, 592, W - 80);
+            // Long lines (often Turkish) break into two instead of being squeezed.
+            const text = MissionMechanic.text(this.feedback.text);
+            const m = ctx.measureText(text).width;
+            if (typeof m === 'number' && m > W - 80) {
+                const words = text.split(' ');
+                let cut = 1;
+                while (cut < words.length - 1 && ctx.measureText(words.slice(0, cut + 1).join(' ')).width <= m / 2) cut++;
+                ctx.fillText(words.slice(0, cut).join(' '), W / 2, 582, W - 80);
+                ctx.fillText(words.slice(cut).join(' '), W / 2, 603, W - 80);
+            } else {
+                ctx.fillText(text, W / 2, 592, W - 80);
+            }
             ctx.globalAlpha = 1;
         }
         if (this.remember) this._drawRemember(ctx, W, H, list[0]);
@@ -187,14 +198,14 @@ class MissionMechanic extends _MechanicBaseMS {
             ctx.fillStyle = '#2dd4bf';
             ctx.font = '900 30px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
-            ctx.fillText('MISSION COMPLETE', W / 2, H / 2 - 90);
+            ctx.fillText(MissionMechanic.text('MISSION COMPLETE'), W / 2, H / 2 - 90);
         }
         ctx.restore();
         if (this.coach && this.coach.active) this.coach.render(ctx, W, H, this.coachRects ? this.coachRects(this.coach.step) : [], { at: 'top', width: 680 });
     }
 
-    static text(t) {
-        if (typeof Coach !== 'undefined') return Coach.text(t);
+    static text(t, vars) {
+        if (typeof Coach !== 'undefined') return Coach.text(t, vars);
         return typeof t === 'string' ? t : (t && t.desktop) || '';
     }
 
@@ -247,7 +258,7 @@ class MissionMechanic extends _MechanicBaseMS {
         ctx.font = '800 22px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('REMEMBER', W / 2, y + 40);
+        ctx.fillText(MissionMechanic.text('REMEMBER'), W / 2, y + 40);
         ctx.textAlign = 'left';
         let ty = y + 92;
         this.remember.forEach((p, i) => {
