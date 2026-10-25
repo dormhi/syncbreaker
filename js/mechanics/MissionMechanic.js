@@ -163,7 +163,7 @@ class MissionMechanic extends _MechanicBaseMS {
         ctx.save();
         if (this.task && !this.remember) {
             ctx.fillStyle = '#5eead4';
-            ctx.font = '700 15px Orbitron';
+            ctx.font = '700 15px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(`TASK · ${MissionMechanic.text(this.task)}`, W / 2, 90, W - 80);
@@ -185,7 +185,7 @@ class MissionMechanic extends _MechanicBaseMS {
             ctx.fillStyle = 'rgba(5,8,16,0.6)';
             ctx.fillRect(0, 0, W, H);
             ctx.fillStyle = '#2dd4bf';
-            ctx.font = '900 30px Orbitron';
+            ctx.font = '900 30px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.fillText('MISSION COMPLETE', W / 2, H / 2 - 90);
         }
@@ -210,7 +210,7 @@ class MissionMechanic extends _MechanicBaseMS {
         ctx.fillStyle = '#f1f5f9';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = `700 ${b.small ? 13 : 15}px Orbitron`;
+        ctx.font = `700 ${b.small ? 13 : 15}px Orbitron, OrbitronTR`;
         ctx.fillText(MissionMechanic.text(b.label), b.x + b.w / 2, b.y + b.h / 2 - (b.sub ? 8 : 0) + 1, b.w - 12);
         if (b.sub) {
             ctx.fillStyle = '#94a3b8';
@@ -244,7 +244,7 @@ class MissionMechanic extends _MechanicBaseMS {
         const x = 170, y = 120, w = 620, h = 420;
         UITheme.panel(ctx, x, y, w, h, { chamfer: 16, fill: 'rgba(10,20,26,0.97)', stroke: '#2dd4bf', lineWidth: 2, glow: '#2dd4bf' });
         ctx.fillStyle = '#2dd4bf';
-        ctx.font = '800 22px Orbitron';
+        ctx.font = '800 22px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('REMEMBER', W / 2, y + 40);
@@ -252,7 +252,7 @@ class MissionMechanic extends _MechanicBaseMS {
         let ty = y + 92;
         this.remember.forEach((p, i) => {
             ctx.fillStyle = '#2dd4bf';
-            ctx.font = '800 20px Orbitron';
+            ctx.font = '800 20px Orbitron, OrbitronTR';
             ctx.fillText(String(i + 1), x + 34, ty);
             ctx.fillStyle = '#e2e8f0';
             ctx.font = '600 19px Rajdhani';

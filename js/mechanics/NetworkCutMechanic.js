@@ -790,7 +790,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
                 ctx.lineWidth = 1.5;
                 ctx.beginPath(); ctx.arc(m.x, m.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
                 ctx.fillStyle = color;
-                ctx.font = '700 12px Orbitron';
+                ctx.font = '700 12px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(d.tag, m.x, m.y + 1);
@@ -848,7 +848,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             }
             if (label) {
                 ctx.fillStyle = color;
-                ctx.font = '700 14px Orbitron';
+                ctx.font = '700 14px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(label, n.x, n.y + r + 14);
@@ -1024,7 +1024,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         else if (this.selected !== null && !this.coach) { text = 'TAP AGAIN TO CUT'; color = '#fbbf24'; }
         if (text) {
             ctx.fillStyle = color;
-            ctx.font = text === 'TAP AGAIN TO CUT' ? '600 16px Rajdhani' : '700 20px Orbitron';
+            ctx.font = text === 'TAP AGAIN TO CUT' ? '600 16px Rajdhani' : '700 20px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.fillText(text, W / 2, B.y + B.h + 28);
         }

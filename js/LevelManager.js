@@ -400,7 +400,7 @@ class LevelManager {
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.fillStyle = color;
-            ctx.font = `700 ${Math.round(26 * scale)}px Orbitron`;
+            ctx.font = `700 ${Math.round(26 * scale)}px Orbitron, OrbitronTR`;
             ctx.textAlign = 'center';
             ctx.fillText(text, W / 2, barY - 45);
             ctx.restore();
@@ -444,7 +444,7 @@ class LevelManager {
         // Level name — themed color
         const theme = getLevelTheme(this.currentLevel.id);
         ctx.fillStyle = theme.zoneColor;
-        ctx.font = '600 16px Orbitron';
+        ctx.font = '600 16px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.fillText(this.currentLevel.name, W / 2, 75);
 
@@ -707,7 +707,7 @@ class LevelManager {
             ctx.save();
             ctx.globalAlpha = alpha;
             ctx.fillStyle = color;
-            ctx.font = `700 ${Math.round(26 * scale)}px Orbitron`;
+            ctx.font = `700 ${Math.round(26 * scale)}px Orbitron, OrbitronTR`;
             ctx.textAlign = 'center';
             ctx.fillText(text, W / 2, barY - 45);
             ctx.restore();
@@ -751,7 +751,7 @@ class LevelManager {
 
         // Wave
         ctx.fillStyle = '#f59e0b';
-        ctx.font = '700 18px Orbitron';
+        ctx.font = '700 18px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.fillText(`WAVE ${this.endlessWave}`, W / 2, 70);
 

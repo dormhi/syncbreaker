@@ -41,7 +41,12 @@ const UITheme = {
     /** CSS font string for a size role, e.g. font('body') -> '600 16px Rajdhani'. */
     font(role, weight = 600, family = 'Rajdhani') {
         const key = UITheme.size[role] ? role : 'body';
-        return `${weight} ${UITheme.size[key]}px ${family}`;
+        return `${weight} ${UITheme.size[key]}px ${UITheme.family(family)}`;
+    },
+
+    /** Orbitron lacks Ğ / ğ: OrbitronTR (css/style.css) lends them. */
+    family(name) {
+        return name === 'Orbitron' ? 'Orbitron, OrbitronTR' : name;
     },
 
     /** A UI text in the player's language (I18n), unchanged when there is none. */
@@ -57,7 +62,7 @@ const UITheme = {
         const key = UITheme.size[role] ? role : 'body';
         const base = UITheme.size[key];
         for (let s = base; s >= Math.round(base * 0.7); s--) {
-            ctx.font = `${weight} ${s}px ${family}`;
+            ctx.font = `${weight} ${s}px ${UITheme.family(family)}`;
             const m = ctx.measureText(text);
             if (!(m && isFinite(m.width)) || m.width <= maxW) return;
         }
@@ -154,7 +159,7 @@ const UITheme = {
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.fillStyle = color;
-        ctx.font = `700 ${Math.round(size * 0.5)}px Orbitron`;
+        ctx.font = `700 ${Math.round(size * 0.5)}px Orbitron, OrbitronTR`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(t.numeral, cx, cy + 1);
@@ -260,7 +265,8 @@ const UITheme = {
         };
         ctx.save();
         ctx.font = UITheme.font('label', 600);
-        const w1 = width('CLEARANCE');
+        const tag = UITheme.t('CLEARANCE');
+        const w1 = width(tag);
         ctx.font = UITheme.font('label', 700, 'Orbitron');
         const w2 = width(label);
         const w = 16 + w1 + 6 + w2 + 16, h = 30;
@@ -270,7 +276,7 @@ const UITheme = {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = UITheme.color.textMute;
         ctx.font = UITheme.font('label', 600);
-        ctx.fillText('CLEARANCE', left + 16, cy + 1);
+        ctx.fillText(tag, left + 16, cy + 1);
         ctx.fillStyle = color;
         ctx.font = UITheme.font('label', 700, 'Orbitron');
         ctx.fillText(label, left + 16 + w1 + 6, cy + 1);
@@ -288,7 +294,7 @@ const UITheme = {
         ctx.textAlign = 'left';
         ctx.fillStyle = UITheme.color.textMute;
         ctx.font = UITheme.font('label', 600);
-        ctx.fillText('SYSTEM INTEGRITY', x, y - 14);
+        ctx.fillText(UITheme.t('SYSTEM INTEGRITY'), x, y - 14);
         ctx.textAlign = 'right';
         ctx.fillStyle = color;
         ctx.font = UITheme.font('label', 700, 'Orbitron');

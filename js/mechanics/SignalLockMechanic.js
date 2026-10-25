@@ -356,7 +356,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
         ctx.fillStyle = this.lockFlash > 0 ? '#22c55e' : (inSync ? '#22d3ee' : 'rgba(34,211,238,0.5)');
         Utils.roundRect(ctx, bx, by, bw * Math.min(1, this.sync), bh, 4); ctx.fill();
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '700 13px Orbitron';
+        ctx.font = '700 13px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.fillText(inSync ? 'SYNCING' : 'SYNC', bx, by - 12);
 
@@ -382,7 +382,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
-            ctx.font = '700 28px Orbitron';
+            ctx.font = '700 28px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.fillText(ok ? 'CREDENTIALS RESET' : 'SIGNAL LOST', S.x + S.w / 2, S.y + S.h / 2);
             if (ok) {

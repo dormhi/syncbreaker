@@ -413,7 +413,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
             ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
             ctx.fillStyle = color;
-            ctx.font = '700 10px Orbitron';
+            ctx.font = '700 10px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(label, x, y + 26);
@@ -519,7 +519,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
             const B = this.boardRect();
             const ok = this.result === 'success' || this.pause > 0;
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
-            ctx.font = '700 22px Orbitron';
+            ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             const text = this.result === 'success' ? `ATTACKER TRACED · SCORE ${this.score}`
                 : this.result === 'fail' ? 'TRACE LOST' : 'ROUTE FOUND';

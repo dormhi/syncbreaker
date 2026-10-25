@@ -19,7 +19,7 @@ function hmPanel(ctx, x, y, w, h, title, color = 'rgba(45,212,191,0.5)') {
     UITheme.panel(ctx, x, y, w, h, { chamfer: 10, fill: 'rgba(10,16,24,0.88)', stroke: color });
     if (!title) return;
     ctx.fillStyle = '#5eead4';
-    ctx.font = '700 13px Orbitron';
+    ctx.font = '700 13px Orbitron, OrbitronTR';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillText(title, x + 14, y + 18);

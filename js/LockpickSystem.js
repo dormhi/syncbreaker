@@ -475,7 +475,7 @@ class LockpickSystem {
         const text = isSuccess ? 'ACCESS GRANTED' : 'FAILED';
 
         ctx.fillStyle = color;
-        ctx.font = '700 22px Orbitron';
+        ctx.font = '700 22px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, 0, -radius - 30);

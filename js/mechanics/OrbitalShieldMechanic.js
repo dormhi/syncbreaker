@@ -326,7 +326,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         ctx.strokeStyle = 'rgba(59,130,246,0.6)';
         ctx.beginPath(); ctx.arc(cx, cy, 34, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#3b82f6';
-        ctx.font = '700 11px Orbitron';
+        ctx.font = '700 11px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('CORE', cx, cy + 1);
@@ -433,7 +433,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
-            ctx.font = '700 28px Orbitron';
+            ctx.font = '700 28px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.fillText(ok ? 'PORTS SEALED' : 'PORT BREACHED', W / 2, this.cy - 190 + 60);
             if (ok) {

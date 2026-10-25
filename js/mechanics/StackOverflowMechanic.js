@@ -377,7 +377,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = reached ? '#22c55e' : '#f59e0b';
-        ctx.font = '600 14px Orbitron';
+        ctx.font = '600 14px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
         ctx.fillText('STACK LIMIT', cx + 230, this.targetY - 4);
@@ -421,7 +421,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = '#3b82f6';
-        ctx.font = '700 11px Orbitron';
+        ctx.font = '700 11px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('CORE', g.x, g.y + 1);
@@ -496,7 +496,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
-            ctx.font = '700 28px Orbitron';
+            ctx.font = '700 28px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(ok ? 'FIREWALL STABLE' : 'STACK OVERFLOW', W / 2, this.hookY + 70);

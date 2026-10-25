@@ -226,7 +226,7 @@ class UIManager {
 
         // Name
         ctx.fillStyle = locked ? '#64748b' : '#e2e8f0';
-        ctx.font = '600 16px Orbitron';
+        ctx.font = '600 16px Orbitron, OrbitronTR';
         ctx.fillText(this._fitText(UITheme.t(btn.label), textMaxW), textX, top + 30);
 
         // Description
@@ -240,17 +240,17 @@ class UIManager {
         if (btn.status === 'completed') {
             ctx.fillStyle = '#22c55e';
             ctx.font = '500 14px Rajdhani';
-            ctx.fillText('CLEARED', textX, top + h - 13);
+            ctx.fillText(UITheme.t('CLEARED'), textX, top + h - 13);
         } else if (locked) {
             // Site-coloured vector lock (no emoji)
             this._drawLockGlyph(ctx, textX, top + h - 22, 10, '#94a3b8');
             ctx.fillStyle = '#94a3b8';
             ctx.font = '600 14px Rajdhani';
-            ctx.fillText('LOCKED', textX + 15, top + h - 13);
+            ctx.fillText(UITheme.t('LOCKED'), textX + 15, top + h - 13);
         } else {
             ctx.fillStyle = '#3b82f6';
             ctx.font = '500 14px Rajdhani';
-            ctx.fillText('READY', textX, top + h - 13);
+            ctx.fillText(UITheme.t('READY'), textX, top + h - 13);
         }
 
         // Best score
@@ -258,7 +258,7 @@ class UIManager {
             ctx.textAlign = 'right';
             ctx.fillStyle = '#475569';
             ctx.font = '400 14px Rajdhani';
-            ctx.fillText('BEST ' + btn.score, left + w - 12, top + h - 13);
+            ctx.fillText(UITheme.t('BEST {n}', { n: btn.score }), left + w - 12, top + h - 13);
         }
 
         ctx.restore();
@@ -376,7 +376,7 @@ class UIManager {
         ctx.font = '500 14px Rajdhani';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
-        ctx.fillText('ENERGY', x - 8, y + cellH / 2);
+        ctx.fillText(UITheme.t('ENERGY'), x - 8, y + cellH / 2);
 
         // Cells
         for (let i = 0; i < energy.max; i++) {
@@ -407,14 +407,14 @@ class UIManager {
         const ctx = this.ctx;
         ctx.save();
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = '700 24px Orbitron';
+        ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(score.toString().padStart(6, '0'), 16, 14);
 
         if (combo > 1) {
             ctx.fillStyle = '#f59e0b';
-            ctx.font = '600 18px Orbitron';
+            ctx.font = '600 18px Orbitron, OrbitronTR';
             ctx.fillText(`x${combo}`, 16, 46);
         }
         ctx.restore();

@@ -150,7 +150,7 @@ class GameManager {
 
                 // Title (RGB-split while compromised) + version badge
                 ctx.save();
-                ctx.font = '900 40px Orbitron';
+                ctx.font = '900 40px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 if (corrupt > 0) {
                     const jitter = UITheme.reducedMotion ? 0 : Math.sin(time * 23) * Math.sin(time * 7) * 3 * corrupt;
@@ -164,7 +164,7 @@ class GameManager {
                 ctx.fillStyle = '#e2e8f0';
                 ctx.fillText('SYNCBREAKER', cx, 70);
                 const titleW = ctx.measureText('SYNCBREAKER').width;
-                ctx.font = '700 18px Orbitron';
+                ctx.font = '700 18px Orbitron, OrbitronTR';
                 ctx.fillStyle = '#22c55e';
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
@@ -174,7 +174,7 @@ class GameManager {
                 // Subtitle
                 ctx.fillStyle = tone;
                 ctx.font = '600 16px Rajdhani';
-                ctx.fillText(integrity >= 1 ? '✓ CYBER DEFENSE PROTOCOL COMPLETE ✓' : '⚠ CYBER DEFENSE PROTOCOL ⚠', cx, 100);
+                ctx.fillText(UITheme.t(integrity >= 1 ? '✓ CYBER DEFENSE PROTOCOL COMPLETE ✓' : '⚠ CYBER DEFENSE PROTOCOL ⚠'), cx, 100);
 
                 // Story panel
                 const panelX = cx - 320;
@@ -191,9 +191,9 @@ class GameManager {
 
                 // Terminal header
                 ctx.fillStyle = tone;
-                ctx.font = '700 16px Orbitron';
+                ctx.font = '700 16px Orbitron, OrbitronTR';
                 ctx.textAlign = 'left';
-                ctx.fillText('> STATUS REPORT', panelX + 20, panelY + 30);
+                ctx.fillText(UITheme.t('> STATUS REPORT'), panelX + 20, panelY + 30);
 
                 // Terminal line
                 ctx.strokeStyle = '#1e293b';
@@ -212,7 +212,9 @@ class GameManager {
                     ctx.fillStyle = line.color;
                     ctx.font = (line.bold ? '600' : '400') + ' 14px Rajdhani';
                     ctx.textAlign = 'left';
-                    ctx.fillText(line.text, panelX + 20, lineY);
+                    const text = UITheme.t(line.text);
+                    UITheme.fitFont(ctx, text, panelW - 40, 'label', line.bold ? 600 : 400);
+                    ctx.fillText(text, panelX + 20, lineY);
                     lineY += lineHeight;
                 }
 
@@ -284,14 +286,14 @@ class GameManager {
                 const H = VIEW.H;
 
                 ctx.fillStyle = '#e2e8f0';
-                ctx.font = '700 22px Orbitron';
+                ctx.font = '700 22px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'alphabetic';
-                ctx.fillText('OPERATION MAP', W / 2, 30);
+                ctx.fillText(UITheme.t('OPERATION MAP'), W / 2, 30);
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '400 14px Rajdhani';
-                ctx.fillText('Clear every stage of an act, then breach the gate', W / 2, 48);
+                ctx.fillText(UITheme.t('Clear every stage of an act, then breach the gate'), W / 2, 48);
 
                 this._renderHubHeader(ctx, W);
 
@@ -453,12 +455,12 @@ class GameManager {
                 // Level complete overlay
                 if (this.levels.levelComplete) {
                     ctx.fillStyle = '#22c55e';
-                    ctx.font = '900 32px Orbitron';
+                    ctx.font = '900 32px Orbitron, OrbitronTR';
                     ctx.textAlign = 'center';
-                    ctx.fillText('NODE CLEANED!', W / 2, H / 2 - 70);
+                    ctx.fillText(UITheme.t('NODE CLEANED!'), W / 2, H / 2 - 70);
                     ctx.fillStyle = '#64748b';
                     ctx.font = '500 18px Rajdhani';
-                    ctx.fillText(`Score: ${this.levels.score} | Max Combo: x${this.levels.maxCombo}`, W / 2, H / 2 - 35);
+                    ctx.fillText(UITheme.t('Score: {score} | Max Combo: x{combo}', { score: this.levels.score, combo: this.levels.maxCombo }), W / 2, H / 2 - 35);
                     this._drawResultStars(ctx, W / 2, H / 2 + 46);
                 }
             },
@@ -550,7 +552,7 @@ class GameManager {
                 const title = isRevive ? 'RECOVERY PROTOCOL' : 'CODE BREAKER';
                 const subtitle = 'Break the code to restore the connection';
                 ctx.fillStyle = '#f59e0b';
-                ctx.font = '700 22px Orbitron';
+                ctx.font = '700 22px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.fillText(title, W / 2, 40);
                 ctx.fillStyle = '#64748b';
@@ -642,20 +644,20 @@ class GameManager {
                 const cfg = this._mgConfig || {};
 
                 ctx.fillStyle = '#f59e0b';
-                ctx.font = '700 22px Orbitron';
+                ctx.font = '700 22px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'alphabetic';
-                ctx.fillText(cfg.title || 'MINIGAME', W / 2, 44);
+                ctx.fillText(UITheme.t(cfg.title || 'MINIGAME'), W / 2, 44);
 
                 if (cfg.subtitle) {
                     ctx.fillStyle = '#64748b';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText(cfg.subtitle, W / 2, 64);
+                    ctx.fillText(UITheme.t(cfg.subtitle), W / 2, 64);
                 }
                 if (cfg.hint) {
                     ctx.fillStyle = '#64748b';
                     ctx.font = '400 16px Rajdhani';
-                    ctx.fillText(cfg.hint, W / 2, 84);
+                    ctx.fillText(UITheme.t(cfg.hint), W / 2, 84);
                 }
 
                 if (this._activeMinigame && this._activeMinigame.render) {
@@ -713,8 +715,8 @@ class GameManager {
                 const goAct = this._goStage ? this.progress.act(this._goStage.actId) : null;
                 const game = goAct ? GameRegistry.get(goAct.game) : null;
                 if (!this._noRevive && game && game.revive && revivesLeft > 0 && this.energy.canAfford('REVIVE')) {
-                    const extra = game.reviveLabel ? ` ${game.reviveLabel}` : '';
-                    this.ui.addButton('revive', `🔄 TRY RECOVERY PROTOCOL (1⚡)${extra} · ${revivesLeft} left`, cx, cy + 30, 340, 42,
+                    const extra = game.reviveLabel ? ` ${UITheme.t(game.reviveLabel)}` : '';
+                    this.ui.addButton('revive', UITheme.t('🔄 TRY RECOVERY PROTOCOL (1⚡){extra} · {n} left', { extra, n: revivesLeft }), cx, cy + 30, 340, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
                                 this.state.change(S.LOCKPICK, {
@@ -754,32 +756,32 @@ class GameManager {
                 const cy = H / 2;
 
                 ctx.fillStyle = '#ef4444';
-                ctx.font = '900 28px Orbitron';
+                ctx.font = '900 28px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
-                ctx.fillText('OPERATION FAILED', cx, cy - 60);
+                ctx.fillText(UITheme.t('OPERATION FAILED'), cx, cy - 60);
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '500 18px Rajdhani';
-                ctx.fillText(`Score: ${this._goScore}`, cx, cy - 25);
+                ctx.fillText(UITheme.t('Score: {score}', { score: this._goScore }), cx, cy - 25);
 
                 if (this._goMessage) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '400 16px Rajdhani';
-                    ctx.fillText(this._goMessage, cx, cy);
+                    ctx.fillText(UITheme.t(this._goMessage), cx, cy);
                 } else if (this._noRevive) {
                     ctx.fillStyle = '#ef4444';
                     ctx.font = '400 16px Rajdhani';
-                    ctx.fillText('Recovery protocol failed', cx, cy);
+                    ctx.fillText(UITheme.t('Recovery protocol failed'), cx, cy);
                 } else if (this._revivesUsed >= (this.levels.maxRevives || 2)) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '400 16px Rajdhani';
-                    ctx.fillText('No recovery charges left for this node', cx, cy);
+                    ctx.fillText(UITheme.t('No recovery charges left for this node'), cx, cy);
                 }
 
                 if (this._goCooldown > 0) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '600 16px Rajdhani';
-                    ctx.fillText(`Restart unlocks in ${this._goCooldown.toFixed(1)}s`, cx, cy + 175);
+                    ctx.fillText(UITheme.t('Restart unlocks in {s}s', { s: this._goCooldown.toFixed(1) }), cx, cy + 175);
                 }
 
                 this.ui.renderButtons();
@@ -920,12 +922,12 @@ class GameManager {
                 const cy = H / 2;
 
                 ctx.fillStyle = '#ef4444';
-                ctx.font = '900 26px Orbitron';
+                ctx.font = '900 26px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.fillText('DEFENSE COLLAPSED', cx, cy - 80);
 
                 ctx.fillStyle = '#e2e8f0';
-                ctx.font = '700 32px Orbitron';
+                ctx.font = '700 32px Orbitron, OrbitronTR';
                 ctx.fillText(this._eoScore.toString(), cx, cy - 40);
 
                 ctx.fillStyle = '#64748b';
@@ -1145,7 +1147,7 @@ class GameManager {
         const cx = W / 2;
         ctx.save();
         ctx.fillStyle = '#f59e0b';
-        ctx.font = '700 24px Orbitron';
+        ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.fillText('OPERATOR PROFILE', cx, H / 2 - 40);
         if (this._profileStatus) {
@@ -1177,7 +1179,7 @@ class GameManager {
         const cx = W / 2;
         ctx.save();
         ctx.fillStyle = '#f59e0b';
-        ctx.font = '700 24px Orbitron';
+        ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.fillText('∞ ENDLESS LEADERBOARD', cx, 60);
         ctx.fillStyle = '#64748b';
@@ -1272,11 +1274,11 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#22c55e';
-        ctx.font = '900 34px Orbitron';
-        ctx.fillText('CONTROL RETURNED', cx, py + 58);
+        ctx.font = '900 34px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('CONTROL RETURNED'), cx, py + 58);
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '600 16px Rajdhani';
-        ctx.fillText(`ALL ${CAMPAIGN.acts.length} ACTS COMPLETE  ·  CLEARANCE ${UITheme.clearanceLabel(this.progress.clearanceLevel())}`, cx, py + 86);
+        ctx.fillText(UITheme.t('ALL {n} ACTS COMPLETE  ·  CLEARANCE {level}', { n: CAMPAIGN.acts.length, level: UITheme.clearanceLabel(this.progress.clearanceLevel()) }), cx, py + 86);
 
         // Story
         const lines = [
@@ -1290,7 +1292,9 @@ class GameManager {
         ctx.font = '400 16px Rajdhani';
         let ly = py + 124;
         for (const line of lines) {
-            ctx.fillText(line, cx, ly);
+            const text = UITheme.t(line);
+            UITheme.fitFont(ctx, text, pw - 48, 'body', 400);
+            ctx.fillText(text, cx, ly);
             ly += 24;
         }
 
@@ -1314,12 +1318,12 @@ class GameManager {
         this._drawInfinityEmblem(ctx, px + 92, by + 50, 22, UITheme.reducedMotion ? 0 : (this.bgTime || 0));
         ctx.textAlign = 'left';
         ctx.fillStyle = gold;
-        ctx.font = '700 19px Orbitron';
-        ctx.fillText('ENDLESS MODE UNLOCKED', px + 132, by + 34);
+        ctx.font = '700 19px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('ENDLESS MODE UNLOCKED'), px + 132, by + 34);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '400 16px Rajdhani';
-        ctx.fillText('The attacker never stops coming back. Find the ∞ ring at the end', px + 132, by + 60);
-        ctx.fillText('of the operation map — runs and the leaderboard live inside.', px + 132, by + 82);
+        ctx.fillText(UITheme.t('The attacker never stops coming back. Find the ∞ ring at the end'), px + 132, by + 60);
+        ctx.fillText(UITheme.t('of the operation map — runs and the leaderboard live inside.'), px + 132, by + 82);
 
         // Totals
         let stars = 0, maxStars = 0;
@@ -1331,7 +1335,7 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.fillStyle = '#64748b';
         ctx.font = '500 14px Rajdhani';
-        ctx.fillText(`★ ${stars}/${maxStars}   ·   TOTAL BEST SCORE  ${this._totalBest()}`, cx, py + ph - 26);
+        ctx.fillText(UITheme.t('★ {got}/{max}   ·   TOTAL BEST SCORE  {best}', { got: stars, max: maxStars, best: this._totalBest() }), cx, py + ph - 26);
 
         ctx.restore();
 
@@ -1374,7 +1378,7 @@ class GameManager {
         if (this.progress.isEndlessUnlocked()) {
             this._mapGo(this.progress.acts.length);
         } else {
-            this._hubMessage = `Complete ACT ${CAMPAIGN.finalAct} to unlock Endless Mode`;
+            this._hubMessage = UITheme.t('Complete ACT {n} to unlock Endless Mode', { n: CAMPAIGN.finalAct });
             this._hubMessageTimer = 2.5;
         }
     }
@@ -1452,10 +1456,10 @@ class GameManager {
     _openMapAct(act) {
         const status = this._actStatus(act.id);
         if (status === 'dev') {
-            this._hubMessage = `ACT ${act.id} is in development`;
+            this._hubMessage = UITheme.t('ACT {n} is in development', { n: act.id });
             this._hubMessageTimer = 2.5;
         } else if (status === 'locked') {
-            this._hubMessage = `Breach gate ${act.id - 1} to reach ACT ${act.id}`;
+            this._hubMessage = UITheme.t('Breach gate {gate} to reach ACT {n}', { gate: act.id - 1, n: act.id });
             this._hubMessageTimer = 2.5;
         } else {
             this.state.change(this.state.STATES.ACT, { actId: act.id });
@@ -1556,7 +1560,7 @@ class GameManager {
 
         this.ui.addButton('reset', '🗑 RESET', W - 75, H - 35, 110, 32,
             () => {
-                if (window.confirm('Are you sure you want to delete all data and start fresh?')) {
+                if (window.confirm(UITheme.t('Are you sure you want to delete all data and start fresh?'))) {
                     ['sb_progress', 'sb_energy', 'sb_congrats_seen', 'sb_group2_unlocked',
                         'sb_dualring', 'sb_packetpurge', CampaignProgress.KEY, 'sb_guide_seen',
                         ...CAMPAIGN.gates.map(g => `sb_gate_${g.id}`)]
@@ -1683,10 +1687,10 @@ class GameManager {
             ctx.lineWidth = 2.5;
             ctx.strokeRect(-60, -16, 120, 32);
             ctx.fillStyle = UITheme.color.ok;
-            ctx.font = '900 16px Orbitron';
+            ctx.font = '900 16px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('SECURED', 0, 1);
+            ctx.fillText(UITheme.t('SECURED'), 0, 1);
             ctx.restore();
         } else if (status === 'locked' || status === 'dev') {
             ctx.strokeStyle = UITheme.color.textMute;
@@ -1710,7 +1714,7 @@ class GameManager {
                 ctx.font = UITheme.font('title', 700, 'Orbitron');
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText('SIGNAL LOST', cx, cy);
+                ctx.fillText(UITheme.t('SIGNAL LOST'), cx, cy);
                 ctx.restore();
             }
         }
@@ -1720,19 +1724,19 @@ class GameManager {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = dim ? UITheme.color.textMute : UITheme.color.text;
-        ctx.font = '700 21px Orbitron';
+        ctx.font = '700 21px Orbitron, OrbitronTR';
         ctx.fillText(this.ui._fitText(act.key, w - 44), left + 22, top + 136);
 
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('body', 500);
-        ctx.fillText(this.ui._fitText(act.story, w - 44), left + 22, top + 160);
+        ctx.fillText(this.ui._fitText(UITheme.t(act.story), w - 44), left + 22, top + 160);
 
         // Tier row / dev tag
         if (status === 'dev') {
             ctx.textBaseline = 'middle';
             ctx.fillStyle = UITheme.color.textDim;
             ctx.font = UITheme.font('label', 700);
-            ctx.fillText('⚙ IN DEVELOPMENT', left + 22, top + 192);
+            ctx.fillText(UITheme.t('⚙ IN DEVELOPMENT'), left + 22, top + 192);
         } else {
             const done = this.progress.stagesDone(act.id);
             const n = act.stages.length;
@@ -1744,13 +1748,13 @@ class GameManager {
             ctx.font = UITheme.font('label', 700);
             if (status === 'complete') {
                 ctx.fillStyle = UITheme.color.ok;
-                ctx.fillText('COMPLETE', left + w - 22, top + 192);
+                ctx.fillText(UITheme.t('COMPLETE'), left + w - 22, top + 192);
             } else if (status === 'locked') {
                 ctx.fillStyle = UITheme.color.textDim;
-                ctx.fillText('LOCKED', left + w - 22, top + 192);
+                ctx.fillText(UITheme.t('LOCKED'), left + w - 22, top + 192);
             } else {
                 ctx.fillStyle = theme.zoneColor;
-                ctx.fillText(`${done}/${n} STAGES`, left + w - 22, top + 192);
+                ctx.fillText(UITheme.t('{done}/{n} STAGES', { done, n }), left + w - 22, top + 192);
             }
         }
 
@@ -1760,7 +1764,7 @@ class GameManager {
         if (this._actBest(act) > 0) {
             ctx.fillStyle = UITheme.color.locked;
             ctx.font = UITheme.font('label', 600);
-            ctx.fillText(`BEST ${this._actBest(act)}`, left + 22, top + h - 14);
+            ctx.fillText(UITheme.t('BEST {n}', { n: this._actBest(act) }), left + 22, top + h - 14);
         }
         // Stars earned in this act
         const stars = this.progress.actStars(act.id);
@@ -1774,8 +1778,8 @@ class GameManager {
         ctx.textAlign = 'right';
         if (status === 'active' || status === 'complete') {
             ctx.fillStyle = highlighted ? color : UITheme.color.textMute;
-            ctx.font = '700 14px Orbitron';
-            ctx.fillText('OPEN ▸', left + w - 22, top + h - 14);
+            ctx.font = '700 14px Orbitron, OrbitronTR';
+            ctx.fillText(UITheme.t('OPEN ▸'), left + w - 22, top + h - 14);
         }
 
         ctx.restore();
@@ -1960,24 +1964,24 @@ class GameManager {
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = gold;
         ctx.font = UITheme.font('label', 700, 'Orbitron');
-        ctx.fillText('AFTER THE CAMPAIGN', left + 20, top + 30);
+        ctx.fillText(UITheme.t('AFTER THE CAMPAIGN'), left + 20, top + 30);
         ctx.fillStyle = UITheme.color.text;
-        ctx.font = '700 21px Orbitron';
+        ctx.font = '700 21px Orbitron, OrbitronTR';
         ctx.fillText('ENDLESS MODE', left + 22, top + 136);
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('body', 500);
-        ctx.fillText(this.ui._fitText('The attack never ends. Climb the leaderboard.', w - 44), left + 22, top + 160);
+        ctx.fillText(this.ui._fitText(UITheme.t('The attack never ends. Climb the leaderboard.'), w - 44), left + 22, top + 160);
 
         const best = this.levels._loadEndlessBest();
         ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
         ctx.font = UITheme.font('label', 700);
         ctx.textBaseline = 'middle';
-        ctx.fillText(best > 0 ? `BEST ${best}` : 'NO RUN YET', left + 22, top + 192);
+        ctx.fillText(best > 0 ? UITheme.t('BEST {n}', { n: best }) : UITheme.t('NO RUN YET'), left + 22, top + 192);
         ctx.textAlign = 'right';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = highlighted ? gold : UITheme.color.textMute;
-        ctx.font = '700 14px Orbitron';
-        ctx.fillText('OPEN ▸', left + w - 22, top + h - 14);
+        ctx.font = '700 14px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('OPEN ▸'), left + w - 22, top + h - 14);
         ctx.restore();
     }
 
@@ -2035,7 +2039,7 @@ class GameManager {
         ctx.font = UITheme.font('label', 700, 'Orbitron');
         ctx.fillText(`AFTER ACT ${CAMPAIGN.finalAct} · NO FINISH LINE`, cx, 40);
         ctx.fillStyle = UITheme.color.text;
-        ctx.font = '900 34px Orbitron';
+        ctx.font = '900 34px Orbitron, OrbitronTR';
         ctx.fillText('ENDLESS MODE', cx, 82);
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('body', 500);
@@ -2087,7 +2091,7 @@ class GameManager {
                 blank,
                 { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
                 { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
-                { text: `${acts.length} acts stand between the attacker and full control of the system.`, color: '#e2e8f0' },
+                { text: UITheme.t('{n} acts stand between the attacker and full control of the system.', { n: acts.length }), color: '#e2e8f0' },
                 { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#e2e8f0' },
                 blank
             ].concat(caution);
@@ -2103,14 +2107,14 @@ class GameManager {
         }[layer];
 
         // Secured so far: the most recent cleared acts (older ones elided).
-        const done = acts.filter(a => P.isActComplete(a.id)).map(a => a.done);
+        const done = acts.filter(a => P.isActComplete(a.id)).map(a => UITheme.t(a.done));
         const shown = done.length > 4 ? ['…'].concat(done.slice(-4)) : done;
         const secured = done.length
-            ? { text: `Secured so far: ${shown.join(', ')}.`, color: '#e2e8f0' }
-            : { text: `First stages cleared in ACT ${cur.id} — keep going.`, color: '#e2e8f0' };
+            ? { text: UITheme.t('Secured so far: {list}.', { list: shown.join(', ') }), color: '#e2e8f0' }
+            : { text: UITheme.t('First stages cleared in ACT {n} — keep going.', { n: cur.id }), color: '#e2e8f0' };
         const attacker = layer === 'HANDOVER'
-            ? { text: 'No attacker activity detected.', color: '#22c55e' }
-            : { text: `The attacker is still active in the ${layer} layer.`, color: '#f59e0b' };
+            ? { text: UITheme.t('No attacker activity detected.'), color: '#22c55e' }
+            : { text: UITheme.t('The attacker is still active in the {layer} layer.', { layer }), color: '#f59e0b' };
 
         const stars = acts.reduce((t, a) => {
             const s = P.actStars(a.id);
@@ -2122,18 +2126,18 @@ class GameManager {
         const n = cur.stages.length, got = P.stagesDone(cur.id);
         const game = GameRegistry.get(cur.game);
         if (!P.isActComplete(cur.id)) {
-            next = `ACT ${cur.id} · ${cur.key}${game ? ' (' + game.title + ')' : ''} — ${got}/${n} stages cleared`;
+            next = UITheme.t('ACT {n} · {key}{game} — {got}/{total} stages cleared', { n: cur.id, key: cur.key, game: game ? ' (' + game.title + ')' : '', got, total: n });
         } else if (P.isGatePlayable(cur.id)) {
-            next = `Breach GATE ${cur.id} to reach ACT ${cur.id + 1}.`;
+            next = UITheme.t('Breach GATE {gate} to reach ACT {n}.', { gate: cur.id, n: cur.id + 1 });
         } else if (cur.id < acts.length && !P.isActAvailable(cur.id + 1)) {
-            next = `ACT ${cur.id + 1} · ${P.act(cur.id + 1).key} is still in development — stay tuned.`;
+            next = UITheme.t('ACT {n} · {key} is still in development — stay tuned.', { n: cur.id + 1, key: P.act(cur.id + 1).key });
         } else {
-            next = 'Clear every stage of an act, then breach the gate to the next one.';
+            next = UITheme.t('Clear every stage of an act, then breach the gate to the next one.');
         }
         return [
             Object.assign({ bold: true }, alert),
             blank,
-            { text: `${P.clearanceLevel()} of ${acts.length} acts cleared · ★ ${stars.got}/${stars.max} stars earned.`, color: '#e2e8f0' },
+            { text: UITheme.t('{done} of {n} acts cleared · ★ {got}/{max} stars earned.', { done: P.clearanceLevel(), n: acts.length, got: stars.got, max: stars.max }), color: '#e2e8f0' },
             secured,
             attacker,
             blank,
@@ -2153,7 +2157,7 @@ class GameManager {
         ctx.fillStyle = 'rgba(100,116,139,0.6)';
         ctx.font = '400 14px Rajdhani';
         ctx.textAlign = 'center';
-        ctx.fillText('v3.0 · Written by dormhi', cx, H - 16);
+        ctx.fillText(UITheme.t('v3.0 · Written by dormhi'), cx, H - 16);
 
         // Credits
         ctx.fillStyle = 'rgba(148,163,184,0.55)';
@@ -2175,7 +2179,7 @@ class GameManager {
             ctx.font = '600 16px Rajdhani';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('Press back again to leave SyncBreaker', cx, H - 87);
+            ctx.fillText(UITheme.t('Press back again to leave SyncBreaker'), cx, H - 87);
             ctx.restore();
         }
     }
@@ -2193,14 +2197,14 @@ class GameManager {
         ctx.textBaseline = 'alphabetic';
 
         // Big title with a slow gold glow
-        ctx.font = '900 68px Orbitron';
+        ctx.font = '900 68px Orbitron, OrbitronTR';
         ctx.shadowColor = gold;
         ctx.shadowBlur = 18 + 8 * Math.sin(time * 1.5);
         ctx.fillStyle = '#f8fafc';
         ctx.fillText('SYNCBREAKER', cx, 168);
         ctx.shadowBlur = 0;
         const titleW = ctx.measureText('SYNCBREAKER').width || 560;
-        ctx.font = '700 18px Orbitron';
+        ctx.font = '700 18px Orbitron, OrbitronTR';
         ctx.fillStyle = '#22c55e';
         ctx.textAlign = 'left';
         ctx.fillText('(v3)', cx + titleW / 2 + 14, 132);
@@ -2219,8 +2223,8 @@ class GameManager {
         UITheme.panel(ctx, px, py, pw, ph, { chamfer: 14, stroke: gold, lineWidth: 1.6, fill: 'rgba(20,16,6,0.82)', glow: gold });
         ctx.textAlign = 'left';
         ctx.fillStyle = gold;
-        ctx.font = '700 16px Orbitron';
-        ctx.fillText('> STATUS REPORT', px + 22, py + 32);
+        ctx.font = '700 16px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('> STATUS REPORT'), px + 22, py + 32);
         ctx.strokeStyle = 'rgba(250,204,21,0.25)';
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(px + 18, py + 44); ctx.lineTo(px + pw - 18, py + 44); ctx.stroke();
@@ -2232,14 +2236,15 @@ class GameManager {
         let y = py + 72;
         for (const l of lines) {
             ctx.fillStyle = l.color;
-            ctx.font = (l.bold ? '600' : '400') + ' 16px Rajdhani';
-            ctx.fillText(l.text, px + 22, y);
+            const text = UITheme.t(l.text);
+            UITheme.fitFont(ctx, text, pw - 44, 'body', l.bold ? 600 : 400);
+            ctx.fillText(text, px + 22, y);
             y += 26;
         }
         const best = this.levels._loadEndlessBest();
         ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
         ctx.font = UITheme.font('label', 700, 'Orbitron');
-        ctx.fillText(best > 0 ? `BEST ENDLESS RUN  ${best}` : 'NO ENDLESS RUN YET', px + 22, py + ph - 18);
+        ctx.fillText(best > 0 ? UITheme.t('BEST ENDLESS RUN  {n}', { n: best }) : UITheme.t('NO ENDLESS RUN YET'), px + 22, py + ph - 18);
         ctx.restore();
 
         this.ui.renderButtons();
@@ -2428,7 +2433,7 @@ class GameManager {
         ctx.fillStyle = '#f59e0b';
         ctx.font = '600 16px Rajdhani';
         ctx.textAlign = 'center';
-        ctx.fillText(this._hubMessage, W / 2, H - 52);
+        ctx.fillText(UITheme.t(this._hubMessage), W / 2, H - 52);
         ctx.restore();
     }
 
@@ -2698,11 +2703,13 @@ class GameManager {
             title = q.cfg.title;
             detail = q.cfg.detail;
         }
+        title = UITheme.t(title);
+        detail = UITheme.t(detail);
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = '700 20px Orbitron';
+        UITheme.fitFont(ctx, title, P.w - 40, 'title', 700, 'Orbitron');
         ctx.fillText(title, W / 2, P.y + 46);
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '400 16px Rajdhani';
+        UITheme.fitFont(ctx, detail, P.w - 40, 'body', 400);
         ctx.fillText(detail, W / 2, P.y + 72);
         ctx.restore();
         this.ui.renderButtons();
@@ -2754,7 +2761,7 @@ class GameManager {
     }
 
     _drawFaintHint(ctx, hint, x, y) {
-        const text = this._inputMode() === 'touch' ? hint.touch : hint.desktop;
+        const text = UITheme.t(this._inputMode() === 'touch' ? hint.touch : hint.desktop);
         if (!text) return;
         ctx.save();
         ctx.globalAlpha = 0.55;
@@ -2894,7 +2901,7 @@ class GameManager {
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '700 16px Orbitron';
+        ctx.font = '700 16px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('?', btn.x, btn.y + 1);
@@ -2987,7 +2994,7 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = '700 22px Orbitron';
+        ctx.font = '700 22px Orbitron, OrbitronTR';
         ctx.fillText('FIELD GUIDE', W / 2, L.y + 42);
 
         const left = L.x + 48, maxW = L.w - 104;
@@ -3002,7 +3009,7 @@ class GameManager {
             // Controls: one row per action, desktop vs touch side by side.
             const colA = left + 210, colB = left + 470;
             ctx.textAlign = 'left';
-            ctx.font = '700 14px Orbitron';
+            ctx.font = '700 14px Orbitron, OrbitronTR';
             ctx.fillStyle = touch ? '#64748b' : '#3b82f6';
             ctx.fillText('KEYBOARD / MOUSE', colA, y);
             ctx.fillStyle = touch ? '#3b82f6' : '#64748b';
@@ -3023,7 +3030,7 @@ class GameManager {
             for (const item of page.items) {
                 if (item.head) {
                     ctx.fillStyle = '#f59e0b';
-                    ctx.font = '700 14px Orbitron';
+                    ctx.font = '700 14px Orbitron, OrbitronTR';
                     ctx.fillText(item.head, left, y);
                     y += 22;
                 }
@@ -3137,16 +3144,17 @@ class GameManager {
     /** One-line summary of a stage's key difficulty number. */
     _stageSummary(act, stage) {
         const p = stage.params;
-        if (act.game === 'timingbar') return `${p.requiredHits} HITS · ${p.maxTime}s`;
-        if (act.game === 'stack') return `${p.targetBlocks} BLOCKS HIGH`;
-        if (act.game === 'orbital') return `${p.blocksNeeded} PACKETS · ${p.ports} PORTS`;
-        if (act.game === 'signal') return `${p.keys} KEYS · ${p.timeLimit}s`;
-        if (act.game === 'route') return `${p.traces} TRACES · ${p.size}×${p.size} · ${p.timeLimit}s`;
-        if (act.game === 'cut') return `${p.networks} NETWORKS · ${p.lives}♥`;
-        if (act.game === 'bomb') return `${p.payloads} PAYLOADS · ${p.timeLimit}s`;
-        if (act.game === 'defrag') return `${p.disks} DISKS · ${p.cols}×${p.rows} · ${p.timeLimit}s`;
-        if (act.game === 'checksum') return `${p.cols}×${p.rows} · NO TIMER`;
-        if (act.game === 'handover') return p.summary || 'MISSION';
+        const t = UITheme.t;
+        if (act.game === 'timingbar') return t('{hits} HITS · {time}s', { hits: p.requiredHits, time: p.maxTime });
+        if (act.game === 'stack') return t('{n} BLOCKS HIGH', { n: p.targetBlocks });
+        if (act.game === 'orbital') return t('{packets} PACKETS · {ports} PORTS', { packets: p.blocksNeeded, ports: p.ports });
+        if (act.game === 'signal') return t('{keys} KEYS · {time}s', { keys: p.keys, time: p.timeLimit });
+        if (act.game === 'route') return t('{traces} TRACES · {size}×{size} · {time}s', { traces: p.traces, size: p.size, time: p.timeLimit });
+        if (act.game === 'cut') return t('{n} NETWORKS · {lives}♥', { n: p.networks, lives: p.lives });
+        if (act.game === 'bomb') return t('{n} PAYLOADS · {time}s', { n: p.payloads, time: p.timeLimit });
+        if (act.game === 'defrag') return t('{n} DISKS · {cols}×{rows} · {time}s', { n: p.disks, cols: p.cols, rows: p.rows, time: p.timeLimit });
+        if (act.game === 'checksum') return t('{cols}×{rows} · NO TIMER', { cols: p.cols, rows: p.rows });
+        if (act.game === 'handover') return t(p.summary || 'MISSION');
         return '';
     }
 
@@ -3165,14 +3173,14 @@ class GameManager {
 
         const n = act.id;
         if (this.progress.isGatePlayable(n)) {
-            this.ui.addButton('gate', `⚡ BREACH GATE ${n} → ACT ${n + 1}`, W / 2, L.buttonY, 320, 46,
+            this.ui.addButton('gate', UITheme.t('⚡ BREACH GATE {gate} → ACT {n}', { gate: n, n: n + 1 }), W / 2, L.buttonY, 320, 46,
                 () => this._tryStartGate(n),
                 { color: '#f59e0b' });
             // The gate node at the end of the track is a tap target too.
             this.ui.addButton('gate-node', '', L.gate.x, L.gate.y, 56, 56,
                 () => this._tryStartGate(n), { hidden: true, focusable: false });
         } else if (this.progress.isActComplete(n) && this.progress.isActUnlocked(n + 1)) {
-            this.ui.addButton('next', `NEXT: ACT ${n + 1} →`, W / 2, L.buttonY, 240, 42,
+            this.ui.addButton('next', UITheme.t('NEXT: ACT {n} →', { n: n + 1 }), W / 2, L.buttonY, 240, 42,
                 () => this.state.change(this.state.STATES.ACT, { actId: n + 1 }),
                 { color: '#22c55e' });
         }
@@ -3271,13 +3279,14 @@ class GameManager {
 
         UITheme.tierBadge(ctx, btn.x, top + 30, stage.tier, 26, { dim: status === 'locked' });
 
-        ctx.font = '700 17px Orbitron';
+        ctx.font = '700 17px Orbitron, OrbitronTR';
         ctx.fillStyle = status === 'cleared' ? UITheme.color.ok : status === 'next' ? actColor : UITheme.color.textMute;
         ctx.fillText(this.ui._fitText(stage.tier, btn.w - 16), btn.x, top + 72);
 
-        ctx.font = UITheme.font('body', 600);
+        const summary = this._stageSummary(act, stage);
+        UITheme.fitFont(ctx, summary, btn.w - 16, 'body', 600);
         ctx.fillStyle = UITheme.color.textDim;
-        ctx.fillText(this.ui._fitText(this._stageSummary(act, stage), btn.w - 16), btn.x, top + 98);
+        ctx.fillText(this.ui._fitText(summary, btn.w - 16), btn.x, top + 98);
 
         ctx.font = UITheme.font('label', 700);
         if (status === 'cleared') {
@@ -3285,11 +3294,11 @@ class GameManager {
             UITheme.starRow(ctx, btn.x, top + 119, this.progress.stageStars(act.id, i), 9, 24);
         } else if (status === 'next') {
             ctx.fillStyle = actColor;
-            ctx.fillText('NEXT ▸', btn.x, top + 124);
+            ctx.fillText(UITheme.t('NEXT ▸'), btn.x, top + 124);
         } else {
             ctx.fillStyle = UITheme.color.textDim;
             ctx.textAlign = 'left';
-            const label = 'LOCKED';
+            const label = UITheme.t('LOCKED');
             const textW = ctx.measureText(label).width || 50;
             const glyphX = btn.x - (textW + 16) / 2;
             this.ui._drawLockGlyph(ctx, glyphX, top + 115, 11, UITheme.color.textDim);
@@ -3301,7 +3310,7 @@ class GameManager {
         if (best > 0) {
             ctx.font = UITheme.font('label', 500);
             ctx.fillStyle = UITheme.color.locked;
-            ctx.fillText('BEST ' + best, btn.x, top + 142);
+            ctx.fillText(UITheme.t('BEST {n}', { n: best }), btn.x, top + 142);
         }
 
         if (status === 'next' && v.unlock !== null) {
@@ -3331,18 +3340,18 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = theme.zoneColor;
-        ctx.font = '700 14px Orbitron';
+        ctx.font = '700 14px Orbitron, OrbitronTR';
         ctx.fillText(`ACT ${act.id}${game ? ' · ' + game.title : ''}`, W / 2, 34);
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = '700 26px Orbitron';
+        ctx.font = '700 26px Orbitron, OrbitronTR';
         ctx.fillText(act.key, W / 2, 68);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '400 16px Rajdhani';
-        ctx.fillText(act.story, W / 2, 98);
+        ctx.fillText(UITheme.t(act.story), W / 2, 98);
         if (act.controls) {
             ctx.fillStyle = '#64748b';
             ctx.font = '500 16px Rajdhani';
-            ctx.fillText(act.controls, W / 2, 124);
+            ctx.fillText(UITheme.t(act.controls), W / 2, 124);
         }
 
         const L = this._actScreenLayout(act.stages.length, this._actHasGate(act.id));
@@ -3355,7 +3364,7 @@ class GameManager {
             const done = this.progress.stagesDone(act.id);
             ctx.fillStyle = done === act.stages.length ? '#22c55e' : '#64748b';
             ctx.font = '600 16px Rajdhani';
-            ctx.fillText(done === act.stages.length ? 'ACT COMPLETE' : `${done}/${act.stages.length} STAGES CLEARED`, W / 2, L.statusY);
+            ctx.fillText(done === act.stages.length ? UITheme.t('ACT COMPLETE') : UITheme.t('{done}/{n} STAGES CLEARED', { done, n: act.stages.length }), W / 2, L.statusY);
         }
         ctx.restore();
     }
@@ -3374,7 +3383,7 @@ class GameManager {
         ctx.textBaseline = 'middle';
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('label', 700);
-        ctx.fillText('CLEARANCE GRANTED', 0, -11);
+        ctx.fillText(UITheme.t('CLEARANCE GRANTED'), 0, -11);
         ctx.fillStyle = color;
         ctx.font = UITheme.font('title', 700, 'Orbitron');
         ctx.fillText(UITheme.clearanceLabel(c.level), 0, 11);
@@ -3457,7 +3466,7 @@ class GameManager {
             ctx.fillStyle = UITheme.color.textMute;
             ctx.font = UITheme.font('label', 700);
             ctx.textAlign = 'center';
-            ctx.fillText(`GATE ${act.id}`, L.gate.x, L.gate.y + L.gate.r + 20);
+            ctx.fillText(UITheme.t('GATE {n}', { n: act.id }), L.gate.x, L.gate.y + L.gate.r + 20);
         }
         ctx.restore();
     }
@@ -3483,7 +3492,7 @@ class GameManager {
         const MAX = 2;
         if (!this.dualRingGate.canAttempt(WINDOW, MAX)) {
             const wait = Math.ceil(this.dualRingGate.timeUntilReset(WINDOW, MAX));
-            this._hubMessage = `Recovery module recharging (${wait}s)`;
+            this._hubMessage = UITheme.t('Recovery module recharging ({s}s)', { s: wait });
             this._hubMessageTimer = 2.5;
             return;
         }
@@ -3502,7 +3511,7 @@ class GameManager {
             onComplete: (success, m) => {
                 if (success) {
                     const gained = this.energy.addEnergy(m.reward);
-                    this._hubMessage = `+${gained} ENERGY`;
+                    this._hubMessage = UITheme.t('+{n} ENERGY', { n: gained });
                 } else {
                     this._hubMessage = 'Recovery failed';
                 }
@@ -3521,16 +3530,16 @@ class GameManager {
     /** Gate n opens act n + 1 (Packet Purge, harder each gate). */
     _tryStartGate(n) {
         const say = (msg) => { this._hubMessage = msg; this._hubMessageTimer = 2.5; };
-        if (this.progress.isGateOpen(n)) { say(`Gate ${n} is already breached`); return; }
-        if (!this.progress.isActComplete(n)) { say(`Clear every stage of ACT ${n} first`); return; }
-        if (!this.progress.isActAvailable(n + 1)) { say(`ACT ${n + 1} is in development`); return; }
+        if (this.progress.isGateOpen(n)) { say(UITheme.t('Gate {n} is already breached', { n })); return; }
+        if (!this.progress.isActComplete(n)) { say(UITheme.t('Clear every stage of ACT {n} first', { n })); return; }
+        if (!this.progress.isActAvailable(n + 1)) { say(UITheme.t('ACT {n} is in development', { n: n + 1 })); return; }
 
         const WINDOW = 3 * 60 * 1000;
         const MAX = 2;
         const tracker = this._gateTracker(n);
         if (!tracker.canAttempt(WINDOW, MAX)) {
             const wait = Math.ceil(tracker.timeUntilReset(WINDOW, MAX));
-            say(`The lock is recalibrating (${wait}s)`);
+            say(UITheme.t('The lock is recalibrating ({s}s)', { s: wait }));
             return;
         }
         tracker.record(WINDOW);
@@ -3539,13 +3548,13 @@ class GameManager {
         const mechanic = new PacketPurgeMechanic({ waves: cfg.waves, speedScale: cfg.speedScale });
         this.state.change(this.state.STATES.MINIGAME, {
             mechanic,
-            title: `GATE ${n} · PACKET PURGE`,
-            subtitle: `${cfg.waves} waves — purge infected packets before they reach the core`,
+            title: UITheme.t('GATE {n} · PACKET PURGE', { n }),
+            subtitle: UITheme.t('{n} waves — purge infected packets before they reach the core', { n: cfg.waves }),
             hint: 'Tap the faster RED packets — leave the blue ones',
             onComplete: (success) => {
                 if (success) {
                     this.progress.openGate(n);
-                    this._hubMessage = `ACT ${n + 1} UNLOCKED`;
+                    this._hubMessage = UITheme.t('ACT {n} UNLOCKED', { n: n + 1 });
                 } else {
                     this._hubMessage = 'Purge failed — the lock holds';
                 }
@@ -3643,8 +3652,8 @@ class GameManager {
             };
             const n = st.actId;
             this._hubMessage = this.progress.isActAvailable(n + 1)
-                ? `ACT ${n} COMPLETE — breach gate ${n} to reach ACT ${n + 1}`
-                : `ACT ${n} COMPLETE — ACT ${n + 1} is in development`;
+                ? UITheme.t('ACT {n} COMPLETE — breach gate {n} to reach ACT {next}', { n, next: n + 1 })
+                : UITheme.t('ACT {n} COMPLETE — ACT {next} is in development', { n, next: n + 1 });
             this._hubMessageTimer = 3.5;
         }
         later(delayMs, () => this.state.change(S.ACT, { actId: st.actId }));
@@ -3720,10 +3729,12 @@ class GameManager {
         ctx.lineWidth = 2;
         ctx.strokeRect(-92, -14, 184, 28);
         ctx.fillStyle = UITheme.color.ok;
-        ctx.font = '900 15px Orbitron';
+        const stamp = UITheme.t('ACCESS GRANTED');
+        ctx.font = '900 15px Orbitron, OrbitronTR';
+        if (ctx.measureText(stamp).width > 172) UITheme.fitFont(ctx, stamp, 172, 'label', 900, 'Orbitron');
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('ACCESS GRANTED', 0, 1);
+        ctx.fillText(stamp, 0, 1);
         ctx.restore();
 
         for (let k = 0; k < 3; k++) {
@@ -3744,7 +3755,7 @@ class GameManager {
             ctx.font = UITheme.font('label', 700, 'Orbitron');
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText('NEW BEST', cx, cy + 40);
+            ctx.fillText(UITheme.t('NEW BEST'), cx, cy + 40);
             ctx.restore();
         }
     }
@@ -3811,7 +3822,7 @@ class GameManager {
         if (!btn) return;
         if (this._goCooldown > 0) {
             btn.disabled = true;
-            btn.label = `↻ RETRY (${this._goCooldown.toFixed(1)}s)`;
+            btn.label = UITheme.t('↻ RETRY ({s}s)', { s: this._goCooldown.toFixed(1) });
         } else {
             btn.disabled = false;
             btn.label = '↻ RETRY';

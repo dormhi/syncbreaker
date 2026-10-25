@@ -180,7 +180,7 @@ class DualRingMechanic extends _MechanicBaseDR {
         ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#f59e0b';
-        ctx.font = '700 20px Orbitron';
+        ctx.font = '700 20px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('⚡', 0, 1);
@@ -229,7 +229,7 @@ class DualRingMechanic extends _MechanicBaseDR {
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
-            ctx.font = '700 22px Orbitron';
+            ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(ok ? `+${this.reward} ENERGY` : 'RECOVERY FAILED', cx, cy - rOuter - 84);

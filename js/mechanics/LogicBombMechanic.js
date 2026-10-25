@@ -965,7 +965,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.fillStyle = m.done ? '#22c55e' : `rgba(239,68,68,${0.45 + 0.55 * blink})`;
             ctx.beginPath(); ctx.arc(r.x + 16, r.y + r.h / 2, 6, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = on ? '#fce7f3' : m.done ? '#64748b' : '#cbd5e1';
-            ctx.font = '700 15px Orbitron';
+            ctx.font = '700 15px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(LB_NAMES[m.kind], r.x + r.w / 2 + 8, r.y + r.h / 2 - 6);
@@ -988,7 +988,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.fillStyle = 'rgba(8,12,20,0.55)';
             ctx.fillRect(M.x, M.y, M.w, M.h);
             ctx.fillStyle = '#22c55e';
-            ctx.font = '700 30px Orbitron';
+            ctx.font = '700 30px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('DEFUSED', M.x + M.w / 2, M.y + M.h / 2);
@@ -1019,7 +1019,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             ctx.lineWidth = 1.2;
             for (const tx of [p.x0 - 16, p.x1 + 4]) { ctx.fillRect(tx, p.y - 10, 12, 20); ctx.strokeRect(tx, p.y - 10, 12, 20); }
             ctx.fillStyle = '#94a3b8';
-            ctx.font = '700 16px Orbitron';
+            ctx.font = '700 16px Orbitron, OrbitronTR';
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             ctx.fillText(String(i + 1), p.x0 - 26, p.y);
@@ -1112,7 +1112,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             const lit = vals[L + j] === 1;
             UITheme.panel(ctx, p.x - gw / 2, p.y - gh / 2, gw, gh, { chamfer: 8, fill: 'rgba(30,41,59,0.98)', stroke: lit ? on : '#a78bfa', lineWidth: 1.8 });
             ctx.fillStyle = '#ddd6fe';
-            ctx.font = '700 15px Orbitron';
+            ctx.font = '700 15px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(g.op, p.x, p.y + 1);
@@ -1125,11 +1125,11 @@ class LogicBombMechanic extends _MechanicBaseLB {
             const color = inp.clock ? '#fbbf24' : v ? on : '#64748b';
             UITheme.panel(ctx, r.x, r.y, r.w, r.h, { chamfer: 6, fill: inp.clock ? 'rgba(251,191,36,0.1)' : v ? 'rgba(34,211,238,0.12)' : 'rgba(15,23,42,0.95)', stroke: color, lineWidth: 2 });
             ctx.fillStyle = color;
-            ctx.font = '700 15px Orbitron';
+            ctx.font = '700 15px Orbitron, OrbitronTR';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             ctx.fillText(inp.name, r.x + 10, r.y + r.h / 2);
-            ctx.font = '700 22px Orbitron';
+            ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'right';
             ctx.fillText(String(v), r.x + r.w - 10, r.y + r.h / 2 + 1);
         });
@@ -1144,17 +1144,17 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.beginPath(); ctx.arc(o.x, o.y, 28, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.shadowBlur = 0;
         ctx.fillStyle = lamp;
-        ctx.font = '700 15px Orbitron';
+        ctx.font = '700 15px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(mod.done ? 'OFF' : fire ? 'ON' : 'off', o.x, o.y + 1);
-        ctx.font = '700 12px Orbitron';
+        ctx.font = '700 12px Orbitron, OrbitronTR';
         ctx.fillText('DETONATE', o.x, o.y - 40);
         // Flips left
         ctx.fillStyle = mod.flips <= 1 && !mod.done ? '#fbbf24' : '#94a3b8';
-        ctx.font = '700 12px Orbitron';
+        ctx.font = '700 12px Orbitron, OrbitronTR';
         ctx.fillText('FLIPS LEFT', o.x, o.y + 52);
-        ctx.font = '700 28px Orbitron';
+        ctx.font = '700 28px Orbitron, OrbitronTR';
         ctx.fillText(String(mod.flips), o.x, o.y + 80);
     }
 
@@ -1193,7 +1193,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(b.x, b.y + (held ? 3 : 0), b.r - 8, Math.PI * 1.1, Math.PI * 1.6); ctx.stroke();
         ctx.fillStyle = mod.color === 'YELLOW' || mod.color === 'WHITE' ? '#0f172a' : '#f8fafc';
-        ctx.font = `700 ${mod.label.length > 6 ? 22 : 26}px Orbitron`;
+        ctx.font = `700 ${mod.label.length > 6 ? 22 : 26}px Orbitron, OrbitronTR`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(mod.label, b.x, b.y + (held ? 3 : 0));
@@ -1223,7 +1223,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.fillStyle = low && Math.sin(this.time * 12) > 0 ? '#fca5a5' : '#ef4444';
         ctx.shadowColor = '#ef4444';
         ctx.shadowBlur = 10;
-        ctx.font = '700 44px Orbitron';
+        ctx.font = '700 44px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.timerText(), T.x + 102, T.y + T.h / 2 + 2);
@@ -1249,7 +1249,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.font = '700 13px Rajdhani';
         ctx.fillText('SIG', E.x + 12, E.y + E.h / 2);
         ctx.fillStyle = '#e2e8f0';
-        ctx.font = '700 17px Orbitron';
+        ctx.font = '700 17px Orbitron, OrbitronTR';
         ctx.fillText(this.serial, E.x + 40, E.y + E.h / 2 + 1);
         let fx = E.x + E.w - 12;
         for (let i = this.flags.length - 1; i >= 0; i--) {
@@ -1274,7 +1274,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         if (!mod) return;
         const lay = this._cardLayout(ctx, mod);
         ctx.fillStyle = '#f9a8d4';
-        ctx.font = '700 15px Orbitron';
+        ctx.font = '700 15px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText(`MANUAL · ${LB_TITLES[mod.kind]}`, C.x + 14, C.y + 20);
@@ -1290,7 +1290,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
                 ctx.lineWidth = 1;
                 ctx.strokeRect(r.x, r.y, r.w, r.h);
                 ctx.fillStyle = '#64748b';
-                ctx.font = '700 13px Orbitron';
+                ctx.font = '700 13px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.fillText(String(i + 1), r.x + 12, r.y + 4 + lh / 2);
                 ctx.textAlign = 'left';
@@ -1322,7 +1322,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
             for (const l of steps) for (const part of this._wrap(ctx, l, w)) { this._drawRich(ctx, part, x, y, '#e2e8f0'); y += 20; }
             y += 8;
             ctx.fillStyle = '#c4b5fd';
-            ctx.font = '700 13px Orbitron';
+            ctx.font = '700 13px Orbitron, OrbitronTR';
             ctx.fillText('GATES', x, y);
             y += 20;
             const has = (op) => mod.gates.some(g => g.op === op);
@@ -1447,7 +1447,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         else if (this.holding && this.holding.t >= LB_HOLD) { text = 'HOLDING — RELEASE ON THE STRIP\'S DIGIT'; color = '#fbbf24'; }
         if (text) {
             ctx.fillStyle = color;
-            ctx.font = text.length > 30 ? '700 16px Orbitron' : '700 19px Orbitron';
+            ctx.font = text.length > 30 ? '700 16px Orbitron, OrbitronTR' : '700 19px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.fillText(text, W / 2, this.vaultRect().y + this.vaultRect().h + 18);
         }

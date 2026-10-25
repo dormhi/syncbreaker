@@ -796,7 +796,7 @@ class DefragMechanic extends _MechanicBaseDF {
         const B = this.board;
         UITheme.panel(ctx, R.x - 14, R.y - 14, R.w + 28, R.h + 28, { chamfer: 14, fill: 'rgba(8,12,20,0.9)', stroke: 'rgba(45,212,191,0.55)', lineWidth: 1.6 });
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '700 16px Orbitron';
+        ctx.font = '700 16px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('FILL EVERY EMPTY SECTOR', R.x + R.w / 2, R.y - 32);
@@ -890,7 +890,7 @@ class DefragMechanic extends _MechanicBaseDF {
         const T = this.trayRect();
         UITheme.panel(ctx, T.x, T.y, T.w, T.h, { chamfer: 12, fill: 'rgba(10,14,24,0.85)', stroke: 'rgba(100,116,139,0.55)' });
         ctx.fillStyle = '#64748b';
-        ctx.font = '700 13px Orbitron';
+        ctx.font = '700 13px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillText('BACKUP BLOCKS', T.x + 12, T.y - 10);
@@ -928,13 +928,13 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.strokeStyle = 'rgba(103,232,249,0.6)';
         ctx.strokeRect(ix - 1, iy - 1, B.cols * cq + 2, B.rows * cq + 2);
         ctx.fillStyle = '#67e8f9';
-        ctx.font = '700 12px Orbitron';
+        ctx.font = '700 12px Orbitron, OrbitronTR';
         ctx.fillText('CLEAN SNAPSHOT', ix, b.y + 13);
         const tr = this.trashRect();
         const hot = this.drag && this.drag.moved;
         UITheme.panel(ctx, tr.x, tr.y, tr.w, tr.h, { chamfer: 8, fill: hot ? 'rgba(239,68,68,0.18)' : 'rgba(15,23,42,0.9)', stroke: hot ? '#ef4444' : 'rgba(239,68,68,0.55)', lineWidth: 1.6, dashed: true });
         ctx.fillStyle = '#fca5a5';
-        ctx.font = '700 16px Orbitron';
+        ctx.font = '700 16px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.fillText('TRASH', tr.x + tr.w / 2, tr.y + tr.h / 2 - 8);
         ctx.font = '600 13px Rajdhani';
@@ -990,7 +990,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.fillText(`DISK ${Math.min(this.restored + 1, this.disks)}/${this.disks}`, W / 2 - 200 + this.disks * 28, y);
         const low = this.timeLeft < 10 && this.result === null;
         ctx.fillStyle = low && Math.sin(this.time * 12) > 0 ? '#fca5a5' : low ? '#ef4444' : '#e2e8f0';
-        ctx.font = '700 24px Orbitron';
+        ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'right';
         ctx.fillText(`⏱ ${this.timerText()}`, W / 2 + 250, y);
 
@@ -1000,7 +1000,7 @@ class DefragMechanic extends _MechanicBaseDF {
         else if (this.message) { text = this.message.text; color = this.message.color; }
         if (text) {
             ctx.fillStyle = color;
-            ctx.font = text.length > 28 ? '700 16px Orbitron' : '700 19px Orbitron';
+            ctx.font = text.length > 28 ? '700 16px Orbitron, OrbitronTR' : '700 19px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.fillText(text, W / 2, 568);
         }

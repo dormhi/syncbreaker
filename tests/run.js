@@ -2365,7 +2365,7 @@ suite('UITheme + tap targets', () => {
     ok('every campaign tier has a badge', mod.CAMPAIGN.acts.every(a => a.stages.every(st => T.tier(st.tier).key === st.tier)));
     ok('layers cover acts 1-9', [1, 2, 3].every(n => T.layerOf(n).key === 'PERIMETER') &&
         [4, 5, 6].every(n => T.layerOf(n).key === 'INTERNAL') && [7, 8, 9].every(n => T.layerOf(n).key === 'CORE'));
-    ok('font roles', T.font('label') === '600 14px Rajdhani' && T.font('nope', 700, 'Orbitron') === '700 16px Orbitron');
+    ok('font roles', T.font('label') === '600 14px Rajdhani' && T.font('nope', 700, 'Orbitron') === '700 16px Orbitron, OrbitronTR');
 
     const canvas = makeFakeCanvas();
     const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
@@ -4395,6 +4395,81 @@ suite('Languages (I18n) — core, saved choice, shared drawing', () => {
     const size = parseInt(String(ctx.font).match(/(\d+)px/)[1], 10);
     ok('fitFont steps the size down for a long label', size < UITheme.size.body && size >= Math.round(UITheme.size.body * 0.7));
     ok('the dictionary file is loaded', I18n.dict.tr && I18n.dict.tr['Language'] === 'Dil');
+});
+
+// ─────────────────────────────────────────────
+suite('Languages (I18n) — phase 2: menu, HUB, act screen, pause, results', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const mod = loadGameManager();
+    const { I18n, CAMPAIGN } = mod;
+    const tr = I18n.dict.tr;
+    // Every literal drawn through UITheme.t in the phase 2 files has a Turkish entry.
+    const files = ['js/GameManager.js', 'js/UITheme.js', 'js/UIManager.js'];
+    const missing = [];
+    for (const f of files) {
+        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+        const re = /UITheme\.t\('((?:[^'\\]|\\.)*)'/g;
+        let m;
+        while ((m = re.exec(src))) {
+            const key = m[1].replace(/\\'/g, "'");
+            if (key !== 'MINIGAME' && !Object.prototype.hasOwnProperty.call(tr, key)) missing.push(key);
+        }
+    }
+    ok(`every phase 2 text has a Turkish entry${missing.length ? ' (missing: ' + missing.join(' | ') + ')' : ''}`, missing.length === 0);
+    const holes = (s) => (String(s).match(/\{\w+\}/g) || []).sort().filter((v, i, a) => a.indexOf(v) === i).join(',');
+    // The gate button names only the act it opens; the gate node shows its number.
+    const bad = Object.keys(tr).filter(k => holes(k) !== holes(tr[k]) && k !== '⚡ BREACH GATE {gate} → ACT {n}');
+    ok(`Turkish entries keep their placeholders${bad.length ? ' (' + bad.join(' | ') + ')' : ''}`, bad.length === 0);
+    ok('every act\'s "secured" line is translated', CAMPAIGN.acts.every(a => tr[a.done]));
+    ok('Turkish capitals use İ (no toUpperCase on Turkish text)', /İ/.test(tr['OPERATION MAP']) && /İ/.test(tr['LOCKED']));
+
+    // Screens draw in Turkish once it is chosen.
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    const show = (st, enterCtx) => {
+        drawn.length = 0;
+        gm.state.currentState = st;
+        gm.state.transitioning = false;
+        gm.state._handlers[st].enter(enterCtx);
+        gm.render(ctx, 0);
+        return drawn.join(' \n ');
+    };
+    const menu = show(S.MENU);
+    ok('menu: title line, status report and intro story in Turkish',
+        menu.includes('DURUM RAPORU') && menu.includes('Sistemin siber saldırı altında') && !menu.includes('STATUS REPORT'));
+    const hub = show(S.HUB);
+    ok('HUB: header and act card in Turkish', hub.includes('OPERASYON HARİTASI') && hub.includes('AÇ ▸') && hub.includes('ENERJİ'));
+    ok('HUB: act and game names stay English', hub.includes('REMOVE_MALWARE') && hub.includes('ACT 1 · TIMING BAR'));
+    const act = show(S.ACT, { actId: 1 });
+    ok('act screen: stage summary and status in Turkish', act.includes('8 İSABET · 25 sn') && act.includes('0/4 AŞAMA TEMİZLENDİ') && act.includes('KAPI 1'));
+    ok('act screen: tier names stay English', act.includes('EASY') && act.includes('VERY HARD'));
+    gm._addLeaveButton({ label: 'X', title: 'LEAVE THIS STAGE?', detail: 'Your progress in this stage will be lost.', onLeave: () => {}, onRestart: () => {} });
+    gm._openPause();
+    drawn.length = 0;
+    gm._renderQuitConfirm(ctx, 960, 640);
+    ok('pause panel in Turkish', drawn.includes('DURAKLATILDI'));
+    gm._setPauseMode('leave');
+    drawn.length = 0;
+    gm._renderQuitConfirm(ctx, 960, 640);
+    ok('leave warning in Turkish', drawn.includes('AŞAMADAN ÇIKILSIN MI?') && drawn.includes('Bu aşamadaki ilerlemen kaybolacak.'));
+    gm._closeLeavePrompt();
+    gm._stage = { actId: 1, index: 0 };
+    const over = show(S.GAME_OVER, { score: 120, stage: { actId: 1, index: 0 } });
+    ok('failure screen in Turkish', over.includes('OPERASYON BAŞARISIZ') && over.includes('Skor: 120'));
+    const congrats = show(S.CONGRATS);
+    ok('campaign-complete screen in Turkish', congrats.includes('KONTROL GERİ VERİLDİ') && congrats.includes('ENDLESS MODE AÇILDI'));
+    gm._tryStartGate(1);
+    ok('HUB messages are translated', gm._hubMessage === 'Önce ACT 1 içindeki bütün aşamaları temizle');
+    I18n.set('en', store);
+    const menuEn = show(S.MENU);
+    ok('English again after switching back', menuEn.includes('> STATUS REPORT') && !menuEn.includes('DURUM RAPORU'));
 });
 
 // ─────────────────────────────────────────────

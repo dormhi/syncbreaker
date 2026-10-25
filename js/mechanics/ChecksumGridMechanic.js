@@ -569,7 +569,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const button = (b, label, on, color) => {
             UITheme.panel(ctx, b.x, b.y, b.w, b.h, { chamfer: 8, fill: on ? 'rgba(56,189,248,0.2)' : 'rgba(15,23,42,0.9)', stroke: on ? color : 'rgba(100,116,139,0.6)', lineWidth: on ? 2 : 1.2 });
             ctx.fillStyle = on ? '#f8fafc' : '#cbd5e1';
-            ctx.font = '700 17px Orbitron';
+            ctx.font = '700 17px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2 + 1);
@@ -585,7 +585,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#facc15';
-        ctx.font = '700 13px Orbitron';
+        ctx.font = '700 13px Orbitron, OrbitronTR';
         ctx.fillText('GOAL', G.x + 12, G.y + 15);
         ctx.fillStyle = '#fde68a';
         ctx.font = '700 16px Rajdhani';
@@ -604,7 +604,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         this._renderRules(ctx, B.rules);
         if (this.message) {
             ctx.fillStyle = this.message.color;
-            ctx.font = '700 16px Orbitron';
+            ctx.font = '700 16px Orbitron, OrbitronTR';
             const words = this.message.text.split(' ');
             let line = '', ly = y + 24;
             for (const w of words) {
@@ -627,7 +627,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#3b82f6';
-        ctx.font = '700 13px Orbitron';
+        ctx.font = '700 13px Orbitron, OrbitronTR';
         ctx.fillText('RULES', b.x + 12, b.y + 16);
         ctx.fillStyle = '#64748b';
         ctx.font = '600 12px Rajdhani';

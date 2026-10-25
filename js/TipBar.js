@@ -60,7 +60,7 @@ class TipBar {
         ctx.globalAlpha = 0.85 * this.alpha;
         ctx.textBaseline = 'middle';
 
-        ctx.font = '700 14px Orbitron';
+        ctx.font = '700 14px Orbitron, OrbitronTR';
         const tag = typeof I18n !== 'undefined' ? I18n.t('TIP') : 'TIP';
         const m = ctx.measureText(tag);
         const tagW = ((m && isFinite(m.width)) ? m.width : 18) + 12;
@@ -76,7 +76,7 @@ class TipBar {
         Utils.roundRect(ctx, left, y - 11, tagW, 22, 11);
         ctx.stroke();
         ctx.fillStyle = '#3b82f6';
-        ctx.font = '700 14px Orbitron';
+        ctx.font = '700 14px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.fillText(tag, left + tagW / 2, y + 1);
 

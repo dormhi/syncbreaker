@@ -207,7 +207,7 @@ class PacketPurgeMechanic extends _MechanicBasePP {
 
         // Wave / phase label
         ctx.fillStyle = '#f59e0b';
-        ctx.font = '700 15px Orbitron';
+        ctx.font = '700 15px Orbitron, OrbitronTR';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
         const phaseLabel = this.phase === 'break'
@@ -233,7 +233,7 @@ class PacketPurgeMechanic extends _MechanicBasePP {
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
-            ctx.font = '700 22px Orbitron';
+            ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(ok ? 'ACCESS GRANTED' : 'PURGE FAILED', W / 2, H * 0.18);
