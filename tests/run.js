@@ -4368,6 +4368,36 @@ suite('Act 10 handover missions — teach, never fail, 3 stars', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Languages (I18n) — core, saved choice, shared drawing', () => {
+    const mod = loadGameManager();
+    const { I18n, Coach, TipBar, UITheme } = mod;
+    const store = () => { const m = new Map(); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) }; };
+    ok('starts in English without a saved choice (no Turkish browser)', I18n.init(store()) === 'en');
+    I18n.add('tr', { 'Land {n} hits': '{n} isabet yap', 'Hello': 'Merhaba' });
+    ok('English: the key is the text', I18n.t('Hello') === 'Hello' && I18n.t('Land {n} hits', { n: 8 }) === 'Land 8 hits');
+    const st = store();
+    ok('switching saves the choice', I18n.set('tr', st) && st.getItem('sb_lang') === 'tr');
+    ok('Turkish: entries translate, placeholders fill', I18n.t('Hello') === 'Merhaba' && I18n.t('Land {n} hits', { n: 3 }) === '3 isabet yap');
+    ok('no entry yet: the English text stays (never a broken key)', I18n.t('Not translated yet') === 'Not translated yet');
+    ok('variants pick by input mode, then translate', I18n.pick({ desktop: 'Hello', touch: 'Tap' }, 'desktop') === 'Merhaba');
+    ok('the saved choice wins on the next start', (I18n.lang = 'en', I18n.init(st)) === 'tr');
+    ok('unknown languages are refused', I18n.set('xx', st) === false && I18n.lang === 'tr');
+    // Shared drawing goes through I18n.
+    ok('Coach bubbles are translated', Coach.text('Hello') === 'Merhaba');
+    const tb = new TipBar(); tb.setTips('x', ['Hello', 'b']);
+    ok('TIP lines are translated', tb.current('desktop') === 'Merhaba');
+    I18n.set('en', st);
+    ok('switching back shows English again', Coach.text('Hello') === 'Hello' && tb.current('desktop') === 'Hello');
+    // Long labels shrink to fit instead of being squeezed.
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    ctx.measureText = (t) => ({ width: String(t).length * (parseInt(String(ctx.font).match(/(\d+)px/)[1], 10) * 0.55) });
+    UITheme.fitFont(ctx, 'A VERY LONG TURKISH BUTTON LABEL', 200, 'body', 700);
+    const size = parseInt(String(ctx.font).match(/(\d+)px/)[1], 10);
+    ok('fitFont steps the size down for a long label', size < UITheme.size.body && size >= Math.round(UITheme.size.body * 0.7));
+    ok('the dictionary file is loaded', I18n.dict.tr && I18n.dict.tr['Language'] === 'Dil');
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

@@ -227,13 +227,13 @@ class UIManager {
         // Name
         ctx.fillStyle = locked ? '#64748b' : '#e2e8f0';
         ctx.font = '600 16px Orbitron';
-        ctx.fillText(this._fitText(btn.label, textMaxW), textX, top + 30);
+        ctx.fillText(this._fitText(UITheme.t(btn.label), textMaxW), textX, top + 30);
 
         // Description
         if (btn.subtitle) {
             ctx.fillStyle = '#64748b';
             ctx.font = '400 14px Rajdhani';
-            ctx.fillText(this._fitText(btn.subtitle, textMaxW), textX, top + 48);
+            ctx.fillText(this._fitText(UITheme.t(btn.subtitle), textMaxW), textX, top + 48);
         }
 
         // Status line

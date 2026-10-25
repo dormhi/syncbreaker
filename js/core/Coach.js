@@ -52,9 +52,11 @@ class Coach {
 
     update(dt) { this.time += dt || 0; }
 
+    /** The step text for this input mode, in the player's language (I18n). */
     static text(t) {
-        if (!t || typeof t === 'string') return t || '';
-        return (Coach.inputMode() === 'touch' ? t.touch : t.desktop) || t.desktop || t.touch || '';
+        const s = (!t || typeof t === 'string') ? (t || '')
+            : (Coach.inputMode() === 'touch' ? t.touch : t.desktop) || t.desktop || t.touch || '';
+        return typeof I18n !== 'undefined' ? I18n.t(s) : s;
     }
 
     /**
@@ -97,7 +99,7 @@ class Coach {
         ctx.fillStyle = '#facc15';
         ctx.font = '700 14px Rajdhani';
         ctx.textAlign = 'right';
-        if (info) ctx.fillText(Coach.inputMode() === 'touch' ? 'TAP TO CONTINUE ▸' : 'CLICK OR SPACE ▸', bx + bw - 16, by + bh - 14);
+        if (info) ctx.fillText(Coach.text(Coach.inputMode() === 'touch' ? 'TAP TO CONTINUE ▸' : 'CLICK OR SPACE ▸'), bx + bw - 16, by + bh - 14);
         ctx.restore();
     }
 }

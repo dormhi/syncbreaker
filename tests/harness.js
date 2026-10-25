@@ -132,6 +132,8 @@ function makeRng(seed = 1) {
 
 const FULL_FILES = [
     'js/utils.js',
+    'js/core/I18n.js',
+    'js/i18n/tr.js',
     'js/UITheme.js',
     'js/core/Collision.js',
     'js/core/GameLoop.js',
@@ -175,7 +177,7 @@ const FULL_FILES = [
 
 const FULL_EXPORTS = ['GameManager', 'UITheme', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
-    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach'];
+    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach', 'I18n'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {

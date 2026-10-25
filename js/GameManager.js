@@ -7,6 +7,8 @@ class GameManager {
     constructor(canvas, ctx) {
         this.canvas = canvas;
         this.ctx = ctx;
+        // Language first: every text is translated while it is drawn.
+        if (typeof I18n !== 'undefined') I18n.init(this._storage());
 
         // Subsystems
         this.state = new StateManager();
@@ -2439,6 +2441,7 @@ class GameManager {
      * touch handler get blocked as pop-ups on phones; a real link does not.
      */
     _setBrandLink(visible) {
+        this._setLangButton(visible);
         if (typeof document === 'undefined' || !document.createElement || !document.body) return;
         if (!this._brand) {
             const a = document.createElement('a');
@@ -2470,6 +2473,95 @@ class GameManager {
         } else if (this._brand.isConnected) {
             this._brand.remove();
         }
+    }
+
+    // ── Language button (menu only, next to the dormhi.com badge) ──
+
+    /**
+     * A round badge exactly like the dormhi.com one, with a globe. It opens
+     * a small Türkçe / English menu; the choice applies at once (every text
+     * goes through I18n while it is drawn) and is kept in `sb_lang`.
+     */
+    _setLangButton(visible) {
+        if (typeof document === 'undefined' || !document.createElement || !document.body || typeof I18n === 'undefined') return;
+        if (!this._lang) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'sb-brand sb-lang';
+            b.innerHTML = '<svg class="sb-lang-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7">' +
+                '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9M12 3C9.4 5.6 8.2 8.6 8.2 12s1.2 6.4 3.8 9"/></svg>';
+            const menu = document.createElement('div');
+            menu.className = 'sb-lang-menu';
+            menu.setAttribute('role', 'menu');
+            const build = () => {
+                menu.innerHTML = '';
+                const head = document.createElement('div');
+                head.className = 'sb-lang-head';
+                head.textContent = I18n.t('Language');
+                menu.appendChild(head);
+                for (const l of I18n.langs) {
+                    const o = document.createElement('button');
+                    o.type = 'button';
+                    o.className = 'sb-lang-opt' + (l.code === I18n.lang ? ' on' : '');
+                    o.setAttribute('role', 'menuitemradio');
+                    o.setAttribute('aria-checked', String(l.code === I18n.lang));
+                    o.textContent = (l.code === I18n.lang ? '✓ ' : '') + l.name;
+                    o.addEventListener('click', () => {
+                        if (I18n.set(l.code, this._storage())) {
+                            if (typeof Sound !== 'undefined' && Sound.playClick) Sound.playClick();
+                        }
+                        close();
+                    });
+                    menu.appendChild(o);
+                }
+                const label = `${I18n.t('Language')}: ${I18n.langs.find(l => l.code === I18n.lang).name}`;
+                b.title = label;
+                b.setAttribute('aria-label', label);
+            };
+            const close = () => { if (menu.isConnected) menu.remove(); b.setAttribute('aria-expanded', 'false'); };
+            const open = () => {
+                build();
+                document.body.appendChild(menu);
+                this._placeLang();
+                b.setAttribute('aria-expanded', 'true');
+                const on = menu.querySelector('.sb-lang-opt.on');
+                if (on) on.focus();
+            };
+            b.addEventListener('click', () => (menu.isConnected ? close() : open()));
+            menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); b.focus(); } });
+            document.addEventListener('pointerdown', (e) => {
+                if (menu.isConnected && !menu.contains(e.target) && !b.contains(e.target)) close();
+            });
+            this._lang = b;
+            this._langMenu = menu;
+            this._closeLang = close;
+            this._placeLang = () => {
+                const r = this.canvas.getBoundingClientRect();
+                const k = r.width / VIEW.W;
+                const fs = Math.max(10, 12 * k);
+                // Same size and footer line as the dormhi.com badge, just to its right.
+                b.style.fontSize = fs + 'px';
+                b.style.left = (r.left + 16 * k + 3.0 * fs) + 'px';
+                b.style.top = (r.top + (VIEW.H - 24) * k - 1.2 * fs) + 'px';
+                menu.style.fontSize = Math.max(13, 15 * k) + 'px';
+                menu.style.left = b.style.left;
+                menu.style.bottom = (window.innerHeight - (r.top + (VIEW.H - 24) * k - 1.2 * fs) + 8) + 'px';
+            };
+            window.addEventListener('resize', this._placeLang);
+            I18n.onChange(build);   // the badge's own label follows the language too
+            build();
+        }
+        if (visible) {
+            if (!this._lang.isConnected) document.body.appendChild(this._lang);
+            this._placeLang();
+        } else {
+            this._closeLang();
+            if (this._lang.isConnected) this._lang.remove();
+        }
+    }
+
+    _storage() {
+        try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { return null; }
     }
 
     // ── Pause (⏸) + leave / restart with confirmation ──

@@ -44,6 +44,25 @@ const UITheme = {
         return `${weight} ${UITheme.size[key]}px ${family}`;
     },
 
+    /** A UI text in the player's language (I18n), unchanged when there is none. */
+    t(text, vars) {
+        return typeof I18n !== 'undefined' ? I18n.t(text, vars) : (text || '');
+    },
+
+    /**
+     * Set the font for `text` so it fits `maxW`: the role's size, stepping
+     * down to 70 % for long (often Turkish) labels instead of squeezing.
+     */
+    fitFont(ctx, text, maxW, role = 'body', weight = 700, family = 'Rajdhani') {
+        const key = UITheme.size[role] ? role : 'body';
+        const base = UITheme.size[key];
+        for (let s = base; s >= Math.round(base * 0.7); s--) {
+            ctx.font = `${weight} ${s}px ${family}`;
+            const m = ctx.measureText(text);
+            if (!(m && isFinite(m.width)) || m.width <= maxW) return;
+        }
+    },
+
     // Stage difficulty tiers: colour + numeral, so they never rely on colour alone.
     tiers: [
         { key: 'EASY',      numeral: 'I',   color: '#22c55e' },
@@ -167,16 +186,18 @@ const UITheme = {
             ctx.restore();
         }
         ctx.fillStyle = btn.color;
-        ctx.font = UITheme.font('body', 700);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        const label = UITheme.t(btn.label);
+        UITheme.fitFont(ctx, label, btn.w - 16, 'body', 700);
         if (btn.subtitle && btn.h >= 50) {
-            ctx.fillText(btn.label, btn.x, btn.y - 8);
+            ctx.fillText(label, btn.x, btn.y - 8);
             ctx.fillStyle = UITheme.color.textMute;
-            ctx.font = UITheme.font('label', 500);
-            ctx.fillText(btn.subtitle, btn.x, btn.y + 12);
+            const sub = UITheme.t(btn.subtitle);
+            UITheme.fitFont(ctx, sub, btn.w - 16, 'label', 500);
+            ctx.fillText(sub, btn.x, btn.y + 12);
         } else {
-            ctx.fillText(btn.label, btn.x, btn.y + 1);
+            ctx.fillText(label, btn.x, btn.y + 1);
         }
         ctx.restore();
     },

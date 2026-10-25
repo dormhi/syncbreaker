@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
-> Durum: Act 1–5 oynanabilir (Faz 1–4 uygulandı). Kampanya **10 act**'e çıktı (9'a 2026-10-21'de, 10'a 2026-10-23'te).
-> Act 6–10'un oyun mekanikleri sırası gelince birlikte kararlaştırılacak.
+> Durum (2026-10-25): **10 act'in hepsi oynanabilir ve yayında** (son yayın: commit 8effa04). Act 7–10'un kademeleri ve yıldız kuralları taslak, oyuncu görüşlerine göre ayarlanacak.
+> Açık işler: Act 7–9 ayarı (Act 9'un anlaşılırlığı için oyuncu görüşü bekleniyor), bütün oyunları içeren yeni Endless (bölüm 8b), son sürümde veri silme (bölüm 5b). Yan görev: Türkçe dil desteği (`docs/I18N_PLAN.md`).
 
 ## 1. Hedef
 
@@ -27,10 +27,10 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 4 | RESET_CREDS | Ele geçirilen kimlik anahtarlarını yeniden senkronla | **Signal Lock** | ✅ Kesin, 5 aşama (Faz 3'te uygulandı) |
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5) |
-| 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | **Logic Bomb** (modüler bomba: süre + arıza) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 6) |
-| 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | **Defrag** (yerleştirme bulmacası + süre) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 7) |
-| 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Checksum Grid** (nonogram: süre yok, can yok) | 🛠 Geliştiriliyor, 5 aşama (Faz 8) |
-| 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Teslim görevleri** (6 eğitici görev, bölüm 3) | 🛠 Geliştiriliyor, 6 aşama (Faz 9) |
+| 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | **Logic Bomb** (modüler bomba: süre + arıza) | ✅ Yayında, taslak kademelerle, 4 aşama (Faz 6) |
+| 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | **Defrag** (yerleştirme bulmacası + süre) | ✅ Yayında, taslak kademelerle, 4 aşama (Faz 7) |
+| 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Checksum Grid** (nonogram: süre yok, can yok) | ✅ Yayında, taslak kademelerle, 5 aşama (Faz 8) |
+| 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Teslim görevleri** (6 eğitici görev, bölüm 3) | ✅ Yayında, 6 aşama (Faz 9) |
 
 - Act 10, PERIMETER / INTERNAL / CORE katmanlarından **bağımsız** bir statüde: **HANDOVER**. Haritada kendi rengi (turkuaz) ve kendi etiketi var.
 - **Endless Mode** rayın en sonunda, Act 10'dan sonra kendi düğümünde duruyor (bölüm 6).
@@ -231,7 +231,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 
 **Süreler nasıl belirlendi:** her aşamada 300 bulmaca üretildi ve çözüm için gereken döndürme sayısı ölçüldü. Basit bir çözme süresi modelinin (bakma süresi, karo başına süre, döndürme başına süre) yaklaşık 2–3 katı süre verildi. Gerçek oyuncunun hangi karonun yola ait olduğunu da düşünmesi gerektiği için bu pay bırakıldı. Oyun testine göre ayarlanacak.
 
-### Act 6: Network Cut, 4 aşama 📝 (plan, 2026-10-23)
+### Act 6: Network Cut, 4 aşama ✅ (yayında 2026-10-24, kademeler ve yıldızlar onaylı)
 
 **Fikir:** Act 5'te saldırganın rotası bulundu, Act 6'da o rota **kesiliyor**. Bir can ve mantık oyunu: süre yok, baskıyı canlar ve sınırlı sayıda makas sağlıyor.
 
@@ -325,7 +325,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Kesim animasyonu ve sesi: kıvılcım, kopan kablonun sarkması.
 - Ağ sayısı ve makas payı bot taramasından sonra.
 
-### Act 7: Logic Bomb, 4 aşama 📝 (plan, 2026-10-24)
+### Act 7: Logic Bomb, 4 aşama ✅ (yayında 2026-10-24, taslak kademeler)
 
 **Fikir:** Act 6'da saldırganın bağlantısı kesildi, ama geride bir **mantık bombası (payload)** bıraktı. Ekranda bir payload kasası var. Kasanın üstünde ortak bir geri sayım ve birkaç **modül** duruyor. Bütün modüller etkisizleşince payload da etkisizleşir. Bomba imha oyunlarının klasik kurgusu bu (2026-10-24'te dört öneri arasından seçildi: A "Payload Kasası").
 
@@ -396,7 +396,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 
 **Act 1–5 öğreticileri (istek 2026-10-24, yapıldı 2026-10-25):** her oyunun ilk aşaması kısa bir dersle açılıyor (ortak `js/core/Coach.js`). Ders boyunca süre durur ve hatalar sayılmaz: Timing Bar'da ıska can götürmez, Stack Overflow'da düşen blok geri verilir, Orbital Shield'da kaçan paket can götürmez. Dersler: Timing Bar (çubuk → bölge → bir isabet), Stack Overflow (çizgi → vinç → bir blok bırak ve otursun), Orbital Shield (portlar → kalkanı yanıp sönen porta götür → bir paket engelle), Signal Lock (iki dalga → basılı tut / bırak → bir anahtar kilitle), Route Trace (iki düğüm → bir karo çevir → yeşil hat → ilk rotayı tamamla). Her ders bir kez gösterilir (`sb_coach_<oyun>`).
 
-### Act 8: Defrag, 4 aşama 📝 (plan ve ilk uygulama, 2026-10-25)
+### Act 8: Defrag, 4 aşama ✅ (yayında 2026-10-25, taslak kademeler)
 
 **Fikir:** Act 7'de bomba etkisiz hale getirildi, şimdi çekirdek temiz yedeklerden **yeniden yazılıyor**. Çekirdek diski bir ızgara. Yedekten gelen veri blokları Tetris benzeri parçalar halinde yan tarafta bekliyor. Oyuncu hepsini boş sektörlere sürükleyip diski **eksiksiz dolduruyor**. Bu, defragmentation'ın görsel bir metaforu.
 
@@ -476,7 +476,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Ders diski (4×4, dört parça) aşamanın ilk diski sayılıyor. Ders boyunca süre duruyor.
 - Fareyle sürükleme ve sağ tık altyapısı eklendi (`InputManager` + `GameManager._dragGame`). Sürükleme oyunları `wantsDrag` ile işaretleniyor.
 
-### Act 9: FINAL_AUDIT 🛠
+### Act 9: FINAL_AUDIT · Checksum Grid, 5 aşama ✅ (yayında 2026-10-25, taslak kademeler)
 
 **Kesin olan (2026-10-21):** Act 9 **süre ya da can üzerine değil, tamamen bilgi ve zihin becerisi** üzerine kurulu olacak. (Bu karar verildiğinde Act 9 son act'ti. 2026-10-23'te final act olarak Act 10 eklendi, karar Act 9 için geçerli kalıyor.)
 - Refleks, zamanlama ya da el becerisi istemez. Oyuncunun bilgisini ve akıl yürütmesini sınar: mantık, çıkarım, örüntü ya da bilgi soruları gibi.
@@ -494,6 +494,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - **Kontrol:** FILL ya da ✕ (MARK) modu seçiliyor, hücreye dokunmak o modu uyguluyor; dolu hücreye tekrar dokunmak temizliyor. Parmakla ya da fareyle sürükleyince aynı işlem bir satır ya da sütun boyunca uygulanıyor (ilk hareket yönüne kilitlenir). Masaüstünde sağ tık her zaman ✕. Klavye: oklar, Space = doldur, X = ✕, Z / Backspace = geri al, Enter = AUDIT.
 - **UNDO** son hamleyi (bir sürükleme dahil) geri alıyor.
 - Satırı sağlama toplamına uyan sayılar griye dönüyor (doğru çözüm olup olmadığını söylemez, sadece o satırın sayıya uyduğunu).
+- **Açık konu (2026-10-25):** kullanıcı GOAL ve RULES kutularından sonra da oyunun mantığını kafa karıştırıcı buluyor; önce oyuncuların görüşü alınacak. Görüşler de aynı yönde olursa iki seçenek: ilk aşamaları kolaylaştırmak (hazır doldurulmuş hücreler, daha küçük ızgara) ya da oyunu B seçeneği "Infection Sweep" (tahminsiz mayın tarlası) ile değiştirmek.
 - **Bitirme kuralı her an ekranda (2026-10-25, kullanıcı oyunu anlamadı):** sağ panelde sarı bir GOAL kutusu: "Turn EVERY number grey" ve bir ilerleme çubuğu (kaç satır + sütun uyuyor). Aynı kural dersin ayrı bir adımında ("HOW TO WIN"), RULES kutusunun ilk maddesinde, alt ipucunda ve rehberde de yazıyor.
 - **RULES kutusu:** sağ panelde dönen kural hatırlatmaları (`TipBar.RULES.checksum`), dokununca sıradakine geçer.
 - **AUDIT:** yanlış doldurulmuş ve yanlış ✕'lenmiş hücreleri kırmızı yakar. Hata bulan her AUDIT bir **denetim hatası** sayılır; hata bulmazsa ücretsizdir.
@@ -514,7 +515,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 **Sonsuz mod uyumu:** ızgaralar büyüyüp çözücü turu artırılabilir.
 **Not:** aşamadan çıkınca yarım kalan ızgara kaybolur. Uzun bulmacalar için ileride kaydetme düşünülebilir.
 
-### Act 10: RETURN_CONTROL, final act 🛠 (plan, 2026-10-23)
+### Act 10: RETURN_CONTROL, final act ✅ (yayında 2026-10-25)
 
 **Tema:** Saldırgan temizlendi ve sistem doğrulandı. Şimdi erişim **asıl sahibine geri veriliyor**. Oyuncu artık savunan kişi değil, sistemi sahibine teslim eden ve ona sistemi güvende tutmayı öğreten kişi.
 
@@ -675,9 +676,9 @@ Her fazın kabul şartları:
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
 | 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5 | ✅ Yayında (2026-10-24) |
 | 6 | Act 7 Logic Bomb (süre + arıza, 4 aşama, bölüm 3) ve Kapı 6 | ✅ Yayında, taslak kademelerle (2026-10-24) |
-| 7 | Act 8 Defrag (yerleştirme bulmacası, 4 aşama, bölüm 3) ve Kapı 7 | 🛠 Geliştiriliyor |
-| 8 | Act 9 Checksum Grid (nonogram, 5 aşama, bölüm 3) ve Kapı 8 | 🛠 Geliştiriliyor |
-| 9 | Act 10 RETURN_CONTROL (6 eğitici görev), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | 🛠 Geliştiriliyor |
+| 7 | Act 8 Defrag (yerleştirme bulmacası, 4 aşama, bölüm 3) ve Kapı 7 | ✅ Yayında, taslak kademelerle (2026-10-25) |
+| 8 | Act 9 Checksum Grid (nonogram, 5 aşama, bölüm 3) ve Kapı 8 | ✅ Yayında, taslak kademelerle (2026-10-25); oyuncu görüşü bekleniyor |
+| 9 | Act 10 RETURN_CONTROL (6 eğitici görev), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | ✅ Yayında (2026-10-25) |
 | Son | Yeni çok oyunlu sonsuz mod tamamlanınca: **herkesin verileri tamamen silinir** (bölüm 5b). | Bekliyor |
 
 ## 7b. Duraklatma ve geri gitme (2026-10-21)

@@ -193,9 +193,11 @@ class InputManager {
         });
 
         document.addEventListener('keydown', (e) => {
-            // Typing in a form field (operator profile) is not gameplay.
+            // Typing in a form field (operator profile) is not gameplay, and
+            // neither are keys on the page's own controls (language, dormhi.com).
             const t = e.target;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            if (t && t.closest && t.closest('.sb-lang, .sb-lang-menu, .sb-brand')) return;
             this.mode = 'desktop';
             const isGameKey = e.code === 'Space' ||
                 e.code === 'ArrowUp' || e.code === 'ArrowDown' ||

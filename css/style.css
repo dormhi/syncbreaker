@@ -291,3 +291,67 @@ canvas {
 @media (prefers-reduced-motion: reduce) {
     .sb-rotate-icon { animation: none; transform: rotate(-90deg); }
 }
+
+/* ── Language button: the dormhi.com badge's twin, with a globe
+   (GameManager._setLangButton). The menu opens above it. ── */
+.sb-lang {
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.sb-lang-mark {
+    width: 1.45em;
+    height: 1.45em;
+    flex: none;
+}
+
+.sb-lang:hover .sb-lang-mark,
+.sb-lang:focus-visible .sb-lang-mark {
+    filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.8));
+}
+
+.sb-lang-menu {
+    position: fixed;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 9em;
+    padding: 0.4em;
+    background: rgba(15, 23, 42, 0.97);
+    border: 1px solid rgba(71, 85, 105, 0.6);
+    border-radius: 0.7em;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    font-family: 'Rajdhani', sans-serif;
+}
+
+.sb-lang-head {
+    /* No text-transform: CSS upper-casing turns Turkish "Dil" into "DIL" (not "DİL"). */
+    padding: 0.2em 0.7em 0.35em;
+    font-size: 0.85em;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.sb-lang-opt {
+    padding: 0.45em 0.7em;
+    font: 600 1em 'Rajdhani', sans-serif;
+    color: #cbd5e1;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 0.45em;
+    cursor: pointer;
+}
+
+.sb-lang-opt:hover,
+.sb-lang-opt:focus-visible {
+    background: rgba(59, 130, 246, 0.16);
+    color: #e2e8f0;
+    outline: none;
+}
+
+.sb-lang-opt.on {
+    color: #93c5fd;
+}

@@ -40,8 +40,8 @@ class TipBar {
     current(mode) {
         const tip = this.tips[this.index];
         if (!tip) return '';
-        if (typeof tip === 'string') return tip;
-        return (mode === 'touch' ? tip.touch : tip.desktop) || tip.desktop || tip.touch || '';
+        const text = typeof tip === 'string' ? tip : (mode === 'touch' ? tip.touch : tip.desktop) || tip.desktop || tip.touch || '';
+        return typeof I18n !== 'undefined' ? I18n.t(text) : text;
     }
 
     /** Opacity of the current tip (fades at both ends of its slot). */
@@ -61,7 +61,7 @@ class TipBar {
         ctx.textBaseline = 'middle';
 
         ctx.font = '700 14px Orbitron';
-        const tag = 'TIP';
+        const tag = typeof I18n !== 'undefined' ? I18n.t('TIP') : 'TIP';
         const m = ctx.measureText(tag);
         const tagW = ((m && isFinite(m.width)) ? m.width : 18) + 12;
 
