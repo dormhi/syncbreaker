@@ -2996,8 +2996,10 @@ class GameManager {
      */
     _actScreenLayout(n, hasGate = true) {
         const W = VIEW.W;
-        const cardW = 150, cardH = 150, gap = 18, rise = 18;
+        const gap = 18, rise = 18;
         const gateGap = 26, gateR = 22;
+        // Six cards (Act 10) narrow down to fit the screen.
+        const cardW = Math.min(150, Math.floor((W - 40 - (n - 1) * gap - (hasGate ? gateGap + gateR * 2 : 0)) / n)), cardH = 150;
         const totalW = n * cardW + (n - 1) * gap + (hasGate ? gateGap + gateR * 2 : 0);
         const x0 = (W - totalW) / 2 + cardW / 2;
         const yMid = 282;
@@ -3052,6 +3054,7 @@ class GameManager {
         if (act.game === 'bomb') return `${p.payloads} PAYLOADS · ${p.timeLimit}s`;
         if (act.game === 'defrag') return `${p.disks} DISKS · ${p.cols}×${p.rows} · ${p.timeLimit}s`;
         if (act.game === 'checksum') return `${p.cols}×${p.rows} · NO TIMER`;
+        if (act.game === 'handover') return p.summary || 'MISSION';
         return '';
     }
 
@@ -4078,6 +4081,7 @@ GameManager.GUIDE_PAGES = [
             ['Logic Bomb', '1-4 / Tab · arrows + SPACE', 'Tap tabs and parts'],
             ['Defrag', 'Drag · right click turns · Tab, R', 'Drag · tap to turn'],
             ['Checksum Grid', 'Click / right click · arrows, SPACE, X', 'Tap · pick ✕ · drag'],
+            ['Handover missions', 'Click · Tab + ENTER', 'Tap the buttons'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -4095,6 +4099,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'LOGIC BOMB', text: 'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.' },
             { head: 'DEFRAG', text: 'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.' },
             { head: 'CHECKSUM GRID', text: 'Goal: turn every number grey. The numbers are the blocks of filled cells in that row or column, in order ("3 1" = 3 filled, a gap, then 1); a number greys out when its line matches. Mark cells you know are empty with ✕. No timer, no lives. AUDIT shows mistakes, but each audit that finds one costs a star.' },
+            { head: 'HANDOVER (ACT 10)', text: 'Six short missions teach real security habits while the clean system goes back to its owner: virus scans, passwords, two-step verification, phishing, updates and backups. No timer, nothing to lose, 3 stars each.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },

@@ -148,6 +148,12 @@ TipBar.ACT = {
         'AUDIT is free when there is no mistake; a wrong audit costs a star',
         'No timer here: take your time and never guess'
     ],
+    handover: [
+        'These missions teach — there is no timer and nothing to lose',
+        'Read the cards: every mission ends with three things worth remembering',
+        'A wrong choice only explains why — then you try again',
+        'Everything here works on your real accounts and devices too'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',

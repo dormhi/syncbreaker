@@ -226,7 +226,29 @@ const CAMPAIGN = {
         },
         // Final act (HANDOVER status, outside the network layers): give control
         // back to the rightful owner and teach them to keep it. Educational.
-        { id: 10, key: 'RETURN_CONTROL', done: 'control returned', story: 'Hand the system back to its owner — and teach them to keep it safe', game: null, themeId: 10, available: false, stages: [] }
+        {
+            id: 10,
+            key: 'RETURN_CONTROL', done: 'control returned',
+            story: 'Hand the system back to its owner — and teach them to keep it safe',
+            game: 'handover',
+            themeId: 10,
+            available: true,
+            controls: 'Six short missions · tap / click the buttons · Tab + ENTER',
+            hint: {
+                desktop: 'Follow the TASK line · click the buttons, or Tab + ENTER · no timer, nothing to lose',
+                touch: 'Follow the TASK line · tap the buttons · no timer, nothing to lose'
+            },
+            // Teaching missions, not tests (docs/ACT_PLAN.md): no timer, no
+            // lives, cannot be failed, always 3 stars. One mission per stage.
+            stages: [
+                { tier: 'SCAN',       params: { mission: 'scan', summary: 'SCAN FILES' } },
+                { tier: 'PASSWORD',   params: { mission: 'password', summary: 'NEW PASSWORDS' } },
+                { tier: 'TWO-STEP',   params: { mission: 'twofa', summary: 'TURN ON 2FA' } },
+                { tier: 'PHISHING',   params: { mission: 'phishing', summary: 'SORT THE INBOX' } },
+                { tier: 'UPDATES',    params: { mission: 'updates', summary: 'PATCH THE HOLES' } },
+                { tier: 'BACKUPS',    params: { mission: 'backup', summary: 'HAND OVER' } }
+            ]
+        }
     ],
 
     // gates[n - 1] opens act n + 1. Packet Purge tuning; gate 1 = original.
@@ -239,11 +261,13 @@ const CAMPAIGN = {
         { id: 5, waves: 3, speedScale: 1.25 },
         { id: 6, waves: 3, speedScale: 1.30 },
         { id: 7, waves: 3, speedScale: 1.35 },
-        { id: 8, waves: 3, speedScale: 1.40 }
+        { id: 8, waves: 3, speedScale: 1.40 },
+        // Gate 9 opens the teaching final: one gentle wave, the story's last door.
+        { id: 9, waves: 1, speedScale: 0.90 }
     ],
 
     // Lockpick revive difficulty is the act number (1-6).
-    maxStages: 5,
+    maxStages: 6,
     finalAct: 10
 };
 
@@ -280,7 +304,9 @@ CAMPAIGN.starRules = (() => {
         },
         // Checksum Grid (DRAFT, pending approval): no timer, so audit errors
         // decide: none = 3, up to two = 2.
-        checksum: (s) => s.auditErrors === 0 ? 3 : s.auditErrors <= 2 ? 2 : 1
+        checksum: (s) => s.auditErrors === 0 ? 3 : s.auditErrors <= 2 ? 2 : 1,
+        // Act 10 missions teach; finishing one is always worth 3 stars.
+        handover: () => 3
     };
 })();
 

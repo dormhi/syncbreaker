@@ -78,6 +78,14 @@ const GameRegistry = {
         create: (params) => new ChecksumGridMechanic(Object.assign({}, params))
     },
 
+    // Act 10 teaching missions: cannot be failed, nothing to revive.
+    handover: {
+        kind: 'mechanic',
+        revive: false,
+        title: 'HANDOVER',
+        create: (params) => HandoverMissions.create(params)
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 

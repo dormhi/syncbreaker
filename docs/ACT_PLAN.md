@@ -30,7 +30,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | **Logic Bomb** (modüler bomba: süre + arıza) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 6) |
 | 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | **Defrag** (yerleştirme bulmacası + süre) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 7) |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Checksum Grid** (nonogram: süre yok, can yok) | 🛠 Geliştiriliyor, 5 aşama (Faz 8) |
-| 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Eğitici final** (bölüm 3) | 🛠 Geliştiriliyor |
+| 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Teslim görevleri** (6 eğitici görev, bölüm 3) | 🛠 Geliştiriliyor, 6 aşama (Faz 9) |
 
 - Act 10, PERIMETER / INTERNAL / CORE katmanlarından **bağımsız** bir statüde: **HANDOVER**. Haritada kendi rengi (turkuaz) ve kendi etiketi var.
 - **Endless Mode** rayın en sonunda, Act 10'dan sonra kendi düğümünde duruyor (bölüm 6).
@@ -525,6 +525,40 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Kodda şimdilik "IN DEVELOPMENT" olarak duruyor (`available: false`): tema ve ikon (açık kilit) hazır, oyun yok.
 - **6 aşama** (2026-10-25, kullanıcı).
 - **Format (2026-10-25, kullanıcı):** her aşama, bu tür bir saldırıdan sonra **gerçek hayatta yaşanan bir durumu** canlandıran eğitici bir simülasyon. Örnek, ilk aşama: **virüs taraması simülasyonu**. Sahip sistemi geri alırken yeni dosyalar geliyor; oyuncu dosyaları virüs taramasından geçiriyor, virüslü olanları önden ayıklayıp atıyor ve sahibe sadece temiz dosyaları ulaştırıyor.
+
+**Senaryo (2026-10-25, kullanıcı):**
+- Oyuncu Act 1–9 ile saldırıyı durdurdu. Act 10'da sistemin **temiz halini sahibine teslim ediyor**.
+- Teslimden önce **6 farklı ara görev** var. Her biri ayrı küçük bir görev oyunu ve oyuncuya "siber saldırılara karşı ne yapmalıyız, güvenliği nasıl sağlarız" konusunu **olaylarla (event) adım adım** öğretiyor.
+- Örnek, 1. aşama: saldırıdan arındırılmış dosyalar **paket paket virüs taramasından** geçiriliyor; oyun bu sırada virüs taramasını anlatıyor ve bilgi veriyor.
+- **Bu bir sınav değil:** süre yok, can yok, kaybetme yok. **Her aşama tamamlanınca 3 yıldız.** Görev adım adım ilerliyor, sonunda "tamamlandı" diyor.
+- Önerilen 6 aşama ve ayrıntıları aşağıda, kullanıcının onayını bekliyor.
+
+**Aşamalar (2026-10-25, kullanıcı onayladı ve uygulandı):**
+
+| # | Görev | Oyuncu ne yapıyor | Öğrettiği |
+|---|---|---|---|
+| 1 | **Virüs taraması** (kullanıcının fikri) | Teslim edilecek dosyalar paket paket geliyor. Her paketi tarayıcıdan geçiriyor; virüslüleri karantinaya alıp siliyor, temizleri sahibin klasörüne gönderiyor. Bazı dosyalar "şüpheli": dosya uzantısına ve kaynağına bakıp karar veriyor. | Antivirüs ne yapar (imza ve davranış taraması), karantina, çift uzantı (`fatura.pdf.exe`), indirilen dosya ve USB taraması, antivirüsü güncel tutmak |
+| 2 | **Yeni parolalar** | Saldırgan eski parolaları biliyor. Sahibin hesapları için yeni parolalar kuruyor; güç göstergesi "kırılma süresini" gösteriyor. Kısa parolanın saniyeler, uzun bir parola cümlesinin yıllar sürdüğünü görüyor. Aynı parolayı iki hesapta kullanmaya çalışınca uyarı geliyor; sonunda parolaları bir parola kasasına (manager) kaydediyor. | Uzunluk > karmaşıklık, parola cümlesi, her hesaba ayrı parola, parola yöneticisi |
+| 3 | **İki aşamalı doğrulama (2FA)** | Hesaplarda 2FA'yı açıyor: doğrulama uygulamasındaki değişen 6 haneli kodu giriyor, yedek kodları güvenli yere kaydediyor. Ardından bir saldırgan çalınmış parolayla giriş denemesi yapıyor ve 2FA onu durduruyor. | 2FA nedir, uygulama / SMS / donanım anahtarı farkı, yedek kodlar, beklemediğin onay isteğini reddetmek |
+| 4 | **Oltalama (phishing) e-postaları** | Sahibin gelen kutusuna e-postalar düşüyor. Her birini inceliyor (gönderen adresi, bağlantının gerçek adresi, aciliyet baskısı, ek dosya) ve "güvenli" ya da "oltalama" diye işaretliyor. Yanlış kararda oyun neden yanlış olduğunu gösteriyor. | Sahte gönderen (`paypa1.com`), bağlantının üstüne gelip gerçek adresi görmek, "hemen yap yoksa…" baskısı, beklenmedik ekler |
+| 5 | **Güncellemeler** | Sistemdeki programların listesi: bazılarının bilinen açıkları var (kırmızı). Güncellemeleri sadece resmi kaynaktan kuruyor; sahte "güncelleme" pop-up'ını reddediyor; otomatik güncellemeyi açıyor. | Saldırganlar eski açıkları kullanır, güncellemeyi resmi kaynaktan almak, sahte güncelleme uyarıları, otomatik güncelleme |
+| 6 | **Yedekleme ve teslim** | 3-2-1 kuralıyla yedek kuruyor: verinin 3 kopyası, 2 farklı ortam, 1'i dışarıda (bulut) ve bağlantısız. Bir yedekten geri yükleme deniyor. Son olarak sahibe öğrendiklerinin özet kontrol listesiyle birlikte sistemi teslim ediyor: **"CONTROL RETURNED"**. | 3-2-1 yedek kuralı, fidye yazılımına karşı bağlantısız yedek, yedeği test etmek, kısa güvenlik kontrol listesi |
+
+**Her aşamanın ortak yapısı (öneri):**
+- Kısa bir giriş olayı (ör. "Sahibin hesabına yabancı bir ülkeden giriş denemesi var").
+- 3–5 adımlık etkileşimli görev. Her adımda oyun ne yapıldığını ve neden önemli olduğunu kısa kartlarla anlatıyor (`Coach`).
+- Yanlış bir seçim ceza değil: oyun nedenini açıklıyor ve doğrusunu yaptırıyor.
+- Sonunda "GÖREV TAMAMLANDI" ve 3 maddelik "Bunu hatırla" kartı. Her zaman 3 yıldız.
+- Telefonda dokunarak, masaüstünde fare ya da klavyeyle oynanıyor.
+- Metinler şimdilik İngilizce; Türkçe sürüm gelince çevrilecek.
+
+**Uygulama (2026-10-25):**
+- Ortak çerçeve `js/mechanics/MissionMechanic.js` (düğmeler, klavye odağı, olay kartları `Coach` ile, geri bildirim satırı, REMEMBER kartı ve "MISSION COMPLETE" düğmesi). Altı görev `js/mechanics/HandoverMissions.js` içinde.
+- Olay ve öğretim kartları her oynayışta gösteriliyor (bir kerelik değil): içerik bu.
+- `CAMPAIGN.maxStages` 6 oldu; act ekranında 6 kart sığsın diye kartlar daralıyor. Aşama rozetleri görev numarası (1–6) ve turkuaz renk.
+- Yıldız kuralı: her zaman 3 (`CAMPAIGN.starRules.handover`). Revive yok (kaybetmek yok).
+- **Kapı 9 (2026-10-25, kullanıcı):** tek dalgalık, kolay bir Packet Purge (`waves: 1`, hız 0.90). Hikâyenin son kapısı.
+- Act 10 bitince kampanya tamamlanıyor: tebrik ekranı ve Endless açılıyor (var olan akış).
 - Yetki seviyesi: Act 10 bitince oyuncu **L10 GUARDIAN** olur.
 - **Kapı 9** (Act 9 → 10) Packet Purge ayarı Act 10 ile birlikte belirlenecek.
 
@@ -643,7 +677,7 @@ Her fazın kabul şartları:
 | 6 | Act 7 Logic Bomb (süre + arıza, 4 aşama, bölüm 3) ve Kapı 6 | ✅ Yayında, taslak kademelerle (2026-10-24) |
 | 7 | Act 8 Defrag (yerleştirme bulmacası, 4 aşama, bölüm 3) ve Kapı 7 | 🛠 Geliştiriliyor |
 | 8 | Act 9 Checksum Grid (nonogram, 5 aşama, bölüm 3) ve Kapı 8 | 🛠 Geliştiriliyor |
-| 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
+| 9 | Act 10 RETURN_CONTROL (6 eğitici görev), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | 🛠 Geliştiriliyor |
 | Son | Yeni çok oyunlu sonsuz mod tamamlanınca: **herkesin verileri tamamen silinir** (bölüm 5b). | Bekliyor |
 
 ## 7b. Duraklatma ve geri gitme (2026-10-21)
@@ -724,3 +758,4 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 25. **Act 1–5 dersleri (2026-10-25):** ilk aşamalar kısa, oynatarak öğreten bir dersle açılıyor. Ders boyunca süre durur, hata sayılmaz. Ortak altyapı `Coach`.
 26. **Act 9 ve Act 10 (2026-10-25):** Act 9 5 aşamalı, baştan sona zor, süre ve can sınırı yok (oyuncu bitirene kadar dener). Act 10 6 aşamalı; her aşama gerçek hayattaki bir durumu canlandıran eğitici bir simülasyon, ilki virüs taraması (gelen dosyaları tarayıp virüslüleri ayıklamak, sahibe temiz dosyaları ulaştırmak).
 27. **Act 9:** Checksum Grid (2026-10-25). Nonogram: satır ve sütun sağlama toplamlarından temiz bellek haritası yeniden kuruluyor. Tek çözümlü, tahminsiz bulmacalar. Süre, can ve kaybetme yok; yıldızlar denetim (AUDIT) hatalarına göre.
+28. **Act 10 (2026-10-25):** 6 eğitici teslim görevi (virüs taraması, parolalar, 2FA, oltalama, güncellemeler, yedekleme ve teslim). Süre, can ve kaybetme yok; her görev 3 yıldız. Kapı 9 tek dalgalık kolay bir Packet Purge.

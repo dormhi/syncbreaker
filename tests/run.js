@@ -592,15 +592,17 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('10 acts', acts.length === 10);
     ok('act names follow the story',
         acts.map(a => a.key).join(',') === 'REMOVE_MALWARE,REBUILD_FIREWALL,CLOSE_PORTS,RESET_CREDS,TRACE_LOGS,CUT_ACCESS,DEFUSE_PAYLOAD,RESTORE_CORE,FINAL_AUDIT,RETURN_CONTROL');
-    ok('final act is 10 (in development)', CAMPAIGN.finalAct === 10 && acts[9].available === false);
-    ok('8 gates (one between every pair of acts)', CAMPAIGN.gates.length === 8);
+    ok('final act is 10 and playable', CAMPAIGN.finalAct === 10 && acts[9].available && acts[9].game === 'handover');
+    ok('9 gates (one between every pair of acts)', CAMPAIGN.gates.length === 9);
     ok('available acts have 3-5 stages', acts.filter(a => a.available)
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
     ok('act 6 is playable with 4 stages', acts[5].available && acts[5].game === 'cut' && acts[5].stages.length === 4);
     ok('act 7 is playable with 4 stages', acts[6].available && acts[6].game === 'bomb' && acts[6].stages.length === 4);
     ok('act 8 is playable with 4 stages', acts[7].available && acts[7].game === 'defrag' && acts[7].stages.length === 4);
     ok('act 9 is playable with 5 stages', acts[8].available && acts[8].game === 'checksum' && acts[8].stages.length === 5);
-    ok('act 10 is in development', !acts[9].available && acts[9].stages.length === 0);
+    ok('act 10 has six missions', acts[9].stages.length === 6 && CAMPAIGN.maxStages === 6 &&
+        acts[9].stages.map(st => st.params.mission).join() === 'scan,password,twofa,phishing,updates,backup');
+    ok('no act is in development any more', acts.every(a => a.available));
     const themes = loadLevelManager().LEVEL_THEMES;
     ok('every act has its own theme', acts.every(a => !!themes[a.themeId]) &&
         new Set(acts.map(a => a.themeId)).size === acts.length);
@@ -627,7 +629,8 @@ suite('Campaign data — acts, stages, tuning', () => {
 
     ok('gate 1 is the original Packet Purge', CAMPAIGN.gates[0].waves === 2 && CAMPAIGN.gates[0].speedScale === 1);
     const gs = CAMPAIGN.gates.map(g => g.speedScale);
-    ok('gates get harder', gs.every((v, i) => i === 0 || v > gs[i - 1]));
+    ok('gates 1-8 get harder', gs.slice(0, 8).every((v, i) => i === 0 || v > gs[i - 1]));
+    ok('gate 9 is one gentle wave before the teaching final', CAMPAIGN.gates[8].waves === 1 && CAMPAIGN.gates[8].speedScale < 1);
 });
 
 // ─────────────────────────────────────────────
@@ -637,7 +640,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(10) && !P.isActAvailable(10));
+    ok('later acts start locked', !P.isActUnlocked(10) && P.isActAvailable(10));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -675,9 +678,12 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate 8 playable once act 8 is done (act 9 exists)', P.isActComplete(8) && P.isGatePlayable(8));
     P.openGate(8);
     for (let i = 0; i < 5; i++) P.completeStage(9, i, 10);
-    ok('gate 9 not playable while act 10 is in development', P.isActComplete(9) && !P.isGatePlayable(9));
+    ok('gate 9 playable once act 9 is done', P.isActComplete(9) && P.isGatePlayable(9));
     ok('endless still locked (final act not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 9);
+    P.openGate(9);
+    ok('current act points at the last open act', P.currentActId() === 10);
+    for (let i = 0; i < 6; i++) P.completeStage(10, i, 1000, 3);
+    ok('six missions complete the campaign and unlock Endless', P.isActComplete(10) && P.isCampaignComplete() && P.isEndlessUnlocked());
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -821,7 +827,7 @@ suite('Act map HUB + gates', () => {
     settle(gm, S.HUB);
     gm._mapGo(9);
     btn('act10').onClick();
-    ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('a locked final act names its gate', gm.state.pendingState === null && /gate 9/i.test(gm._hubMessage));
     gm._mapGo(1);
     btn('act2').onClick();
     ok('locked act shows a message', gm.state.pendingState === null && /gate 1/i.test(gm._hubMessage));
@@ -887,7 +893,8 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 5; i++) gm.progress.completeStage(9, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(9);
-    ok('gate 9 waits for act 10', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('gate 9 starts once act 9 is done (one gentle wave)', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic.waves === 1);
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -2354,7 +2361,7 @@ suite('UITheme + tap targets', () => {
     const T = mod.UITheme;
     ok('tier by name', T.tier('VERY HARD').numeral === 'IV' && T.tier('very hard').numeral === 'IV');
     ok('tier by index', T.tier(4).key === 'EXPERT' && T.tier(0).key === 'EASY');
-    ok('unknown tier falls back to EASY', T.tier('NOPE').key === 'EASY' && T.tier(9).key === 'EASY');
+    ok('unknown tier falls back to EASY', T.tier('NOPE').key === 'EASY' && T.tier(99).key === 'EASY');
     ok('every campaign tier has a badge', mod.CAMPAIGN.acts.every(a => a.stages.every(st => T.tier(st.tier).key === st.tier)));
     ok('layers cover acts 1-9', [1, 2, 3].every(n => T.layerOf(n).key === 'PERIMETER') &&
         [4, 5, 6].every(n => T.layerOf(n).key === 'INTERNAL') && [7, 8, 9].every(n => T.layerOf(n).key === 'CORE'));
@@ -2408,7 +2415,7 @@ suite('Act screen ladder + unlock effect', () => {
             }
         }
     }
-    ok('final act has no gate; gate 9 comes with Act 10', !gm._actHasGate(10) && !gm._actHasGate(9) && gm._actHasGate(1) && gm._actHasGate(8));
+    ok('final act has no gate; gate 9 opens Act 10', !gm._actHasGate(10) && gm._actHasGate(9) && gm._actHasGate(1) && gm._actHasGate(8));
 
     // Fresh player: stage 1 is next, the rest locked.
     const act1 = gm.progress.act(1);
@@ -4194,6 +4201,170 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     ok('stage starts in the MINIGAME host, drag game', gm.state.pendingContext.mechanic instanceof CG && gm.state.pendingContext.mechanic.wantsDrag);
     ok('stage summary line', gm._stageSummary(act, act.stages[0]) === '8×8 · NO TIMER');
     ok('registry: nothing to revive', mod.GameRegistry.get('checksum').revive === false);
+});
+
+// ─────────────────────────────────────────────
+suite('Act 10 handover missions — teach, never fail, 3 stars', () => {
+    const mod = loadGameManager();
+    const { HandoverMissions: HM, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[9];
+    const make = (i, seed = 3) => {
+        const m = HM.create(Object.assign({ rng: makeRng(seed) }, act.stages[i].params));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+    const drain = (m) => { for (let k = 0; k < 20 && m.coach && m.coach.blocks; k++) m.handleKey('Space'); };
+    const ids = (m) => { drain(m); return m._controls().map(b => b.id); };
+    const press = (m, id) => {
+        drain(m);
+        const b = m._controls().find(x => x.id === id);
+        if (!b) throw new Error(`no button ${id} (have ${m._controls().map(x => x.id).join(',')})`);
+        b.onTap();
+        drain(m);
+    };
+    const wait = (m, secs) => { for (let i = 0; i < secs * 60; i++) { drain(m); m.update(1 / 60); } };
+    const complete = (m) => { press(m, 'complete'); return m.result === 'success'; };
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    const shots = [];
+    const shot = (m) => { try { m.render(ctx, 960, 640); } catch (e) { shots.push(e.stack); } };
+
+    // 1 · Virus scan
+    const vs = make(0);
+    ok('scan: opens with the event card', vs.coach.blocks && /VIRUS SCAN/.test(vs.coach.step.text));
+    shot(vs);
+    for (let p = 0; p < 3; p++) {
+        press(vs, 'scan');
+        wait(vs, 1.6);
+        shot(vs);
+        vs.files.forEach((f, i) => {
+            if (f.verdict === 'infected') press(vs, 'q' + i);
+            if (f.verdict === 'suspicious') {
+                const wrong = f.bad ? 'k' + i : 'd' + i;
+                press(vs, wrong);
+                if (f.done) throw new Error('a wrong choice was accepted');
+                press(vs, f.bad ? 'd' + i : 'k' + i);
+            }
+        });
+        press(vs, 'send');
+    }
+    ok('scan: three packets scanned, threats removed, only clean files delivered (3 + 2 + 3)', vs.delivered === 8 && vs.remember && vs.remember.length === 3);
+    shot(vs);
+    ok('scan: MISSION COMPLETE', complete(vs));
+
+    // 2 · Passwords
+    const pw = make(1);
+    press(pw, 'test');
+    const PM = pw.constructor;
+    ok('passwords: the old one falls instantly', pw.oldTested && PM.crackTime(PM.bits(pw.accounts[0].old))[0] === 'INSTANTLY' && PM.crackTime(PM.bits(null, 4))[0] === 'IN CENTURIES');
+    press(pw, 'w0'); press(pw, 'w1'); press(pw, 'w2');
+    press(pw, 'set');
+    ok('passwords: three words are not enough', pw.index === 0 && /FOUR/.test(pw.feedback.text));
+    press(pw, 'w3');
+    press(pw, 'set');
+    ok('passwords: four random words set the e-mail password', pw.index === 1 && pw.accounts[0].pw.split('-').length === 4);
+    press(pw, 'reuse');
+    press(pw, 'set');
+    ok('passwords: reusing a password is refused', pw.index === 1 && /e-mail|E-MAIL/.test(pw.feedback.text));
+    for (let k = 0; k < 5; k++) if (pw.words.length) press(pw, 'del');
+    for (let acc = 1; acc < 3; acc++) {
+        for (let k = 0; k < 4; k++) press(pw, 'w' + (k + acc));
+        press(pw, 'set');
+    }
+    ok('passwords: three different passwords', new Set(pw.accounts.map(a => a.pw)).size === 3 && pw.phase === 'vault');
+    shot(pw);
+    press(pw, 'vault');
+    ok('passwords: saved to the manager, MISSION COMPLETE', complete(pw));
+
+    // 3 · Two-step verification
+    const tf = make(2);
+    press(tf, 'on');
+    shot(tf);
+    for (const d of tf.code) press(tf, 'n' + d);
+    ok('2FA: the code from the phone turns it on', tf.phase === 'backup');
+    press(tf, 'note');
+    ok('2FA: a sticky note is refused', tf.phase === 'backup' && !tf.feedback.good);
+    press(tf, 'vault');
+    wait(tf, 3.5);
+    shot(tf);
+    ok('2FA: the attacker is stopped, then a push arrives', tf.phase === 'push');
+    press(tf, 'approve');
+    ok('2FA: APPROVE is explained, not accepted', tf.phase === 'push' && !tf.feedback.good);
+    press(tf, 'deny');
+    ok('2FA: DENY, MISSION COMPLETE', complete(tf));
+
+    // 4 · Phishing
+    const ph = make(3);
+    ok('phishing: six mails, three fakes', ph.mails.length === 6 && ph.mails.filter(x => x.phishing).length === 3);
+    let wrongExplained = false;
+    while (ph.mail) {
+        if (ph.mail.link && ids(ph).indexOf('inspect') >= 0) press(ph, 'inspect');
+        shot(ph);
+        const at = ph.index;
+        press(ph, ph.mail.phishing ? 'safe' : 'phish');
+        if (ph.index === at && !ph.feedback.good) wrongExplained = true;
+        press(ph, ph.mail.phishing ? 'phish' : 'safe');
+    }
+    ok('phishing: a wrong call explains the red flags', wrongExplained);
+    ok('phishing: inbox sorted, MISSION COMPLETE', ph.mails.every(x => x.done === (x.phishing ? 'phishing' : 'safe')) && complete(ph));
+
+    // 5 · Updates
+    const up = make(4);
+    press(up, 'ad1');
+    ok('updates: an ad download is refused', up.apps[1].risk && !up.feedback.good);
+    press(up, 'up0');
+    wait(up, 1.4);
+    ok('updates: a fake pop-up appears', up.phase === 'popup');
+    shot(up);
+    press(up, 'install');
+    press(up, 'close');
+    press(up, 'up1'); wait(up, 1.4);
+    press(up, 'up2'); wait(up, 1.4);
+    ok('updates: everything patched', up.apps.every(a => !a.risk) && up.phase === 'auto');
+    press(up, 'auto');
+    ok('updates: automatic updates on, MISSION COMPLETE', up.auto && complete(up));
+
+    // 6 · Backups and handover
+    const bk = make(5);
+    press(bk, 'folder'); press(bk, 'drive');
+    press(bk, 'drawer'); press(bk, 'cloud');
+    ok('backups: 3-2-1 plan built (wrong media refused)', bk.copies[1] === 'EXTERNAL DRIVE' && bk.copies[2] === 'CLOUD (off-site)');
+    press(bk, 'run'); wait(bk, 1.6);
+    press(bk, 'keep');
+    ok('backups: a plugged-in backup is explained', bk.phase === 'unplug' && !bk.feedback.good);
+    press(bk, 'unplug');
+    shot(bk);
+    press(bk, 'pay');
+    ok('backups: paying the ransom is explained, not taken', bk.phase === 'ransom');
+    press(bk, 'restore'); wait(bk, 1.6);
+    shot(bk);
+    press(bk, 'hand');
+    ok('backups: control handed back, MISSION COMPLETE', bk.remember && complete(bk));
+
+    ok('every mission scene renders', shots.length === 0, shots[0]);
+    ok('every mission is worth 3 stars', [0, 1, 2, 3, 4, 5].every(i => CAMPAIGN.starsFor('handover', act.stages[i].tier, make(i).starStats(), false) === 3));
+    const idle = make(0);
+    for (let i = 0; i < 60 * 120; i++) idle.update(1 / 60);
+    ok('no timer: two minutes idle, nothing failed', idle.result === null);
+
+    // Keyboard: Tab + ENTER press buttons.
+    const kb = make(0);
+    drain(kb);
+    kb.handleKey('Tab'); kb.handleKey('Enter');
+    ok('keyboard: Tab focuses, ENTER presses', kb.phase === 'scanning');
+
+    // Host
+    const gm = new mod.GameManager(makeFakeCanvas(), makeFakeCtx(makeFakeCanvas()));
+    for (let a = 1; a <= 9; a++) {
+        for (let i = 0; i < CAMPAIGN.acts[a - 1].stages.length; i++) gm.progress.completeStage(a, i, 10);
+        gm.progress.openGate(a);
+    }
+    ok('act 10 opens after gate 9', gm.progress.isActUnlocked(10) && gm.progress.isStageUnlocked(10, 0));
+    gm._startStage(10, 0);
+    ok('mission 1 runs in the MINIGAME host', gm.state.pendingContext.mechanic instanceof mod.MissionMechanic && gm.state.pendingContext.mechanic.constructor.name === 'VirusScanMission');
+    ok('mission summary line', gm._stageSummary(act, act.stages[0]) === 'SCAN FILES');
+    ok('registry: nothing to revive', mod.GameRegistry.get('handover').revive === false);
+    const L = gm._actScreenLayout(6, false);
+    ok('six mission cards fit the act screen', L.xs[0] - L.cardW / 2 >= 0 && L.xs[5] + L.cardW / 2 <= 960);
 });
 
 // ─────────────────────────────────────────────

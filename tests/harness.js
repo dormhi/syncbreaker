@@ -154,6 +154,8 @@ const FULL_FILES = [
     'js/mechanics/LogicBombMechanic.js',
     'js/mechanics/DefragMechanic.js',
     'js/mechanics/ChecksumGridMechanic.js',
+    'js/mechanics/MissionMechanic.js',
+    'js/mechanics/HandoverMissions.js',
     'js/core/GameRegistry.js',
     'js/CampaignProgress.js',
     'vendor/matter.min.js',
@@ -173,7 +175,7 @@ const FULL_FILES = [
 
 const FULL_EXPORTS = ['GameManager', 'UITheme', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
-    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'BackGuard', 'Coach'];
+    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {

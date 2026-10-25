@@ -50,7 +50,14 @@ const UITheme = {
         { key: 'NORMAL',    numeral: 'II',  color: '#3b82f6' },
         { key: 'HARD',      numeral: 'III', color: '#f59e0b' },
         { key: 'VERY HARD', numeral: 'IV',  color: '#ef4444' },
-        { key: 'EXPERT',    numeral: 'V',   color: '#a855f7' }
+        { key: 'EXPERT',    numeral: 'V',   color: '#a855f7' },
+        // Act 10 missions: not difficulty tiers, one teal step each.
+        { key: 'SCAN',       numeral: '1', color: '#2dd4bf' },
+        { key: 'PASSWORD',   numeral: '2', color: '#2dd4bf' },
+        { key: 'TWO-STEP',   numeral: '3', color: '#2dd4bf' },
+        { key: 'PHISHING',   numeral: '4', color: '#2dd4bf' },
+        { key: 'UPDATES',    numeral: '5', color: '#2dd4bf' },
+        { key: 'BACKUPS',    numeral: '6', color: '#2dd4bf' }
     ],
 
     /** Tier entry by name ('VERY HARD', any case) or 0-based index. */
