@@ -12,7 +12,8 @@
    so lessons and one-time tips show once (localStorage sb_coach_<game>).
 
    Text may be a plain string or { desktop, touch }; Coach.inputMode()
-   picks the variant (the host points it at InputManager.mode).
+   picks the variant (the host points it at InputManager.mode). A step's
+   `vars` fill placeholders: { text: "Land {n} hits", vars: { n: 8 } }.
 
    Used by Acts 1-5. Acts 6-8 have their own lesson code from before.
    ========================================= */
@@ -53,10 +54,11 @@ class Coach {
     update(dt) { this.time += dt || 0; }
 
     /** The step text for this input mode, in the player's language (I18n). */
-    static text(t) {
+    static text(t, vars) {
         const s = (!t || typeof t === 'string') ? (t || '')
             : (Coach.inputMode() === 'touch' ? t.touch : t.desktop) || t.desktop || t.touch || '';
-        return typeof I18n !== 'undefined' ? I18n.t(s) : s;
+        if (typeof I18n !== 'undefined') return I18n.t(s, vars);
+        return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s;
     }
 
     /**
@@ -82,7 +84,7 @@ class Coach {
         ctx.font = '600 18px Rajdhani';
         const lines = [];
         let line = '';
-        for (const w of Coach.text(c.text).split(' ')) {
+        for (const w of Coach.text(c.text, c.vars).split(' ')) {
             const t = line ? line + ' ' + w : w;
             const m = ctx.measureText(t).width;
             if ((typeof m === 'number' ? m : t.length * 8) > bw - 36 && line) { lines.push(line); line = w; } else line = t;

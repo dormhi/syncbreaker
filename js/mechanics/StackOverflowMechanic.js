@@ -117,7 +117,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         this.coach = null;
         if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
             this.coach = new Coach(this.coachStore).push(
-                { kind: 'info', rects: 'line', text: `Rebuild the firewall: stack ${this.targetBlocks} blocks up to the STACK LIMIT line.` },
+                { kind: 'info', rects: 'line', text: 'Rebuild the firewall: stack {n} blocks up to the STACK LIMIT line.', vars: { n: this.targetBlocks } },
                 { kind: 'info', rects: 'crane', text: { desktop: 'The crane swings the next block. Press SPACE (or click) to drop it.', touch: 'The crane swings the next block. Tap anywhere to drop it.' } },
                 { kind: 'drop', rects: 'crane', text: 'Drop your first block onto the platform.' },
                 { kind: 'placed', text: 'Watch it fall: it keeps some of the crane\'s sideways swing.' },
@@ -380,7 +380,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         ctx.font = '600 14px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'bottom';
-        ctx.fillText('STACK LIMIT', cx + 230, this.targetY - 4);
+        ctx.fillText(UITheme.t('STACK LIMIT'), cx + 230, this.targetY - 4);
 
         // Crane rail
         ctx.strokeStyle = 'rgba(100,116,139,0.6)';
@@ -491,7 +491,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 20px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`FRAMES ${this.maxDrops - this.drops}`, W / 2 + 230, y);
+        ctx.fillText(UITheme.t('FRAMES {n}', { n: this.maxDrops - this.drops }), W / 2 + 230, y);
 
         if (this.result !== null) {
             const ok = this.result === 'success';
@@ -499,11 +499,11 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
             ctx.font = '700 28px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(ok ? 'FIREWALL STABLE' : 'STACK OVERFLOW', W / 2, this.hookY + 70);
+            ctx.fillText(UITheme.t(ok ? 'FIREWALL STABLE' : 'STACK OVERFLOW'), W / 2, this.hookY + 70);
             if (ok) {
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '600 20px Rajdhani';
-                ctx.fillText(`SCORE ${this.score}`, W / 2, this.hookY + 104);
+                ctx.fillText(UITheme.t('SCORE {n}', { n: this.score }), W / 2, this.hookY + 104);
             }
         }
     }

@@ -65,11 +65,11 @@ if (typeof I18n !== 'undefined') {
         'control returned': 'kontrol geri verildi',
 
         // Main menu for Endless players
-        '[SECURE] Every node is clean. The campaign is complete.': '[GÜVENLİ] Bütün düğümler temiz. Kampanya tamamlandı.',
+        '[SECURE] Every node is clean. The campaign is complete.': '[GÜVENLİ] Bütün düğümler temiz. Operasyon tamamlandı.',
         'The attacker keeps coming back — from now on the game is endless.': 'Saldırgan geri gelmeye devam ediyor — artık oyun sonsuz.',
         'Find the ∞ ring at the end of the operation map.': 'Operasyon haritasının sonundaki ∞ halkasını bul.',
-        'BEST ENDLESS RUN  {n}': 'EN İYİ ENDLESS KOŞUSU  {n}',
-        'NO ENDLESS RUN YET': 'HENÜZ ENDLESS KOŞUSU YOK',
+        'BEST ENDLESS RUN  {n}': 'ENDLESS REKORU  {n}',
+        'NO ENDLESS RUN YET': 'HENÜZ ENDLESS OYNANMADI',
 
         // HUB: act map
         'OPERATION MAP': 'OPERASYON HARİTASI',
@@ -82,9 +82,9 @@ if (typeof I18n !== 'undefined') {
         '{done}/{n} STAGES': '{done}/{n} AŞAMA',
         'BEST {n}': 'EN İYİ {n}',
         'OPEN ▸': 'AÇ ▸',
-        'AFTER THE CAMPAIGN': 'KAMPANYADAN SONRA',
+        'AFTER THE CAMPAIGN': 'OPERASYONDAN SONRA',
         'The attack never ends. Climb the leaderboard.': "Saldırı hiç bitmiyor. Leaderboard'da yüksel.",
-        'NO RUN YET': 'HENÜZ KOŞU YOK',
+        'NO RUN YET': 'HENÜZ OYNANMADI',
         '← MENU': '← MENÜ',
         '🗑 RESET': '🗑 SIFIRLA',
         'Are you sure you want to delete all data and start fresh?': 'Bütün veriler silinip oyun baştan başlasın mı?',
@@ -105,6 +105,13 @@ if (typeof I18n !== 'undefined') {
         '{n} DISKS · {cols}×{rows} · {time}s': '{n} DİSK · {cols}×{rows} · {time} sn',
         '{cols}×{rows} · NO TIMER': '{cols}×{rows} · SÜRE YOK',
         'MISSION': 'GÖREV',
+        // Stage tier names (the user, 2026-10-26: translated after all; the
+        // keys stay English in the data because star rules and badges use them)
+        'EASY': 'KOLAY',
+        'NORMAL': 'ORTA',
+        'HARD': 'ZOR',
+        'VERY HARD': 'ÇOK ZOR',
+        'EXPERT': 'UZMAN',
         'SCAN FILES': 'DOSYALARI TARA',
         'NEW PASSWORDS': 'YENİ PAROLALAR',
         'TURN ON 2FA': "2FA'YI AÇ",
@@ -155,9 +162,9 @@ if (typeof I18n !== 'undefined') {
         'This attempt will still count.': 'Bu deneme yine de sayılır.',
         'RECOVERY PROTOCOL': 'KURTARMA PROTOKOLÜ',
         'ABORT RECOVERY?': 'KURTARMA İPTAL EDİLSİN Mİ?',
-        'The run ends here — your score still counts.': 'Koşu burada biter — skorun yine de sayılır.',
+        'The run ends here — your score still counts.': 'Oyun burada biter — skorun yine de sayılır.',
         'The energy spent on this recovery is not refunded.': 'Bu kurtarmaya harcanan enerji geri verilmez.',
-        'END THIS RUN?': 'KOŞU BİTİRİLSİN Mİ?',
+        'END THIS RUN?': 'OYUN BİTİRİLSİN Mİ?',
         'Your score so far still counts.': 'Şimdiye kadarki skorun yine de sayılır.',
 
         // Results: stage cleared / failed
@@ -191,7 +198,7 @@ if (typeof I18n !== 'undefined') {
         'Then you handed the system back to its owner — and taught them to keep it safe.': 'Sonra sistemi sahibine geri verdin — ve ona sistemi güvende tutmayı öğrettin.',
         'ENDLESS MODE UNLOCKED': 'ENDLESS MODE AÇILDI',
         'The attacker never stops coming back. Find the ∞ ring at the end': 'Saldırgan geri gelmekten hiç vazgeçmiyor. Operasyon haritasının',
-        'of the operation map — runs and the leaderboard live inside.': 'sonundaki ∞ halkasını bul — koşular ve leaderboard orada.',
+        'of the operation map — runs and the leaderboard live inside.': 'sonundaki ∞ halkasını bul — Endless ve leaderboard orada.',
         '★ {got}/{max}   ·   TOTAL BEST SCORE  {best}': '★ {got}/{max}   ·   TOPLAM EN İYİ SKOR  {best}',
         '▶  CONTINUE': '▶  DEVAM'
     });
@@ -235,7 +242,7 @@ if (typeof I18n !== 'undefined') {
         'Fill the awkward corners first — the open middle is easier to finish': 'Önce zor köşeleri doldur — açık ortayı bitirmek daha kolay',
         'Tap a block to turn it; on desktop right click or R works too': 'Bir bloğu çevirmek için ona dokun; masaüstünde sağ tık ya da R de olur',
         'A block on the disk can be picked up and moved again': 'Diske konan blok yeniden alınıp taşınabilir',
-        'EXPERT: compare each block with the CLEAN SNAPSHOT — corrupted copies go to TRASH': "EXPERT: her bloğu CLEAN SNAPSHOT ile karşılaştır — bozuk kopyalar TRASH'e gider",
+        'EXPERT: compare each block with the CLEAN SNAPSHOT — corrupted copies go to TRASH': "UZMAN: her bloğu CLEAN SNAPSHOT ile karşılaştır — bozuk kopyalar TRASH'e gider",
         'Start with the big numbers: a block longer than half the line always fills its middle': 'Büyük sayılarla başla: satırın yarısından uzun bir blok ortasını hep doldurur',
         'A line whose checksum is complete: mark the rest with ✕': "Checksum'ı tamamlanan satırda kalan hücreleri ✕ ile işaretle",
         'Grey checksums already match — rows and columns help each other': "Gri checksum'lar zaten uyuyor — satırlar ve sütunlar birbirine yardım eder",
@@ -356,12 +363,84 @@ if (typeof I18n !== 'undefined') {
         'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.': 'Karoları döndürüp kendi düğümünü saldırgana bağla. Bağlı karolar yeşil yanar. Süre bitmeden bütün rotaları bul.',
         'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue owner lines cost a life; thick cables need two cuts.': "Sınırlı makasla, hiçbir kırmızı yol CORE'a ulaşmayana kadar kablo kes. İlk dokunuş seçer, ikincisi keser. Sahibin mavi hatları bir can götürür; kalın kablolar iki kesim ister.",
         'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.': "Süre bitmeden bütün modülleri etkisizleştir. Ne yapacağını sağdaki MANUAL söyler: hatlarda kurallara yukarıdan bak, sadece ilk doğru olanı uygula. Yanlış hamle bir STRIKE'tır — sayaç hızlanır, 3 STRIKE'ta bomba patlar.",
-        'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.': "Bütün boş sektörler dolana kadar yedek blokları diske sürükle. Çevirmek için bloğa dokun. Kırmızı çizgili sektörler boş kalır. EXPERT'te bloklar temiz görüntüye (CLEAN SNAPSHOT) uymalı, bozuk kopyalar TRASH'e gider.",
+        'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.': "Bütün boş sektörler dolana kadar yedek blokları diske sürükle. Çevirmek için bloğa dokun. Kırmızı çizgili sektörler boş kalır. UZMAN aşamasında bloklar temiz görüntüye (CLEAN SNAPSHOT) uymalı, bozuk kopyalar TRASH'e gider.",
         'Goal: turn every number grey. The numbers are the blocks of filled cells in that row or column, in order ("3 1" = 3 filled, a gap, then 1); a number greys out when its line matches. Mark cells you know are empty with ✕. No timer, no lives. AUDIT shows mistakes, but each audit that finds one costs a star.': 'Hedef: bütün sayıları griye çevir. Sayılar o satır ya da sütundaki dolu hücre bloklarıdır, sırayla ("3 1" = 3 dolu, bir boşluk, sonra 1); satır sayıya uyunca sayı griye döner. Boş olduğunu bildiğin hücreleri ✕ ile işaretle. Süre yok, can yok. AUDIT hataları gösterir, ama hata bulan her AUDIT bir yıldız götürür.',
         'Six short missions teach real security habits while the clean system goes back to its owner: virus scans, passwords, two-step verification, phishing, updates and backups. No timer, nothing to lose, 3 stars each.': 'Temiz sistem sahibine dönerken altı kısa görev gerçek güvenlik alışkanlıklarını öğretir: virüs taraması, parolalar, iki aşamalı doğrulama, phishing, güncellemeler ve yedekler. Süre yok, kaybetmek yok, her biri 3 yıldız.',
         'Destroy the red infected packets before they reach the core. Leave the blue ones alone.': 'Kırmızı enfekte paketleri çekirdeğe ulaşmadan yok et. Mavilere dokunma.',
         'Up to 6 cells. Energy refills slowly over time.': 'En fazla 6 hücre. Enerji zamanla yavaşça dolar.',
         'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock, Route Trace, Logic Bomb and Defrag you get 20 more seconds. Twice per stage.': "Timing Bar ya da Orbital Shield aşamasını mı kaybettin? 1⚡ harca, Code Breaker'ı kazan ve tek canla devam et; Signal Lock, Route Trace, Logic Bomb ve Defrag'da 20 saniye daha kazanırsın. Aşama başına iki kez.",
         'Unlocks after ACT {n}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.': 'ACT {n} bitince açılır. Leaderboard operator adını ve parolanı kullanır, böylece sıralamanı her tarayıcıda korursun.'
+    });
+
+    // ── Phase 4 · Acts 1-5: lessons and in-game texts ──
+    I18n.add('tr', {
+        // Lesson bubbles (Coach), shared
+        'TAP TO CONTINUE ▸': 'DEVAM İÇİN DOKUN ▸',
+        'CLICK OR SPACE ▸': 'TIKLA YA DA SPACE ▸',
+        'SCORE {n}': 'SKOR {n}',
+
+        // Act 1 · Timing Bar
+        'An infected node! A marker sweeps back and forth along this bar.': 'Enfekte bir düğüm! Bu çubukta bir işaret ileri geri gidip geliyor.',
+        'Press SPACE while the marker is inside the glowing ZONE.': "İşaret parlayan BÖLGE'nin içindeyken SPACE'e bas.",
+        'Tap anywhere while the marker is inside the glowing ZONE.': "İşaret parlayan BÖLGE'nin içindeyken ekrana dokun.",
+        'Your turn: press SPACE on the zone. Misses don\'t count yet, and the timer waits.': "Sıra sende: işaret bölgedeyken SPACE'e bas. Iskalar henüz sayılmıyor, süre de bekliyor.",
+        'Your turn: tap when the marker is in the zone. Misses don\'t count yet, and the timer waits.': 'Sıra sende: işaret bölgedeyken dokun. Iskalar henüz sayılmıyor, süre de bekliyor.',
+        'HIT! Hits near the centre are PERFECT and build a COMBO. Land {n} hits before the timer runs out — every miss costs a life.': 'İSABET! Ortaya yakın vuruşlar PERFECT sayılır ve COMBO yapar. Süre bitmeden {n} isabet yap — her ıska bir can götürür.',
+        'Hit: {done}/{n}': 'İsabet: {done}/{n}',
+        'Time: {time}': 'Süre: {time}',
+        // Hit feedback words (LevelThemes hitWords)
+        'PURGED': 'ARINDIRILDI', 'ERROR': 'HATA',
+        'SEALED': 'MÜHÜRLENDİ', 'CLOSED': 'KAPANDI', 'BREACH': 'SIZINTI',
+        'DESTROYED': 'YOK EDİLDİ', 'REMOVED': 'SİLİNDİ', 'INFECTED': 'BULAŞTI',
+        'RESET': 'SIFIRLANDI', 'CHANGED': 'DEĞİŞTİ', 'LEAKED': 'SIZDI',
+        'FORTIFIED': 'GÜÇLENDİ', 'BUILT': 'KURULDU', 'BREACHED': 'AŞILDI',
+        'SEVERED': 'KOPARILDI', 'CUT': 'KESİLDİ', 'LINKED': 'BAĞLANDI',
+        'DEFUSED': 'ETKİSİZ', 'DISARMED': 'SÖKÜLDÜ', 'ARMED': 'KURULU',
+        'RESTORED': 'GERİ YÜKLENDİ', 'LOADED': 'YÜKLENDİ', 'CORRUPT': 'BOZUK',
+        'VERIFIED': 'DOĞRULANDI', 'CHECKED': 'KONTROL EDİLDİ', 'FLAGGED': 'İŞARETLENDİ',
+        'RETURNED': 'GERİ VERİLDİ', 'DENIED': 'REDDEDİLDİ',
+
+        // Act 2 · Stack Overflow
+        'Rebuild the firewall: stack {n} blocks up to the STACK LIMIT line.': "Firewall'u yeniden kur: {n} bloğu üst üste dizip SINIR ÇİZGİSİ'ne ulaş.",
+        'The crane swings the next block. Press SPACE (or click) to drop it.': "Vinç sıradaki bloğu sallıyor. Bırakmak için SPACE'e bas (ya da tıkla).",
+        'The crane swings the next block. Tap anywhere to drop it.': 'Vinç sıradaki bloğu sallıyor. Bırakmak için ekrana dokun.',
+        'Drop your first block onto the platform.': 'İlk bloğunu platformun üstüne bırak.',
+        'Watch it fall: it keeps some of the crane\'s sideways swing.': 'Düşüşünü izle: vincin yan salınımının bir kısmını korur.',
+        'Good! Let go a little EARLY so the swing carries the block over the tower. Reach the line and let the tower stand still for a moment.': 'Güzel! Biraz ERKEN bırak, salınım bloğu kulenin üstüne taşısın. Çizgiye ulaş ve kule bir an sabit dursun.',
+        'It fell off — no harm in the lesson. Try again: drop it onto the platform.': 'Düştü — derste sorun değil. Tekrar dene: platformun üstüne bırak.',
+        'STACK LIMIT': 'SINIR ÇİZGİSİ',
+        'FRAMES {n}': 'BLOK {n}',
+        'FIREWALL STABLE': 'FIREWALL SAĞLAM',
+
+        // Act 3 · Orbital Shield
+        'Attack packets will fly in at these PORTS around the core.': "Saldırı paketleri çekirdeğin etrafındaki bu PORT'lara uçacak.",
+        'Move your SHIELD to the port that BLINKS: click that port, or use ← →.': "KALKAN'ını YANIP SÖNEN porta götür: o porta tıkla ya da ← → kullan.",
+        'Move your SHIELD to the port that BLINKS: tap that port.': "KALKAN'ını YANIP SÖNEN porta götür: o porta dokun.",
+        'Here they come — block one! Packets that get through cost nothing yet.': 'Geliyorlar — birini engelle! Geçen paketler henüz bir şey götürmez.',
+        'Blocked! Stop {n} packets to close the ports. From now on every packet that gets through costs a life.': 'Engellendi! Portları kapatmak için {n} paketi durdur. Bundan sonra geçen her paket bir can götürür.',
+        'BLOCKED {done}/{n}': 'ENGELLENEN {done}/{n}',
+        'PORTS SEALED': 'PORTLAR KAPANDI',
+        'PORT BREACHED': 'PORT AŞILDI',
+
+        // Act 4 · Signal Lock
+        'Reset the stolen key: make YOUR signal (blue wave) match the TARGET (orange, dashed).': 'Çalınan anahtarı sıfırla: SENİN sinyalini (mavi dalga) HEDEF ile (turuncu, kesikli) eşleştir.',
+        'HOLD SPACE or the mouse button to raise your signal. Let go to lower it.': "Sinyalini yükseltmek için SPACE'e ya da fare tuşuna BASILI TUT. Düşürmek için bırak.",
+        'HOLD your finger on the screen to raise your signal. Lift it to lower it.': 'Sinyalini yükseltmek için parmağını ekranda BASILI TUT. Düşürmek için kaldır.',
+        'Keep the two waves together until SYNC fills and the key locks. Try it — the timer waits.': 'SYNC dolup anahtar kilitlenene kadar iki dalgayı bir arada tut. Dene — süre bekliyor.',
+        'Key locked! Lock {n} keys before the timer runs out. Short taps keep the signal steady.': 'Anahtar kilitlendi! Süre bitmeden {n} anahtar kilitle. Kısa dokunuşlar sinyali sabit tutar.',
+        '{time}s · KEYS {done}/{n}': '{time} sn · ANAHTAR {done}/{n}',
+        'CREDENTIALS RESET': 'KİMLİKLER SIFIRLANDI',
+
+        // Act 5 · Route Trace
+        'Trace the attacker: build one unbroken line of tiles from YOU (left) to the ATTACKER (right).': "Saldırganın izini sür: YOU'dan (solda) ATTACKER'a (sağda) kesintisiz bir karo hattı kur.",
+        'Click a tile to turn it (or move with the arrows and press SPACE). Try it.': "Döndürmek için bir karoya tıkla (ya da oklarla gezip SPACE'e bas). Dene.",
+        'Tap a tile to turn it. Try it.': 'Döndürmek için bir karoya dokun. Dene.',
+        'A tile that connects to YOU lights up GREEN. Keep turning tiles so the green line grows all the way to the ATTACKER.': "YOU'ya bağlanan karo YEŞİL yanar. Yeşil hat ATTACKER'a kadar uzasın diye karoları döndürmeye devam et.",
+        'Finish the route — the timer waits while you learn.': 'Rotayı tamamla — sen öğrenirken süre bekliyor.',
+        'Traced! Find {n} routes before the timer runs out.': 'İz bulundu! Süre bitmeden {n} rota bul.',
+        '{time}s · TRACES {done}/{n}': '{time} sn · İZ {done}/{n}',
+        'ATTACKER TRACED · SCORE {n}': 'SALDIRGAN BULUNDU · SKOR {n}',
+        'TRACE LOST': 'İZ KAYBOLDU',
+        'ROUTE FOUND': 'ROTA BULUNDU'
     });
 }

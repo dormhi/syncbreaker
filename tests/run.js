@@ -4449,7 +4449,7 @@ suite('Languages (I18n) — phase 2: menu, HUB, act screen, pause, results', () 
     ok('HUB: act and game names stay English', hub.includes('REMOVE_MALWARE') && hub.includes('ACT 1 · TIMING BAR'));
     const act = show(S.ACT, { actId: 1 });
     ok('act screen: stage summary and status in Turkish', act.includes('8 İSABET · 25 sn') && act.includes('0/4 AŞAMA TEMİZLENDİ') && act.includes('KAPI 1'));
-    ok('act screen: tier names stay English', act.includes('EASY') && act.includes('VERY HARD'));
+    ok('act screen: tier names in Turkish', act.includes('KOLAY') && act.includes('ÇOK ZOR') && !act.includes('VERY HARD'));
     gm._addLeaveButton({ label: 'X', title: 'LEAVE THIS STAGE?', detail: 'Your progress in this stage will be lost.', onLeave: () => {}, onRestart: () => {} });
     gm._openPause();
     drawn.length = 0;
@@ -4529,6 +4529,49 @@ suite('Languages (I18n) — phase 3: TIP lines, field guide, act stories', () =>
     ok('field guide: game names stay English', all.includes('NETWORK CUT') && all.includes('Signal Lock'));
     ok('field guide: no line is cut short with …', !/…/.test(all));
     I18n.set('en', store);
+});
+
+// ─────────────────────────────────────────────
+suite('Languages (I18n) — phase 4: Acts 1-5 lessons and in-game texts', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const mod = loadGameManager();
+    const { I18n, CAMPAIGN, Coach } = mod;
+    const tr = I18n.dict.tr;
+    const has = (t) => Object.prototype.hasOwnProperty.call(tr, t);
+    const files = ['js/LevelManager.js', 'js/mechanics/StackOverflowMechanic.js', 'js/mechanics/OrbitalShieldMechanic.js',
+        'js/mechanics/SignalLockMechanic.js', 'js/mechanics/RouteTraceMechanic.js', 'js/core/Coach.js'];
+    // Drawn literals and lesson step texts (text / desktop / touch).
+    const missing = [];
+    for (const f of files) {
+        const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+        const re = /(?:UITheme\.t\(|Coach\.text\(|\b(?:text|desktop|touch): )'((?:[^'\\]|\\.)*)'/g;
+        let m;
+        while ((m = re.exec(src))) {
+            const key = m[1].replace(/\\'/g, "'");
+            if (!has(key)) missing.push(`${path.basename(f)}: ${key}`);
+        }
+    }
+    ok(`every phase 4 text has a Turkish entry${missing.length ? ' (missing: ' + missing.join(' | ') + ')' : ''}`, missing.length === 0);
+    // Hit feedback words (PERFECT / GOOD / MISS stay English by rule).
+    const words = [];
+    const all = [];
+    const themeSrc = fs.readFileSync(path.join(__dirname, '..', 'js/LevelThemes.js'), 'utf8');
+    for (const m of themeSrc.matchAll(/hitWords: \{([^}]*)\}/g)) all.push(...[...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]));
+    for (const w of all) if (!['PERFECT', 'GOOD', 'MISS'].includes(w) && !has(w)) words.push(w);
+    ok(`hit words are translated${words.length ? ' (' + words.join(', ') + ')' : ''}`, words.length === 0 && all.length > 0);
+    // Lesson steps fill their numbers in Turkish.
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    const lessonStore = { seen: () => false, mark: () => {} };
+    const g = mod.GameRegistry.get('orbital');
+    const orb = g.create(CAMPAIGN.acts[2].stages[0].params);
+    orb.useCoach(lessonStore, true);
+    orb.init({ width: 960, height: 640 });
+    const last = orb.coach.queue[orb.coach.queue.length - 1];
+    ok('lesson step placeholders are filled in Turkish', Coach.text(last.text, last.vars).startsWith(`Engellendi! Portları kapatmak için ${CAMPAIGN.acts[2].stages[0].params.blocksNeeded} paketi`));
+    I18n.set('en', store);
+    ok('English lesson text keeps its number', Coach.text(last.text, last.vars).includes(`Stop ${CAMPAIGN.acts[2].stages[0].params.blocksNeeded} packets`));
 });
 
 // ─────────────────────────────────────────────

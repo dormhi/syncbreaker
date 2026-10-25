@@ -82,7 +82,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
                 { kind: 'info', rects: 'ring', text: 'Attack packets will fly in at these PORTS around the core.' },
                 { kind: 'info', rects: 'ring', text: { desktop: 'Move your SHIELD to the port that BLINKS: click that port, or use ← →.', touch: 'Move your SHIELD to the port that BLINKS: tap that port.' } },
                 { kind: 'block', rects: 'ring', text: 'Here they come — block one! Packets that get through cost nothing yet.' },
-                { kind: 'info', key: 'tutorial', text: `Blocked! Stop ${this.blocksNeeded} packets to close the ports. From now on every packet that gets through costs a life.` }
+                { kind: 'info', key: 'tutorial', text: 'Blocked! Stop {n} packets to close the ports. From now on every packet that gets through costs a life.', vars: { n: this.blocksNeeded } }
             );
         }
     }
@@ -428,18 +428,18 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 20px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`BLOCKED ${this.blocked}/${this.blocksNeeded}`, W / 2 + 250, y);
+        ctx.fillText(UITheme.t('BLOCKED {done}/{n}', { done: this.blocked, n: this.blocksNeeded }), W / 2 + 250, y);
 
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
             ctx.font = '700 28px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
-            ctx.fillText(ok ? 'PORTS SEALED' : 'PORT BREACHED', W / 2, this.cy - 190 + 60);
+            ctx.fillText(UITheme.t(ok ? 'PORTS SEALED' : 'PORT BREACHED'), W / 2, this.cy - 190 + 60);
             if (ok) {
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '600 20px Rajdhani';
-                ctx.fillText(`SCORE ${this.score}`, W / 2, this.cy - 190 + 92);
+                ctx.fillText(UITheme.t('SCORE {n}', { n: this.score }), W / 2, this.cy - 190 + 92);
             }
         }
         ctx.restore();

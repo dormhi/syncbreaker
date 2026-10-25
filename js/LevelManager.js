@@ -99,7 +99,7 @@ class LevelManager {
                 { kind: 'info', rects: 'bar', text: 'An infected node! A marker sweeps back and forth along this bar.' },
                 { kind: 'info', rects: 'zone', text: { desktop: 'Press SPACE while the marker is inside the glowing ZONE.', touch: 'Tap anywhere while the marker is inside the glowing ZONE.' } },
                 { kind: 'hit', rects: 'bar', text: { desktop: 'Your turn: press SPACE on the zone. Misses don\'t count yet, and the timer waits.', touch: 'Your turn: tap when the marker is in the zone. Misses don\'t count yet, and the timer waits.' } },
-                { kind: 'info', key: 'tutorial', text: `HIT! Hits near the centre are PERFECT and build a COMBO. Land ${level.requiredHits} hits before the timer runs out — every miss costs a life.` }
+                { kind: 'info', key: 'tutorial', text: 'HIT! Hits near the centre are PERFECT and build a COMBO. Land {n} hits before the timer runs out — every miss costs a life.', vars: { n: level.requiredHits } }
             );
         }
         this.coachFirst = false;
@@ -393,7 +393,7 @@ class LevelManager {
         if (this.lastHitResult) {
             const words = theme.hitWords;
             const colors = theme.hitColors;
-            const text = words[this.lastHitResult];
+            const text = UITheme.t(words[this.lastHitResult]);
             const color = colors[this.lastHitResult];
             const alpha = Utils.clamp(this.hitAnimTimer / 0.5, 0, 1);
             const scale = 1 + (1 - alpha) * 0.15;
@@ -454,14 +454,14 @@ class LevelManager {
         ctx.fillText(UITheme.t(this.currentLevel.desc), W / 2, 95);
 
         // Progress
-        ctx.fillText(`Hit: ${this.hitCount}/${this.currentLevel.requiredHits}`, W / 2, 115);
+        ctx.fillText(UITheme.t('Hit: {done}/{n}', { done: this.hitCount, n: this.currentLevel.requiredHits }), W / 2, 115);
 
         // Time
         const timeColor = this.timer < 10 ? '#ef4444' : '#64748b';
         ctx.fillStyle = timeColor;
         ctx.font = '500 14px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`Time: ${Utils.formatTime(this.timer)}`, W - 16, 75);
+        ctx.fillText(UITheme.t('Time: {time}', { time: Utils.formatTime(this.timer) }), W - 16, 75);
 
         // Lives
         ctx.textAlign = 'right';

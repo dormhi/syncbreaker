@@ -83,7 +83,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
                 { kind: 'info', rects: 'scope', text: 'Reset the stolen key: make YOUR signal (blue wave) match the TARGET (orange, dashed).' },
                 { kind: 'info', rects: 'scope', text: { desktop: 'HOLD SPACE or the mouse button to raise your signal. Let go to lower it.', touch: 'HOLD your finger on the screen to raise your signal. Lift it to lower it.' } },
                 { kind: 'lock', rects: 'scope', text: 'Keep the two waves together until SYNC fills and the key locks. Try it — the timer waits.' },
-                { kind: 'info', key: 'tutorial', text: `Key locked! Lock ${this.keys} keys before the timer runs out. Short taps keep the signal steady.` }
+                { kind: 'info', key: 'tutorial', text: 'Key locked! Lock {n} keys before the timer runs out. Short taps keep the signal steady.', vars: { n: this.keys } }
             );
         }
     }
@@ -377,18 +377,18 @@ class SignalLockMechanic extends _MechanicBaseSL {
         ctx.fillStyle = low ? '#ef4444' : '#94a3b8';
         ctx.font = '700 20px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`${Math.ceil(this.timeLeft)}s · KEYS ${this.locked}/${this.keys}`, W / 2 + 250, y);
+        ctx.fillText(UITheme.t('{time}s · KEYS {done}/{n}', { time: Math.ceil(this.timeLeft), done: this.locked, n: this.keys }), W / 2 + 250, y);
 
         if (this.result !== null) {
             const ok = this.result === 'success';
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
             ctx.font = '700 28px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
-            ctx.fillText(ok ? 'CREDENTIALS RESET' : 'SIGNAL LOST', S.x + S.w / 2, S.y + S.h / 2);
+            ctx.fillText(UITheme.t(ok ? 'CREDENTIALS RESET' : 'SIGNAL LOST'), S.x + S.w / 2, S.y + S.h / 2);
             if (ok) {
                 ctx.fillStyle = '#94a3b8';
                 ctx.font = '600 20px Rajdhani';
-                ctx.fillText(`SCORE ${this.score}`, S.x + S.w / 2, S.y + S.h / 2 + 34);
+                ctx.fillText(UITheme.t('SCORE {n}', { n: this.score }), S.x + S.w / 2, S.y + S.h / 2 + 34);
             }
         }
         ctx.restore();

@@ -3284,7 +3284,7 @@ class GameManager {
 
         ctx.font = '700 17px Orbitron, OrbitronTR';
         ctx.fillStyle = status === 'cleared' ? UITheme.color.ok : status === 'next' ? actColor : UITheme.color.textMute;
-        ctx.fillText(this.ui._fitText(stage.tier, btn.w - 16), btn.x, top + 72);
+        ctx.fillText(this.ui._fitText(UITheme.t(stage.tier), btn.w - 16), btn.x, top + 72);
 
         const summary = this._stageSummary(act, stage);
         UITheme.fitFont(ctx, summary, btn.w - 16, 'body', 600);
@@ -3588,7 +3588,7 @@ class GameManager {
             this.levels.useCoach(this._coachStore(act.game), index === 0);
             this.levels.startStage(Object.assign({
                 id: act.themeId,
-                name: `${act.key} · ${stage.tier}`,
+                name: `${act.key} · ${UITheme.t(stage.tier)}`,
                 desc: act.story
             }, stage.params));
             this.state.change(S.LEVEL);
@@ -3602,7 +3602,7 @@ class GameManager {
         const cfg = {
             mechanic,
             stage: true,
-            title: `${act.key} · ${stage.tier}`,
+            title: `${act.key} · ${UITheme.t(stage.tier)}`,
             subtitle: act.story,
             footHint: index === 0 ? act.hint : null,
             onComplete: (success, m) => {

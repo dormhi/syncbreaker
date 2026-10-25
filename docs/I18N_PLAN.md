@@ -1,12 +1,14 @@
 # SyncBreaker — Türkçe dil desteği planı
 
-> Durum (2026-10-26): **Faz 1 ve Faz 2 commit edildi (push yok). Faz 3 de commit edildi (push yok)** (TIP satırları, RULES kutusu, saha rehberi, act hikâyeleri, kontrol ve ilk aşama ipucu satırları). 1097 test geçiyor. Sıradaki: **Faz 4**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
+> Durum (2026-10-26): **Faz 1–3 commit edildi (push yok). Faz 4 de commit edildi (push yok)** (Act 1–5 dersleri, HUD yazıları, sonuç yazıları, vuruş kelimeleri). 1101 test geçiyor. Sıradaki: **Faz 5**, kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
 
 ## 1. Kurallar (kullanıcı, 2026-10-25)
 
 - **Dil düğmesi:** ana menüde, dormhi.com'a giden yuvarlak rozetin **birebir aynısı** bir düğme. Dokununca Türkçe / English seçici açılıyor.
 - **Jargon İngilizce kalır.** Türkçe konuşan bir oyuncunun zaten İngilizce bildiği terimler çevrilmez ("backend"e "arka yüz" demek gibi hatalar yapılmaz). Liste bölüm 3'te.
-- **Level adları İngilizce kalır:** act adları (REMOVE_MALWARE, CUT_ACCESS…), oyun adları (Timing Bar, Network Cut…), aşama adları (EASY, NORMAL, HARD, VERY HARD, EXPERT; Act 10'da SCAN, PASSWORD…).
+- **Level adları İngilizce kalır:** act adları (REMOVE_MALWARE, CUT_ACCESS…), oyun adları (Timing Bar, Network Cut…), Act 10'un görev adları (SCAN, PASSWORD…).
+- **Aşama adları Türkçe (kullanıcı, 2026-10-26):** EASY → **KOLAY**, NORMAL → **ORTA**, HARD → **ZOR**, VERY HARD → **ÇOK ZOR**, EXPERT → **UZMAN**. Sadece çizilirken çevrilir; verideki `tier` İngilizce kalır (yıldız kuralları ve rozetler onunla çalışır). Cümle içinde de Türkçe adı kullanılır ("UZMAN aşamasında…").
+- **"Kampanya" ve "koşu" kullanılmaz (kullanıcı, 2026-10-26):** campaign → **operasyon** ("Operasyon tamamlandı", "OPERASYONDAN SONRA"), Endless "run" → **oyun** / **rekor** ("OYUN BİTİRİLSİN Mİ?", "ENDLESS REKORU", "HENÜZ OYNANMADI").
 - **Çevrilenler:** içerikler ve anlatımlar, TIP satırları, oyun kılavuzu (field guide), dersler ve öğretici kartlar, menü ve HUB yazıları, düğmeler.
 - **Yazılar sığmalı.** Türkçe metin genelde daha uzun. Sığmayan yer yeniden boyutlandırılır ya da sarılır (wrap), metin kesilmez. Her faz telefonda (844×390) ve masaüstünde kontrol edilir.
 - **Doğal çeviri:** kelimesi kelimesine değil, o anlamı Türkçede doğal anlatan ifadelerle. Kısa, oyun diline uygun, "sen" diliyle.
@@ -25,7 +27,7 @@
 
 | Tür | Terimler |
 |---|---|
-| Act ve aşama adları | REMOVE_MALWARE … RETURN_CONTROL, EASY / NORMAL / HARD / VERY HARD / EXPERT, SCAN / PASSWORD / TWO-STEP / PHISHING / UPDATES / BACKUPS |
+| Act ve görev adları | REMOVE_MALWARE … RETURN_CONTROL, SCAN / PASSWORD / TWO-STEP / PHISHING / UPDATES / BACKUPS |
 | Oyun adları | Timing Bar, Stack Overflow, Orbital Shield, Signal Lock, Route Trace, Network Cut, Logic Bomb, Defrag, Checksum Grid, Packet Purge, Code Breaker, Dual Ring |
 | Güvenlik jargonu | malware, firewall, port, packet, payload, core, backdoor, phishing, ransomware, 2FA, antivirus, exploit, patch |
 | Oyun terimleri | PERFECT, COMBO, STRIKE, AUDIT, Endless Mode, leaderboard, operator, checksum, SYNC, CLK, SIG |
@@ -40,7 +42,7 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 | **1** | Altyapı (`I18n`), dil düğmesi + seçici, sözlük dosyası, ortak çizim noktalarının çeviriden geçmesi. Metin çevirisi yok (sadece seçicinin kendi yazıları). | ✅ Uygulandı |
 | **2** | Ana menü, durum raporu, HUB (harita, kartlar, ray), act ekranı, kapılar, duraklatma paneli, oyun sonu / sonuç ekranları, enerji ve recovery mesajları, tebrik ekranı. | ✅ Uygulandı |
 | **3** | TIP satırları (`TipBar.MAP`, `TipBar.ACT`, `TipBar.RULES`), oyun kılavuzu (`GUIDE_PAGES`), act hikâyeleri, kontrol ve alt ipucu satırları (`Campaign.js`). | ✅ Uygulandı |
-| 4 | Act 1–5: dersler ve oyun içi yazılar (HUD, mesajlar). | Bekliyor |
+| **4** | Act 1–5: dersler ve oyun içi yazılar (HUD, mesajlar). | ✅ Uygulandı |
 | 5 | Act 6–8: Network Cut, Logic Bomb (kural kartı üretici dahil), Defrag. | Bekliyor |
 | 6 | Act 9 Checksum Grid ve Act 10 görevleri (en çok içerik). | Bekliyor |
 | 7 | Kalanlar: Endless, leaderboard, operatör profili formu (DOM), lockpick / Code Breaker, Dual Ring, Packet Purge. Son kontrol: bütün ekranlar iki dilde, telefon ve masaüstü. | Bekliyor |
@@ -57,7 +59,9 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 - **Font: Orbitron'da Ğ / ğ yok** (Google'ın Orbitron'u sadece latin alt kümesi). Ş ve İ'yi tarayıcı Orbitron'un S / I harfine işaret ekleyerek kuruyor, ama Ğ tırnaklı bir yedek fontla çiziliyordu. Çözüm: `css/style.css`'te `OrbitronTR` adlı bir yüz (Audiowide'ın latin-ext dosyası, sadece U+011E-011F); bütün canvas font dizeleri `Orbitron, OrbitronTR` (`UITheme.font` / `UITheme.family`). Yeni kodda da Orbitron her zaman böyle yazılmalı. Bu yüzü doğrudan `Orbitron` ailesine eklemek denendi: Chrome bu sefer Orbitron'u hiç yüklemedi, geri alındı.
 - Durum raporu ve tebrik ekranındaki satırlar, uzun Türkçe metinde `UITheme.fitFont` ile küçülür; duraklatma panelinin başlığı ve sonuç damgası (ACCESS GRANTED) da öyle.
 - Türkçe ekler sayıdan sonra değişir (ACT 2'ye, 6'ya, 10'a): sayılı metinler ek gerektirmeyecek şekilde kuruldu ("Kapıyı kır: KAPI 6 → ACT 7", "Endless Mode, ACT 10 bitince açılır").
-- Faz 2 sözcük seçimleri (kullanıcı onayına açık): gate → **KAPI**, stage → **aşama**, act → **ACT** (ekranda), "← ACTS" → **← HARİTA**, "← ACT" (başarısızlık ekranı) → **← AŞAMALAR**, SECURED → **GÜVENDE**, ACCESS GRANTED → **ERİŞİM SAĞLANDI**, CLEARANCE → **YETKİ** (seviye adları L4 OPERATOR gibi İngilizce), packet → **PAKET**, Endless "run" → **koşu**. Katman adları (PERIMETER, INTERNAL, CORE, HANDOVER) İngilizce kaldı.
+- Faz 2 sözcük seçimleri (kullanıcı onayına açık): gate → **KAPI**, stage → **aşama**, act → **ACT** (ekranda), "← ACTS" → **← HARİTA**, "← ACT" (başarısızlık ekranı) → **← AŞAMALAR**, SECURED → **GÜVENDE**, ACCESS GRANTED → **ERİŞİM SAĞLANDI**, CLEARANCE → **YETKİ** (seviye adları L4 OPERATOR gibi İngilizce), packet → **PAKET**. Katman adları (PERIMETER, INTERNAL, CORE, HANDOVER) İngilizce kaldı.
 - Test: `tests/run.js` "phase 2" grubu, Faz 2 dosyalarında `UITheme.t('…')` ile geçen her metnin Türkçesi olduğunu ve yer tutucuların (`{n}`) korunduğunu denetler. Sonraki fazlarda dosya listesine o fazın dosyaları eklenir.
 - Faz 3: TIP satırı `{ text, vars }` da olabilir (yer tutuculu ipucu, ör. "Endless Mode, ACT {n} bitince açılır"); rehber maddeleri de `vars` taşıyabilir. Rehber metni Türkçede uzadığı için en fazla 8 satıra sarılır (sayfa kayar). Act kartındaki hikâye 316 px'e sığmalı: uzun Türkçe hikâyeler kısaltıldı, sığmazsa yazı küçülür. Rehberde oyun adları ve tuş adları (SPACE, Esc, H) İngilizce kalır; "line" (nonogram) **satır** diye çevrildi. Route Trace tahtasındaki YOU / ATTACKER etiketleri ipuçlarında İngilizce geçiyor; Faz 4'te tahtada çevrilirse ipuçları da güncellenmeli. Act 10 ipucundaki "TASK line" → **Görev satırı** (görev çerçevesi Faz 6'da çevrilince aynı kelime kullanılmalı).
 - Test: "phase 3" grubu bütün TIP / RULES satırlarının, act hikâye / kontrol / ipucu satırlarının ve rehber metinlerinin Türkçesi olduğunu, rehberin Türkçe çizildiğini ve hiçbir satırın "…" ile kesilmediğini denetler.
+- Faz 4: `Coach` adımları da `vars` taşıyabilir (`{ text: 'Land {n} hits', vars: { n } }`); sayılı ders metinleri böyle yazılır. Timing Bar'ın vuruş kelimeleri (`LevelThemes` `hitWords`: PURGED, SEALED…) çevrildi; PERFECT / GOOD / MISS İngilizce kaldı. Kelime seçimleri: STACK LIMIT → **SINIR ÇİZGİSİ**, FRAMES → **BLOK**, BLOCKED → **ENGELLENEN**, KEYS → **ANAHTAR**, TRACES → **İZ**, s → **sn**. Oyun adı olan sonuç yazısı STACK OVERFLOW, ayrıca SYNC / SYNCING, CORE ve Route Trace tahtasındaki **YOU / ATTACKER** etiketleri İngilizce kaldı (ATK / CORE gibi kısa tahta etiketleri; ders ve ipuçları da bu adlarla anlatıyor). Endless'ın oyun içi yazıları (WAVE, BEST) Faz 7'de.
+- Test: "phase 4" grubu Act 1–5 dosyalarındaki çizilen metinlerin ve ders adımlarının (text / desktop / touch) Türkçesini, vuruş kelimelerini ve ders yer tutucularını denetler.

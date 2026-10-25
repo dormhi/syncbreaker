@@ -89,7 +89,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
                 { kind: 'rotate', rects: 'board', text: { desktop: 'Click a tile to turn it (or move with the arrows and press SPACE). Try it.', touch: 'Tap a tile to turn it. Try it.' } },
                 { kind: 'info', rects: 'board', text: 'A tile that connects to YOU lights up GREEN. Keep turning tiles so the green line grows all the way to the ATTACKER.' },
                 { kind: 'trace', rects: 'board', text: 'Finish the route — the timer waits while you learn.' },
-                { kind: 'info', key: 'tutorial', text: `Traced! Find ${this.traces} routes before the timer runs out.` }
+                { kind: 'info', key: 'tutorial', text: 'Traced! Find {n} routes before the timer runs out.', vars: { n: this.traces } }
             );
         }
     }
@@ -512,7 +512,7 @@ class RouteTraceMechanic extends _MechanicBaseRT {
         ctx.fillStyle = low ? '#ef4444' : '#94a3b8';
         ctx.font = '700 20px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`${Math.ceil(this.timeLeft)}s · TRACES ${this.solved}/${this.traces}`, W / 2 + 250, y);
+        ctx.fillText(UITheme.t('{time}s · TRACES {done}/{n}', { time: Math.ceil(this.timeLeft), done: this.solved, n: this.traces }), W / 2 + 250, y);
 
         // Status line between the board and the HUD.
         if (this.result !== null || this.pause > 0) {
@@ -521,8 +521,8 @@ class RouteTraceMechanic extends _MechanicBaseRT {
             ctx.fillStyle = ok ? '#22c55e' : '#ef4444';
             ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
-            const text = this.result === 'success' ? `ATTACKER TRACED · SCORE ${this.score}`
-                : this.result === 'fail' ? 'TRACE LOST' : 'ROUTE FOUND';
+            const text = this.result === 'success' ? UITheme.t('ATTACKER TRACED · SCORE {n}', { n: this.score })
+                : UITheme.t(this.result === 'fail' ? 'TRACE LOST' : 'ROUTE FOUND');
             ctx.fillText(text, W / 2, B.y + B.w + 30);
         }
         ctx.restore();
