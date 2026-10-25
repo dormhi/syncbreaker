@@ -2683,6 +2683,13 @@ class GameManager {
 
     /** Mouse press on the canvas: starts a hold unless it lands on a button. */
     _handleMouseDown(x, y) {
+        const d = this._dragGame();
+        if (d) {
+            if (this._quit || this.state.transitioning || this._onUiButton(x, y)) return;
+            this._mouseDrag = true;
+            d.handlePointer(x, y, 'down', 0, 'mouse');
+            return;
+        }
         const m = this._holdGame();
         if (!m || this._quit || this.state.transitioning) return;
         if (this.ui.buttons.some(b => !b.hidden && !b.disabled &&
@@ -2697,10 +2704,71 @@ class GameManager {
 
     /** 'pointer' ends a mouse/touch hold; 'all' also drops a held key. */
     _releaseHold(which) {
+        const d = this._dragGame();
+        if (d && which === 'all') {
+            this._mouseDrag = false;
+            this._gameDrag = false;
+            if (d.releaseAll) d.releaseAll();
+        }
         const m = this._holdGame();
         if (!m) return;
         if (which === 'all' && m.releaseAll) m.releaseAll();
         else m.handlePointer(0, 0, 'up');
+    }
+
+    // ── Drag-to-play routing (Defrag) ──
+
+    _dragGame() {
+        const m = this._activeMinigame;
+        return (this.state.currentState === this.state.STATES.MINIGAME && m && m.wantsDrag) ? m : null;
+    }
+
+    _onUiButton(x, y) {
+        return this.ui.buttons.some(b => !b.hidden && !b.disabled &&
+            Math.abs(x - b.x) <= b.w / 2 && Math.abs(y - b.y) <= b.h / 2);
+    }
+
+    _handleMove(x, y) {
+        this.ui.updateMouse(x, y);
+        const d = this._mouseDrag && this._dragGame();
+        if (d) d.handlePointer(x, y, 'move', 0, 'mouse');
+    }
+
+    _handlePointerUp(x, y) {
+        const d = this._mouseDrag && this._dragGame();
+        this._mouseDrag = false;
+        if (d && x !== undefined) d.handlePointer(x, y, 'up', 0, 'mouse');
+        this._releaseHold('pointer');
+    }
+
+    _handleAltPress(x, y) {
+        const d = this._dragGame();
+        if (d && d.handleAltPointer && !this._quit && !this.state.transitioning) d.handleAltPointer(x, y);
+    }
+
+    /** Touch: a drag game claims every touch off the buttons; the HUB claims its card band. */
+    _dragStart(x, y) {
+        const d = this._dragGame();
+        if (d) {
+            if (this._quit || this.state.transitioning || this._onUiButton(x, y)) return false;
+            this._gameDrag = true;
+            d.handlePointer(x, y, 'down', 0, 'touch');
+            return true;
+        }
+        return this._mapDragStart(x, y);
+    }
+
+    _dragMove(x, y) {
+        if (!this._gameDrag) { this._mapDragMove(x); return; }
+        const d = this._dragGame();
+        if (d) d.handlePointer(x, y, 'move', 0, 'touch');
+    }
+
+    _dragEnd(x, y, tap, cancelled) {
+        if (!this._gameDrag) { this._mapDragEnd(tap); return; }
+        this._gameDrag = false;
+        const d = this._dragGame();
+        if (d) d.handlePointer(x, y, cancelled ? 'cancel' : 'up', 0, 'touch');
     }
 
     // ── Field guide ──
@@ -2982,6 +3050,7 @@ class GameManager {
         if (act.game === 'route') return `${p.traces} TRACES · ${p.size}×${p.size} · ${p.timeLimit}s`;
         if (act.game === 'cut') return `${p.networks} NETWORKS · ${p.lives}♥`;
         if (act.game === 'bomb') return `${p.payloads} PAYLOADS · ${p.timeLimit}s`;
+        if (act.game === 'defrag') return `${p.disks} DISKS · ${p.cols}×${p.rows} · ${p.timeLimit}s`;
         return '';
     }
 
@@ -3607,7 +3676,7 @@ class GameManager {
             this._activeMinigame && this._activeMinigame.handlePointer) {
             // Hold-to-play games get mouse holds from _handleMouseDown; the
             // click that follows the release must not start a new hold.
-            if (this._activeMinigame.wantsHold && source === 'click') return true;
+            if ((this._activeMinigame.wantsHold || this._activeMinigame.wantsDrag) && source === 'click') return true;
             const offset = this._computeInputOffset(performance.now());
             this._activeMinigame.handlePointer(x, y, 'down', offset);
             return true;
@@ -3661,18 +3730,19 @@ class GameManager {
 
         this.input = new InputManager(this.canvas, {
             hitTestUI: (x, y, source) => this._hitTestUI(x, y, source),
-            onMove: (x, y) => this.ui.updateMouse(x, y),
+            onMove: (x, y) => this._handleMove(x, y),
             onPress: (pointerType, ts) => this._handleConfirm(ts),
             onSwipe: (dir, ts) => this._handleSwipe(dir, ts),
             onKey: (action) => this._handleKeyAction(action),
             onKeyUp: (action) => this._handleKeyUp(action),
             onMouseDown: (x, y) => this._handleMouseDown(x, y),
-            onPointerUp: () => this._releaseHold('pointer'),
+            onPointerUp: (x, y) => this._handlePointerUp(x, y),
             onBlur: () => this._releaseHold('all'),
             onWheel: (delta) => this._handleWheel(delta),
-            onDragStart: (x, y) => this._mapDragStart(x, y),
-            onDragMove: (x) => this._mapDragMove(x),
-            onDragEnd: (x, y, tap) => this._mapDragEnd(tap)
+            onAltPress: (x, y) => this._handleAltPress(x, y),
+            onDragStart: (x, y) => this._dragStart(x, y),
+            onDragMove: (x, y) => this._dragMove(x, y),
+            onDragEnd: (x, y, tap, cancelled) => this._dragEnd(x, y, tap, cancelled)
         });
     }
 
@@ -3996,6 +4066,7 @@ GameManager.GUIDE_PAGES = [
             ['Route Trace', 'Click a tile · arrows + SPACE', 'Tap a tile'],
             ['Network Cut', 'Click twice · arrows + SPACE', 'Tap a cable twice'],
             ['Logic Bomb', '1-4 / Tab · arrows + SPACE', 'Tap tabs and parts'],
+            ['Defrag', 'Drag · right click turns · Tab, R', 'Drag · tap to turn'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
@@ -4011,6 +4082,7 @@ GameManager.GUIDE_PAGES = [
             { head: 'ROUTE TRACE', text: 'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.' },
             { head: 'NETWORK CUT', text: 'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue owner lines cost a life; thick cables need two cuts.' },
             { head: 'LOGIC BOMB', text: 'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.' },
+            { head: 'DEFRAG', text: 'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },
@@ -4018,7 +4090,7 @@ GameManager.GUIDE_PAGES = [
         title: 'ENERGY',
         items: [
             { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
-            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock, Route Trace and Logic Bomb you get 20 more seconds. Twice per stage.' },
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock, Route Trace, Logic Bomb and Defrag you get 20 more seconds. Twice per stage.' },
             { head: 'ENDLESS MODE', text: `Unlocks after ACT ${CAMPAIGN.finalAct}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.` }
         ]
     }

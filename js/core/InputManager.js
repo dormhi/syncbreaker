@@ -16,8 +16,12 @@
      onSwipe(direction, ts)        -> 'up' | 'down' | 'left' | 'right'
      onKey(action)                 -> { code, timestamp }
      onKeyUp(action)               -> { code }       (hold-to-play games)
-     onMouseDown(x, y)             -> mouse press on the canvas (hold start)
-     onPointerUp()                 -> any mouse / touch release (hold end)
+     onMouseDown(x, y)             -> mouse press on the canvas (hold / drag start)
+     onPointerUp(x, y)             -> any mouse / touch release (hold end);
+                                      mouse releases carry their position
+     onAltPress(x, y)              -> right click on the canvas (no menu)
+     onDragStart / onDragMove / onDragEnd(x, y, tap, cancelled)
+                                   -> a touch the host claimed as a drag
      onBlur()                      -> window lost focus: drop every hold
      onWheel(delta)                -> wheel / trackpad scroll (act map)
    ========================================= */
@@ -121,7 +125,15 @@ class InputManager {
         // letting go outside the canvas cannot leave a hold stuck on.
         if (typeof window !== 'undefined' && window.addEventListener) {
             window.addEventListener('pointerup', (e) => {
-                if (e.pointerType === 'mouse' && H.onPointerUp) H.onPointerUp();
+                if (e.pointerType !== 'mouse' || !H.onPointerUp) return;
+                const p = this._coords(e.clientX, e.clientY);
+                H.onPointerUp(p.x, p.y);
+            });
+            // A mouse drag keeps following the cursor outside the canvas.
+            window.addEventListener('pointermove', (e) => {
+                if (e.pointerType !== 'mouse' || !(e.buttons & 1) || e.target === canvas) return;
+                const p = this._coords(e.clientX, e.clientY);
+                H.onMove(p.x, p.y);
             });
             window.addEventListener('blur', () => { if (H.onBlur) H.onBlur(); });
         }
@@ -160,8 +172,16 @@ class InputManager {
             H.onSwipe(dir, this._now(e.timeStamp));
         }, { passive: false });
 
+        // Right click: an alternate action (rotate a block), never the browser menu.
+        canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (!H.onAltPress) return;
+            const p = this._coords(e.clientX, e.clientY);
+            H.onAltPress(p.x, p.y);
+        });
+
         canvas.addEventListener('pointercancel', () => {
-            if (this._touch && this._touch.drag && H.onDragEnd) H.onDragEnd(0, 0, false);
+            if (this._touch && this._touch.drag && H.onDragEnd) H.onDragEnd(0, 0, false, true);
             this._touch = null;
             if (H.onPointerUp) H.onPointerUp();
         });

@@ -28,7 +28,7 @@ Ana hikaye şu: sisteme bir saldırgan sızdı. Oyuncu önce enfeksiyonu temizli
 | 5 | TRACE_LOGS | Log akışını takip edip saldırganın kaynağını bul | **Route Trace** (süre oyunu) | ✅ Kesin, 3 aşama (Faz 4'te uygulandı) |
 | 6 | CUT_ACCESS | Saldırganın kablolarını kesip bağlantıyı kopar | **Network Cut** (can + mantık, süre yok) | ✅ Yayında, 4 aşama (Faz 5) |
 | 7 | **DEFUSE_PAYLOAD** | Saldırganın bıraktığı mantık bombasını etkisiz hale getir | **Logic Bomb** (modüler bomba: süre + arıza) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 6) |
-| 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | Henüz yok | 🛠 Geliştiriliyor |
+| 8 | **RESTORE_CORE** | Çekirdek sistemleri temiz yedeklerden geri yükle | **Defrag** (yerleştirme bulmacası + süre) | 📝 Taslak kademelerle geliştiriliyor, 4 aşama (Faz 7) |
 | 9 | **FINAL_AUDIT** | Sistemin temiz olduğunu kanıtla: sadece bilgi ve mantık | **Bilgi ve zihin oyunu** (süre yok, can yok) | 🛠 Geliştiriliyor |
 | 10 | **RETURN_CONTROL** | Sistemi asıl sahibine geri ver ve onu güvende tutmayı öğret | **Eğitici final** (bölüm 3) | 🛠 Geliştiriliyor |
 
@@ -396,9 +396,85 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 
 **Sonraki iş (2026-10-24, kullanıcı):** Act 7 bitince **Act 1–5 için de benzer küçük öğreticiler** yapılacak (Act 6 ve 7'deki `useCoach` yapısıyla).
 
-### Act 8: Geliştiriliyor 🛠
+### Act 8: Defrag, 4 aşama 📝 (plan ve ilk uygulama, 2026-10-25)
 
-- Act 8 (RESTORE_CORE) için henüz fikir yok. Mekanik birlikte kararlaştırılacak.
+**Fikir:** Act 7'de bomba etkisiz hale getirildi, şimdi çekirdek temiz yedeklerden **yeniden yazılıyor**. Çekirdek diski bir ızgara. Yedekten gelen veri blokları Tetris benzeri parçalar halinde yan tarafta bekliyor. Oyuncu hepsini boş sektörlere sürükleyip diski **eksiksiz dolduruyor**. Bu, defragmentation'ın görsel bir metaforu.
+
+- 2026-10-25'te dört öneri arasından seçildi: A "Defrag", B "Clean Snapshot" (farkı bul), C "Boot Sequence" (hafıza), D "Service Restart" (bağımlılık sırası).
+- **Karar:** ilk üç aşama sadece A. **Uzman** aşaması A + B karışımı: bazı yedek parçalar bozuk, temiz görüntüyle karşılaştırılıp ayıklanıyor.
+- **Act 7'den alınan ders:** oyun ilk bakışta anlaşılmalı. Hedef tek cümle: "Fill every empty sector". Öğretici okutarak değil, oynatarak öğretecek.
+- **Fizik yok.** Izgaraya oturan parçalar, analitik çizim.
+
+**Ekran (telefon uyumu için):**
+- Solda **disk**: ızgara (en fazla 7×7, telefonda bir hücre en az ~32 px). Boş sektörler koyu, bozuk sektörler kırmızı çizgili ve kullanılamaz.
+- Sağda **tepsi**: bekleyen parçalar küçültülmüş halde. Sürüklenen parça disk boyutuna büyüyor.
+- Telefonda parça parmağın biraz **üstünde** taşınıyor, böylece parmak parçayı kapatmıyor. Bırakılacağı yer bir **gölge** ile gösteriliyor: yeşil = sığar, kırmızı = sığmaz.
+- Üstte süre ve "DISK 1/3", altta tek satırlık hedef cümlesi.
+
+**Oynanış:**
+- Parçayı tepsiden diske sürükle. Izgaraya oturur. Sığmazsa tepsiye geri döner (ceza yok).
+- Diske konmuş bir parça tekrar alınıp taşınabilir ya da tepsiye geri bırakılabilir.
+- **Döndürme:** parçaya kısa dokunuş (tepside ya da elde) 90° döndürür. Masaüstünde sağ tık ya da R tuşu da döndürür.
+- Klavye: Tab / 1–9 ile parça seç, oklarla taşı, R ile döndür, Space ile bırak.
+- Disk tamamen dolunca "DISK RESTORED" görünüyor, kısa bir duraklamadan sonra yeni disk geliyor. Aşamanın bütün diskleri bitince aşama tamamlanıyor.
+- **Kaybetme:** süre biterse. Can yok (ilk üç aşamada yanlış hamle cezası da yok, baskıyı süre sağlıyor).
+
+**Bulmaca garantisi:** önce disk kuruluyor (bozuk sektörler dahil), sonra boş hücreler rastgele büyütülen bağlantılı parçalara (2–5 hücre) bölünüyor. Böylece her disk çözülebilir. Parçalar rastgele döndürülüp karıştırılarak tepsiye konuyor. Çok küçük parça sayısı (1 hücrelik "dolgu" parçaları) sınırlanıyor ki bulmaca kolaylaşmasın.
+
+**Uzman (A + B):**
+- Tepsinin altında çekirdeğin **temiz görüntüsü** (CLEAN SNAPSHOT) duruyor: hücre çizgileri ve bozuk sektörleriyle, büyük boyutta. Her parça kendi görüntü parçasını taşıyor, yani artık **kendi yerine** gitmesi gerekiyor (yapboz gibi).
+- **Disk boş** (2026-10-25, kullanıcı isteği): ilk sürümde temiz görüntü diskin üstünde soluk olarak da duruyordu, bu da her parçanın yerini veriyordu. Kaldırıldı; oyuncu yeri yandaki görüntüye bakarak buluyor. Sürüklerken çıkan gölge de sadece şeklin sığıp sığmadığını gösteriyor, görüntünün eşleşip eşleşmediğini değil (yoksa gezdirerek yer bulunurdu). Eşleşmeyen yere bırakılan temiz blok cezasız tepsiye döner.
+- Tepside bazı parçaların **bozuk ikizi** var: şekil aynı, ama görüntüde 1–2 piksel farklı. Oyuncu temiz görüntüyle karşılaştırıp bozuk olanı **TRASH** kutusuna sürüklüyor.
+- Bozuk parçayı diske koymak: "CORRUPTED BACKUP", parça çöpe gider, **−10 saniye**. Temiz parçayı çöpe atmak: "CLEAN DATA LOST", parça tepsiye geri döner, **−10 saniye**.
+- Farklar sadece renkle değil parlaklık ya da desenle de görülecek (renk körlüğü).
+
+**Aşamalar (taslak, bot taramasıyla ayarlanacak, onay bekliyor):**
+
+| | Kolay | Orta | Zor | Uzman (A + B) |
+|---|---|---|---|---|
+| Disk | 2 | 3 | 3 | 2 |
+| Izgara | 5×5 | 6×6 | 7×6 | 6×6 |
+| Parça (hücre) | 5–6 (3–4) | 7–8 (3–5) | 9–10 (3–5) | 7–8 + 2–3 bozuk ikiz |
+| Parçalar dönük gelir | – | ✓ | ✓ | ✓ |
+| Bozuk sektör | – | 2–3 | 4–5 | 2 |
+| Disk haritası (yer çizgileri) | hepsi | hepsi | yarısı | yok (görüntü yeri gösterir) |
+| Yerleşim | serbest | serbest | serbest | görüntüye göre sabit |
+| Süre (aşamanın tamamı) | 120 sn | 250 sn | 290 sn | 250 sn |
+
+**Denge sonucu (taslak, 2026-10-25):** gerçek üreticiyle, aşama başına 200 deneme. Botlar basit bir çözme süresi modeliyle oynuyor: parça başına bakma süresi, parça büyüklüğü, tepside kalan parça sayısı (seçenek çokken düşünmek uzun sürer), dönük parça ve bozuk sektör payı. Uzman'da her parça için resimde yerini bulma ve her bozuk ikiz için karşılaştırma eklendi. "İyi" bot 0.75×, "ortalama" 1×, "yavaş" 1.45× hızda; yanlış bırakma ve geri alma olasılıkları %5 / %12 / %20. Süreler modelin yaklaşık 1.6–2 katı.
+
+| Bot | Kolay | Orta | Zor | Uzman |
+|---|---|---|---|---|
+| İyi | 200/200 | 200/200 | 200/200 | 200/200 |
+| Ortalama | 200/200 | 200/200 | 200/200 | 200/200 |
+| Yavaş | 120/200 | 27/200 | 22/200 | 60/200 |
+
+- İlk taslakta (90 / 150 / 180 / 150 sn) ortalama bot Orta'dan sonrasını neredeyse hiç geçemiyordu, süreler bu yüzden uzatıldı.
+- Yavaş oyuncu için revive (+20 sn) var. Oyun testine göre ayarlanacak.
+
+**Revive:** Lockpick ile **+20 saniye**, aynı disk kaldığı yerden devam ediyor. Aşama başına 2 hak, her biri 1 enerji.
+
+**Skor:** disk başına 300, kalan her saniye için 10. Uzman'da her ceza −100.
+
+**Yıldızlar (taslak, onay bekliyor):** kalan süreye göre, Signal Lock ve Route Trace gibi. 3 / 2 yıldız için kalan saniye: Kolay 50 / 25, Orta 90 / 40, Zor 100 / 45, Uzman 90 / 40. Uzman'da ceza alınırsa en fazla 2 yıldız. Revive kullanılırsa en fazla 1 yıldız.
+
+**Eğitim (coach, `sb_coach_defrag`):**
+- Kolay'ın ilk diski elle kurulmuş küçük bir disk: önce "bu bloğu parlayan yuvaya sürükle", sonra "döndürmek için dokun", sonra "kalan boşlukları doldur".
+- Döndürme (Orta), bozuk sektörler (Orta) ve bozuk yedekler ile TRASH (Uzman) ilk göründüklerinde bir kez anlatılıyor. Baloncuk açıkken süre duruyor.
+
+**Teknik iş:**
+- `InputManager`'daki sürükleme şu an sadece dokunmatik ve sadece HUB için. **Fareyle sürükleme** eklenecek ve MINIGAME barındırıcısı sürüklemeyi oyuna iletecek (`wantsDrag`: `handlePointer(x, y, 'down' | 'move' | 'up')`).
+- Sağ tık (döndürme) tarayıcı menüsünü açmamalı.
+
+**Sonsuz mod uyumu:** diskler art arda sonsuza kadar gelebilir. Izgara, parça sayısı ve bozuk sektörler büyür, süre kısalır. Skor zaten var.
+
+**Disk haritası (ilk oyun testinden sonra, 2026-10-25):** Kullanıcı oyunu zor buldu. Neden süre değil bulmacanın kendisiydi: serbest yerleştirmeli parça bulmacasında her parça birçok yere ve dört yöne konabiliyor, oyuncu sürekli deneme yanılma yapıyor. Bot modeli bu geri dönüşleri ölçmüyordu. Çözüm olarak diskte parçaların kesildiği yerler ince çizgilerle gösteriliyor (`map`). Oyun "kombinasyon aramak" yerine "şekli boşluğa eşleştirmek" oluyor. Kolay ve Orta'da bütün boşluklar, Zor'da yarısı çizili, Uzman'da harita yok (görüntü zaten yeri gösteriyor). Haritaya uymayan ama sığan bir yerleşim de geçerli. Süreler şimdilik aynı bırakıldı, oyun testine göre ayarlanacak. Gerekirse sonraki adım: takılınca bir bloğun yerini gösteren ipucu düğmesi (−10 sn).
+
+**Uygularken verilen kararlar (2026-10-25):**
+- Uzman'daki çekirdek görüntüsü her disk için **üretiliyor**: ortası parlak, kenarı koyu bir amblem, üstüne piksel piksel hafif gürültü. Bu gürültü sayesinde hiçbir hücre başka bir hücreyle aynı değil, yani bir parça sadece kendi yerinde eşleşiyor. Üretici bunu her diskte kontrol ediyor; aynı görüntü başka bir yerde de tutarsa disk yeniden üretiliyor.
+- Bozuk ikizde 2 piksel, renk paletinde en az iki adım uzak bir renge çevriliyor (parlaklık farkı da olsun diye).
+- Ders diski (4×4, dört parça) aşamanın ilk diski sayılıyor. Ders boyunca süre duruyor.
+- Fareyle sürükleme ve sağ tık altyapısı eklendi (`InputManager` + `GameManager._dragGame`). Sürükleme oyunları `wantsDrag` ile işaretleniyor.
 
 ### Act 9: FINAL_AUDIT 🛠
 
@@ -529,8 +605,8 @@ Her fazın kabul şartları:
 | 3b | Kampanyanın 9 act'e genişletilmesi: Act 7–9 düğümleri ("IN DEVELOPMENT"), Kapı 6–8 ve 3×3 harita. | ✅ Uygulandı |
 | 4 | Act 5 Route Trace (süre oyunu) ve Kapı 4. Act haritası kayan şeride geçti. | ✅ Uygulandı |
 | 5 | Act 6 Network Cut (can + mantık, 4 aşama, bölüm 3) ve Kapı 5 | ✅ Yayında (2026-10-24) |
-| 6 | Act 7 Logic Bomb (süre + arıza, 4 aşama, bölüm 3) ve Kapı 6 | 🛠 Geliştiriliyor |
-| 7 | Act 8 ve Kapı 7 | Bekliyor |
+| 6 | Act 7 Logic Bomb (süre + arıza, 4 aşama, bölüm 3) ve Kapı 6 | ✅ Yayında, taslak kademelerle (2026-10-24) |
+| 7 | Act 8 Defrag (yerleştirme bulmacası, 4 aşama, bölüm 3) ve Kapı 7 | 🛠 Geliştiriliyor |
 | 8 | Act 9 (bilgi ve zihin oyunu) ve Kapı 8 | Bekliyor |
 | 9 | Act 10 RETURN_CONTROL (eğitici final), Kapı 9 ve final ekranı. Endless yeni oyuncular için açılır. | Bekliyor |
 | Son | Yeni çok oyunlu sonsuz mod tamamlanınca: **herkesin verileri tamamen silinir** (bölüm 5b). | Bekliyor |
@@ -609,3 +685,4 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 21. **Act 6:** Network Cut. Saldırganı çekirdeğe bağlayan bütün yollar sınırlı makasla kesilir. Can + mantık oyunu, süre yok. Kademelerle sahibin hattı, zırhlı kablo ve yedek hat (failover) eklenir. Kural kartlı kablo fikri Act 7'ye ayrıldı (bölüm 3).
 22. **Act 6 kademeleri (2026-10-24):** L2 ayarı onaylandı: can 3/4/5/5, makas payı +2/+1/+1/+1, sütun 5/5/6/6. Çelik ana hatlar ve kolay yol kontrolü eklendi.
 23. **Act 7:** Logic Bomb (2026-10-24). Modüler bir payload kasası: veri hatları (kural kartı), tetik devresi (mantık kapıları), sembol tuş takımı ve basılı tut düğmesi. Ortak geri sayım ve arıza sınırı var, fizik yok. Telefon için bir anda tek modül ve onun kartı gösteriliyor. Kademeler ve yıldızlar taslak, onay bekliyor. İlk oyun testinden sonra (aynı gün) Uzman kaldırıldı (4 aşama), her aşama tek yeni şey getiriyor, devre canlı oldu, kılavuz yeniden düzenlendi ve ilk modül adım adım ders oldu.
+24. **Act 8:** Defrag (2026-10-25). Çekirdek diski bir ızgara, yedekten gelen Tetris benzeri bloklar sürüklenip boş sektörlere yerleştiriliyor, disk tamamen doldurulunca geri yükleniyor. Süre baskısı, can yok. Uzman aşaması A + B karışımı: bazı parçaların bozuk ikizi var, temiz görüntüyle karşılaştırılıp çöpe atılıyor.

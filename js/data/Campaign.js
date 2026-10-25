@@ -175,7 +175,31 @@ const CAMPAIGN = {
                     wireMin: 5, wireMax: 6, rules: 4, edgework: true, compound: true, inputs: 3, gates: 3, clock: true, flipSlack: 1, padColumns: 4 } }
             ]
         },
-        { id: 8, key: 'RESTORE_CORE', done: 'core restored',   story: 'Bring the core back online from clean backups',      game: null, themeId: 8, available: false, stages: [] },
+        {
+            id: 8,
+            key: 'RESTORE_CORE', done: 'core restored',
+            story: 'Bring the core back online from clean backups',
+            game: 'defrag',
+            themeId: 8,
+            available: true,
+            controls: 'Drag blocks onto the disk · tap to turn · Tab + arrows, R, SPACE',
+            hint: {
+                desktop: 'Drag the blocks onto the disk · click or right click a block to turn it · fill every empty sector',
+                touch: 'Drag the blocks onto the disk · tap a block to turn it · fill every empty sector'
+            },
+            // Timer only, no lives (docs/ACT_PLAN.md). DRAFT tiers from a bot sweep
+            // (time ~1.6x a solve-time model), pending a playtest and approval.
+            // `timeLimit` is for the whole stage. `map` = how much of the disk map
+            // (the lines where blocks go) is shown: 'all' / 'half' / none. The
+            // EXPERT stage is image mode: blocks match a CLEAN SNAPSHOT and
+            // corrupted twins go to TRASH (−penaltyTime s for a mistake).
+            stages: [
+                { tier: 'EASY',   params: { disks: 2, cols: 5, rows: 5, pieceMin: 6, pieceMax: 8, sizeMin: 3, sizeMax: 4, map: 'all', timeLimit: 120 } },
+                { tier: 'NORMAL', params: { disks: 3, cols: 6, rows: 6, pieceMin: 7, pieceMax: 9, sizeMin: 3, sizeMax: 5, blockedMin: 2, blockedMax: 3, turned: true, map: 'all', timeLimit: 250 } },
+                { tier: 'HARD',   params: { disks: 3, cols: 7, rows: 6, pieceMin: 9, pieceMax: 11, sizeMin: 3, sizeMax: 5, blockedMin: 4, blockedMax: 5, turned: true, map: 'half', timeLimit: 290 } },
+                { tier: 'EXPERT', params: { disks: 2, cols: 6, rows: 6, pieceMin: 7, pieceMax: 8, sizeMin: 4, sizeMax: 5, blockedMin: 2, blockedMax: 2, image: true, twinMin: 2, twinMax: 3, penaltyTime: 10, timeLimit: 250 } }
+            ]
+        },
         // Act 9: a test of knowledge and reasoning — no timer, no lives.
         { id: 9, key: 'FINAL_AUDIT', done: 'audit passed',    story: 'Prove the system is clean — knowledge and logic only', game: null, themeId: 9, available: false, stages: [] },
         // Final act (HANDOVER status, outside the network layers): give control
@@ -224,7 +248,14 @@ CAMPAIGN.starRules = (() => {
             : s.livesLost <= (tier === 'HARD' || tier === 'VERY HARD' ? 2 : 1) ? 2 : 1,
         // Logic Bomb (DRAFT, pending approval): 3 = no strike and on average
         // 35 % of each payload's time left; 2 = at most one strike.
-        bomb: (s) => (s.strikes === 0 && s.timeShare >= 0.35) ? 3 : s.strikes <= 1 ? 2 : 1
+        bomb: (s) => (s.strikes === 0 && s.timeShare >= 0.35) ? 3 : s.strikes <= 1 ? 2 : 1,
+        // Defrag (DRAFT, pending approval): seconds left; EXPERT 3 stars also
+        // needs no penalty.
+        defrag: (s, tier) => {
+            const t = { 'EASY': [50, 25], 'NORMAL': [90, 40], 'HARD': [100, 45], 'EXPERT': [90, 40] }[tier] || [Infinity, Infinity];
+            const stars = s.timeLeft >= t[0] ? 3 : s.timeLeft >= t[1] ? 2 : 1;
+            return (stars === 3 && s.penalties > 0) ? 2 : stars;
+        }
     };
 })();
 

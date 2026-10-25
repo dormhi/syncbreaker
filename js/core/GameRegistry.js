@@ -62,6 +62,14 @@ const GameRegistry = {
         create: (params) => new LogicBombMechanic(Object.assign({}, params))
     },
 
+    defrag: {
+        kind: 'mechanic',
+        revive: true,
+        reviveLabel: '+20s',
+        title: 'DEFRAG',
+        create: (params) => new DefragMechanic(Object.assign({}, params))
+    },
+
     get(key) { return (key && this[key] && typeof this[key] === 'object') ? this[key] : null; }
 };
 

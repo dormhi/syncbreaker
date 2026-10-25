@@ -131,6 +131,13 @@ TipBar.ACT = {
         'KILL SWITCH: while holding, watch the strip colour and the timer digits',
         'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
     ],
+    defrag: [
+        'Fill the awkward corners first — the open middle is easier to finish',
+        'Tap a block to turn it; on desktop right click or R works too',
+        'A block on the disk can be picked up and moved again',
+        'EXPERT: compare each block with the CLEAN SNAPSHOT — corrupted copies go to TRASH',
+        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+    ],
     stack: [
         'Blocks keep the crane\'s sideways momentum — release a little early',
         'A wide block makes a steadier base for the next one',

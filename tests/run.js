@@ -598,7 +598,8 @@ suite('Campaign data — acts, stages, tuning', () => {
         .every(a => a.stages.length >= 3 && a.stages.length <= CAMPAIGN.maxStages));
     ok('act 6 is playable with 4 stages', acts[5].available && acts[5].game === 'cut' && acts[5].stages.length === 4);
     ok('act 7 is playable with 4 stages', acts[6].available && acts[6].game === 'bomb' && acts[6].stages.length === 4);
-    ok('acts 8-10 are in development', acts.slice(7).every(a => !a.available && a.stages.length === 0));
+    ok('act 8 is playable with 4 stages', acts[7].available && acts[7].game === 'defrag' && acts[7].stages.length === 4);
+    ok('acts 9-10 are in development', acts.slice(8).every(a => !a.available && a.stages.length === 0));
     const themes = loadLevelManager().LEVEL_THEMES;
     ok('every act has its own theme', acts.every(a => !!themes[a.themeId]) &&
         new Set(acts.map(a => a.themeId)).size === acts.length);
@@ -635,7 +636,7 @@ suite('CampaignProgress — lock rules', () => {
 
     ok('act 1 open, act 2 locked', P.isActUnlocked(1) && !P.isActUnlocked(2));
     ok('act 1 stage 1 open, stage 2 locked', P.isStageUnlocked(1, 0) && !P.isStageUnlocked(1, 1));
-    ok('dev acts are never unlocked', !P.isActUnlocked(8) && !P.isActAvailable(8));
+    ok('dev acts are never unlocked', !P.isActUnlocked(9) && !P.isActAvailable(9));
     ok('locked stage cannot be completed', P.completeStage(1, 1, 100).actCompleted === false && !P.isStageCompleted(1, 1));
 
     for (let i = 0; i < 3; i++) P.completeStage(1, i, 100 * (i + 1));
@@ -667,9 +668,12 @@ suite('CampaignProgress — lock rules', () => {
     ok('gate 6 playable once act 6 is done (act 7 exists)', P.isActComplete(6) && P.isGatePlayable(6));
     P.openGate(6);
     for (let i = 0; i < 4; i++) P.completeStage(7, i, 10);
-    ok('gate 7 not playable while act 8 is in development', P.isActComplete(7) && !P.isGatePlayable(7));
+    ok('gate 7 playable once act 7 is done (act 8 exists)', P.isActComplete(7) && P.isGatePlayable(7));
+    P.openGate(7);
+    for (let i = 0; i < 4; i++) P.completeStage(8, i, 10);
+    ok('gate 8 not playable while act 9 is in development', P.isActComplete(8) && !P.isGatePlayable(8));
     ok('endless still locked (final act not done)', !P.isEndlessUnlocked());
-    ok('current act points at the last open act', P.currentActId() === 7);
+    ok('current act points at the last open act', P.currentActId() === 8);
 
     // Persistence round-trip.
     const P2 = new mod.CampaignProgress(mod.CAMPAIGN, mod.storage);
@@ -811,8 +815,8 @@ suite('Act map HUB + gates', () => {
 
     // Dev act and locked act give a message instead of opening.
     settle(gm, S.HUB);
-    gm._mapGo(7);
-    btn('act8').onClick();
+    gm._mapGo(8);
+    btn('act9').onClick();
     ok('dev act shows a message', gm.state.pendingState === null && /development/.test(gm._hubMessage));
     gm._mapGo(1);
     btn('act2').onClick();
@@ -867,7 +871,13 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 4; i++) gm.progress.completeStage(7, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(7);
-    ok('gate 7 waits for act 8', gm.state.pendingState === null && /development/.test(gm._hubMessage));
+    ok('gate 7 starts once act 7 is done', gm.state.pendingState === S.MINIGAME &&
+        gm.state.pendingContext.mechanic.speedScale === mod.CAMPAIGN.gates[6].speedScale);
+    gm.progress.openGate(7);
+    for (let i = 0; i < 4; i++) gm.progress.completeStage(8, i, 100);
+    settle(gm, S.HUB);
+    gm._tryStartGate(8);
+    ok('gate 8 waits for act 9', gm.state.pendingState === null && /development/.test(gm._hubMessage));
 
     // Hidden energy easter egg still starts Dual Ring.
     settle(gm, S.HUB);
@@ -3535,6 +3545,298 @@ suite('Logic Bomb teaches itself (tour + one-time tips) and runs in the host', (
     ok('first stage gets the tour and the faint hint', gm.state.pendingContext.mechanic.firstStage && !!gm.state.pendingContext.footHint);
     ok('stage summary line', gm._stageSummary(CAMPAIGN.acts[6], CAMPAIGN.acts[6].stages[0]) === '2 PAYLOADS · 60s');
     ok('registry: revive +20s', mod.GameRegistry.get('bomb').revive && mod.GameRegistry.get('bomb').reviveLabel === '+20s');
+});
+
+// ─────────────────────────────────────────────
+suite('Defrag (Act 8) — disks, drag and drop, snapshot mode', () => {
+    const mod = loadGameManager();
+    const { DefragMechanic: DF, CAMPAIGN } = mod;
+    const act = CAMPAIGN.acts[7];
+    const tiers = act.stages.map(st => st.params);
+    const make = (params, seed, extra) => {
+        const m = new DF(Object.assign({ rng: makeRng(seed) }, params, extra || {}));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+    // A copy of a block turned back to how it was cut.
+    const homeCopy = (p) => {
+        const q = { cells: p.cells.map(c => ({ r: c.r, c: c.c, px: c.px && c.px.slice() })), turns: p.turns || 0 };
+        while (q.turns) DF.rotate(q);
+        return q;
+    };
+    // Put a block home through the public rules (turn it right, then drop it).
+    const solveBlock = (m, p) => { while (p.turns) m.turn(p); return m._placeOrReturn(p, p.home.r, p.home.c); };
+    const playDisk = (m) => { for (const p of m.pieces.filter(q => !q.corrupt && !q.at)) solveBlock(m, p); };
+    const playStage = (m) => {
+        for (let g = 0; g < 400 && m.result === null; g++) {
+            if (m.pause > 0) { m.update(1 / 60); continue; }
+            playDisk(m);
+        }
+    };
+
+    tiers.forEach((p, t) => {
+        const tag = act.stages[t].tier;
+        const shouldTurn = !!(p.turned || p.image);
+        let solvable = true, counts = true, turned = !shouldTurn, unique = true, twins = true, map = true;
+        for (let seed = 1; seed <= 12; seed++) {
+            const m = make(p, seed * 41 + t);
+            const B = m.board, free = B.rows * B.cols - B.blocked.size;
+            const clean = m.pieces.filter(q => !q.corrupt), corrupt = m.pieces.filter(q => q.corrupt);
+            // The blocks, turned back, tile every free sector exactly once.
+            const hit = new Map();
+            for (const q of clean) for (const c of DF.cover(homeCopy(q), q.home.r, q.home.c)) {
+                const i = c.r * B.cols + c.c;
+                if (B.blocked.has(i) || hit.has(i) || c.r >= B.rows || c.c >= B.cols) solvable = false;
+                hit.set(i, q.id);
+            }
+            if (hit.size !== free) solvable = false;
+            // The disk map marks whole gaps, exactly the cells each block was cut from.
+            const shown = new Set(B.home.filter(g => g >= 0));
+            const want = p.map === 'all' ? clean.length : p.map === 'half' ? Math.ceil(clean.length / 2) : 0;
+            if (shown.size !== want) map = false;
+            for (const [i, id] of hit) if (B.home[i] >= 0 && B.home[i] !== id) map = false;
+            for (const g of shown) if ([...hit].filter(([i, id]) => id === g).some(([i]) => B.home[i] !== g)) map = false;
+            if (clean.length < p.pieceMin || clean.length > p.pieceMax) counts = false;
+            if (B.blocked.size < (p.blockedMin || 0) || B.blocked.size > (p.blockedMax || 0)) counts = false;
+            if (clean.some(q => q.cells.length < p.sizeMin || q.cells.length > p.sizeMax + 1)) counts = false;
+            if (new Set(m.pieces.map(q => q.slot)).size !== m.pieces.length || m.pieces.some(q => q.slot < 0 || q.slot >= 12)) counts = false;
+            if (shouldTurn && clean.some(q => q.turns)) turned = true;
+            if (!shouldTurn && clean.some(q => q.turns)) turned = false;
+            if (p.image) {
+                if (corrupt.length < p.twinMin || corrupt.length > p.twinMax) twins = false;
+                // A clean block matches the snapshot only at home; a twin matches nowhere.
+                if (seed <= 4) for (const q of m.pieces) {
+                    const probe = homeCopy(q);
+                    probe.id = -9;
+                    for (let k = 0; k < 4; k++) {
+                        for (let r = -2; r < B.rows; r++) for (let c = -2; c < B.cols; c++) {
+                            if (m.fits(probe, r, c) !== 'ok') continue;
+                            if (q.corrupt || k || r !== q.home.r || c !== q.home.c) unique = false;
+                        }
+                        DF.rotate(probe);
+                    }
+                }
+            } else if (corrupt.length) twins = false;
+        }
+        ok(`${tag}: every disk is solvable (blocks tile the free sectors)`, solvable);
+        ok(`${tag}: block, size, sector and tray-slot counts as configured`, counts);
+        ok(`${tag}: disk map shows ${p.map || 'no'} gaps, each exactly a block's cells`, map);
+        ok(`${tag}: blocks come turned only when the tier says so`, turned);
+        if (p.image) {
+            ok(`${tag}: a block matches the snapshot only at home, twins never`, unique);
+            ok(`${tag}: corrupted twins as configured`, twins);
+        }
+    });
+
+    // A perfect bot clears every tier with time to spare.
+    let clean = true;
+    tiers.forEach((p, t) => {
+        const m = make(p, 300 + t);
+        playStage(m);
+        if (m.result !== 'success' || m.restored !== p.disks || m.penalties !== 0) clean = false;
+    });
+    ok('a perfect bot restores every disk of every tier', clean);
+
+    // Drag and drop through handlePointer (mouse: no lift).
+    const m = make(tiers[0], 11);
+    const R = m.boardRect();
+    const p0 = m.pieces[0];
+    const bw = Math.max(...p0.cells.map(c => c.c)) + 1, bh = Math.max(...p0.cells.map(c => c.r)) + 1;
+    const slot = m.slotRect(p0.slot);
+    m.handlePointer(slot.x + slot.w / 2, slot.y + slot.h / 2, 'down', 0, 'mouse');
+    ok('pressing a tray block picks it up', m.drag && m.drag.piece === p0);
+    const at = (r, c, lift = 0) => ({ x: R.x + (c + bw / 2) * R.cell, y: R.y + (r + bh / 2) * R.cell + lift });
+    const target = at(p0.home.r, p0.home.c);
+    m.handlePointer(target.x, target.y, 'move');
+    m.handlePointer(target.x, target.y, 'up');
+    ok('dropping it on its spot places it', p0.at && p0.at.r === p0.home.r && p0.at.c === p0.home.c && !m.drag);
+    // Pick it back up off the disk and drop it outside: back to the tray.
+    const cellPt = { x: R.x + (p0.home.c + p0.cells[0].c + 0.5) * R.cell, y: R.y + (p0.home.r + p0.cells[0].r + 0.5) * R.cell };
+    m.handlePointer(cellPt.x, cellPt.y, 'down', 0, 'mouse');
+    m.handlePointer(900, 600, 'move');
+    m.handlePointer(900, 600, 'up');
+    ok('a block dragged off the disk goes back to the tray', !p0.at && m.board.cells.every(id => id !== p0.id));
+    // A tap turns it.
+    const before = p0.turns || 0;
+    m.handlePointer(slot.x + slot.w / 2, slot.y + slot.h / 2, 'down', 0, 'mouse');
+    m.handlePointer(slot.x + slot.w / 2 + 3, slot.y + slot.h / 2, 'up');
+    ok('a tap turns a block', (p0.turns || 0) === (before + 1) % 4 && !p0.at);
+    ok('right click turns it too', m.handleAltPointer(slot.x + slot.w / 2, slot.y + slot.h / 2) && (p0.turns || 0) === (before + 2) % 4);
+    // Touch lifts the block above the finger.
+    while (p0.turns) m.turn(p0);
+    m.handlePointer(slot.x + slot.w / 2, slot.y + slot.h / 2, 'down', 0, 'touch');
+    const lifted = at(p0.home.r, p0.home.c, 64);
+    m.handlePointer(lifted.x, lifted.y, 'move');
+    m.handlePointer(lifted.x, lifted.y, 'up');
+    ok('touch: the block lands where it is drawn, above the finger', p0.at && p0.at.r === p0.home.r);
+    // Cancel / blur: the block goes back.
+    const p1 = m.pieces.find(q => !q.at);
+    const s1 = m.slotRect(p1.slot);
+    m.handlePointer(s1.x + s1.w / 2, s1.y + s1.h / 2, 'down', 0, 'touch');
+    m.releaseAll();
+    ok('a dropped hold puts the block back', !m.drag && !p1.at);
+
+    // Keyboard: Tab lifts, arrows move, SPACE drops.
+    const km = make(tiers[0], 12);
+    const kp = km._waiting()[0];
+    km.handleKey('Tab');
+    ok('Tab lifts the first waiting block', km.kbd && km.kbd.piece === kp);
+    while (kp.turns) km.handleKey('KeyR');
+    for (let i = 0; i < kp.home.r; i++) km.handleKey('ArrowDown');
+    for (let i = 0; i < kp.home.c; i++) km.handleKey('ArrowRight');
+    km.handleKey('Space');
+    ok('arrows + SPACE place it', kp.at && kp.at.r === kp.home.r && kp.at.c === kp.home.c && !km.kbd);
+
+    // Time out and revive.
+    const tm = make(tiers[0], 13);
+    for (let i = 0; i < (tiers[0].timeLimit + 1) * 60 && tm.result === null; i++) tm.update(1 / 60);
+    ok('time up fails the stage', tm.result === 'fail' && tm.timeLeft === 0);
+    tm.revive();
+    ok('revive: +20 s, same disk', tm.result === null && tm.timeLeft === 20 && tm.restored === 0);
+
+    // Snapshot mode: twins and TRASH.
+    const em = make(tiers[3], 14);
+    const twin = em.pieces.find(q => q.corrupt);
+    const sib = em.pieces.find(q => !q.corrupt && q.home.r === twin.home.r && q.home.c === twin.home.c);
+    const t0 = em.timeLeft;
+    while (sib.turns) em.turn(sib);
+    let wrong = null;
+    for (let r = 0; r < em.board.rows && !wrong; r++) for (let c = 0; c < em.board.cols && !wrong; c++) {
+        if ((r !== sib.home.r || c !== sib.home.c) && em.fits(sib, r, c) === 'image') wrong = { r, c };
+    }
+    ok('a clean block where the picture differs is refused, no penalty',
+        !!wrong && em._placeOrReturn(sib, wrong.r, wrong.c) === false && !sib.at && em.penalties === 0);
+    em.trash(sib);
+    ok('binning clean data: −10 s, the block stays', em.penalties === 1 && approx(em.timeLeft, t0 - 10) && !sib.gone);
+    while (twin.turns) em.turn(twin);
+    em._placeOrReturn(twin, twin.home.r, twin.home.c);
+    ok('a corrupted twin on its place: binned, −10 s', twin.gone && em.penalties === 2 && !twin.at);
+    const twin2 = em.pieces.find(q => q.corrupt && !q.gone);
+    ok('a corrupted twin into TRASH: no penalty', em.trash(twin2) && twin2.gone && em.penalties === 2);
+    const band = em.bandRect(), lastSlot = em.slotRect(11);
+    ok('snapshot mode: tray slots stay clear of the snapshot and TRASH', lastSlot.y + lastSlot.h <= band.y && band.h >= 150);
+    ok('snapshot stars: a penalty caps at 2', CAMPAIGN.starsFor('defrag', 'EXPERT', { timeLeft: 999, penalties: 1 }, false) === 2 &&
+        CAMPAIGN.starsFor('defrag', 'EXPERT', { timeLeft: 999, penalties: 0 }, false) === 3 &&
+        CAMPAIGN.starsFor('defrag', 'EASY', { timeLeft: 999, penalties: 0 }, true) === 1);
+
+    // Render every tier, a drag, keyboard hold and the end states.
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try {
+        tiers.forEach((p, t) => {
+            const r = make(p, 20 + t);
+            r.render(ctx, 960, 640);
+            const q = r.pieces[0], sr = r.slotRect(q.slot);
+            r.handlePointer(sr.x + 5, sr.y + 5, 'down', 0, 'touch');
+            r.handlePointer(200, 300, 'move');
+            r.render(ctx, 960, 640);
+            r.releaseAll();
+            r.handleKey('Tab');
+            r.render(ctx, 960, 640);
+            r._timeUp();
+            r.render(ctx, 960, 640);
+        });
+    } catch (e) { threw = e.stack; }
+    ok('every tier, a drag, a keyboard hold and time up render', threw === null, threw);
+});
+
+// ─────────────────────────────────────────────
+suite('Defrag teaches itself (lesson disk) and runs in the host', () => {
+    const mod = loadGameManager();
+    const { DefragMechanic: DF, CAMPAIGN } = mod;
+    const tiers = CAMPAIGN.acts[7].stages.map(st => st.params);
+    const store = () => { const seen = {}; return { seen: k => !!seen[k], mark: k => { seen[k] = true; }, raw: seen }; };
+
+    const st = store();
+    const m = new DF(Object.assign({ rng: makeRng(4) }, tiers[0]));
+    m.useCoach(st, true);
+    m.init({ width: 960, height: 640 });
+    ok('first stage opens on the 4×4 lesson disk', m.tutorial && m.board.rows === 4 && m.pieces.length === 4 && m.coach && m.coach.kind === 'info');
+    ok('the lesson disk shows its whole map', m.board.home.every(g => g >= 0) && new Set(m.board.home).size === 4);
+    const t0 = m.timeLeft;
+    for (let i = 0; i < 90; i++) m.update(1 / 60);
+    ok('the timer waits during the lesson', m.timeLeft === t0);
+    m.handlePointer(10, 10, 'down');
+    ok('then: drag this block onto the glowing sectors', m.coach && m.coach.kind === 'place' && m.coach.piece === 0);
+    const p0 = m.pieces[0], p1 = m.pieces[1];
+    ok('another block, or another spot, is refused', m._placeOrReturn(p1, p1.home.r, p1.home.c) === false && m._placeOrReturn(p0, 2, 0) === false);
+    m._placeOrReturn(p0, p0.home.r, p0.home.c);
+    ok('the right drop moves the lesson on to turning', p0.at && m.coach && m.coach.kind === 'rotate');
+    const p2 = m.pieces[2];
+    m.turn(p1);
+    ok('turning another block does not count', m.coach.kind === 'rotate');
+    m.turn(p2); m.turn(p2); m.turn(p2);
+    ok('turning the wrong-way block does', m.coach && m.coach.kind === 'fill');
+    for (const q of m.pieces) { while (q.turns) DF.rotate(q); if (!q.at) m._placeOrReturn(q, q.home.r, q.home.c); }
+    ok('filling the lesson disk restores it and wraps the lesson up', m.restored === 1 && m.coach && m.coach.key === 'tutorial');
+    m.handleKey('Space');
+    for (let i = 0; i < 120; i++) m.update(1 / 60);
+    ok('lesson done: marked, a real disk follows, the timer runs', st.raw.tutorial && m.board.rows === 5 && m.timeLeft < t0);
+
+    const nm = new DF(Object.assign({ rng: makeRng(5) }, tiers[1]));
+    nm.useCoach(st, false);
+    nm.init({ width: 960, height: 640 });
+    ok('turned blocks and corrupted sectors are explained once', nm.coach && nm.coach.key === 'turned' && nm.coachQueue.some(c => c.key === 'blocked'));
+    const hm = new DF(Object.assign({ rng: makeRng(15) }, tiers[2]));
+    hm.useCoach(store(), false);
+    hm.init({ width: 960, height: 640 });
+    ok('a half map is explained', [hm.coach].concat(hm.coachQueue).some(c => c && c.key === 'halfmap'));
+    while (nm.coach) nm.handleKey('Space');
+    nm._newDisk();
+    ok('no repeat once seen', !nm.coach && st.raw.turned && st.raw.blocked);
+    const ex = new DF(Object.assign({ rng: makeRng(6) }, tiers[3]));
+    ex.useCoach(st, false);
+    ex.init({ width: 960, height: 640 });
+    ok('the snapshot mode gets its own explanation', ex.coach && ex.coach.key === 'snapshot');
+
+    const plain = new DF(Object.assign({ rng: makeRng(7) }, tiers[0]));
+    plain.init({ width: 960, height: 640 });
+    ok('without a coach store: no lesson (tests, bots)', !plain.coach && !plain.tutorial && plain.board.rows === 5);
+
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    let threw = null;
+    try { const c = new DF(Object.assign({ rng: makeRng(8) }, tiers[0])); c.useCoach(store(), true); c.init({}); c.render(ctx, 960, 640); c.handlePointer(1, 1, 'down'); c.render(ctx, 960, 640); } catch (e) { threw = e.stack; }
+    ok('lesson bubbles render', threw === null, threw);
+
+    // Through the host: act 8 runs in MINIGAME and gets drags from touch and mouse.
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    for (let a = 1; a <= 7; a++) {
+        for (let i = 0; i < CAMPAIGN.acts[a - 1].stages.length; i++) gm.progress.completeStage(a, i, 10);
+        gm.progress.openGate(a);
+    }
+    ok('act 8 opens after gate 7', gm.progress.isActUnlocked(8) && gm.progress.isStageUnlocked(8, 0));
+    gm.progress.completeStage(8, 0, 10);
+    gm._startStage(8, 1);
+    const S = gm.state.STATES;
+    ok('stage starts in the MINIGAME host', gm.state.pendingState === S.MINIGAME && gm.state.pendingContext.mechanic instanceof DF);
+    const cfg = gm.state.pendingContext;
+    settle(gm, S.ACT);
+    gm.state.change(S.MINIGAME, cfg);
+    for (let i = 0; i < 60; i++) gm.update(1 / 60);
+    const dm = gm._activeMinigame;
+    while (dm.coach) dm.handleKey('Space');
+    ok('stage summary line', gm._stageSummary(CAMPAIGN.acts[7], CAMPAIGN.acts[7].stages[1]) === '3 DISKS · 6×6 · 250s');
+    const q = dm.pieces.find(x => !x.corrupt);
+    while (q.turns) dm.turn(q);
+    const R = dm.boardRect(), sr = dm.slotRect(q.slot);
+    const bw = Math.max(...q.cells.map(c => c.c)) + 1, bh = Math.max(...q.cells.map(c => c.r)) + 1;
+    const tx = R.x + (q.home.c + bw / 2) * R.cell, ty = R.y + (q.home.r + bh / 2) * R.cell;
+    ok('touch on the game is claimed as a drag', gm._dragStart(sr.x + sr.w / 2, sr.y + sr.h / 2) === true && dm.drag && dm.drag.lift === 64);
+    gm._dragMove(tx, ty + 64);
+    gm._dragEnd(tx, ty + 64, false);
+    ok('touch drag places the block', q.at && q.at.r === q.home.r && q.at.c === q.home.c);
+    const q2 = dm.pieces.find(x => !x.corrupt && !x.at);
+    while (q2.turns) dm.turn(q2);
+    const s2 = dm.slotRect(q2.slot);
+    const b2w = Math.max(...q2.cells.map(c => c.c)) + 1, b2h = Math.max(...q2.cells.map(c => c.r)) + 1;
+    gm._handleMouseDown(s2.x + s2.w / 2, s2.y + s2.h / 2);
+    gm._handleMove(R.x + (q2.home.c + b2w / 2) * R.cell, R.y + (q2.home.r + b2h / 2) * R.cell);
+    gm._handlePointerUp(R.x + (q2.home.c + b2w / 2) * R.cell, R.y + (q2.home.r + b2h / 2) * R.cell);
+    ok('mouse drag places a block too', q2.at && q2.at.r === q2.home.r);
+    const pb = gm.ui.buttons.find(b => b.id === 'pause');
+    ok('the pause button is never claimed as a drag', !pb || gm._dragStart(pb.x, pb.y) === false);
+    ok('registry: revive +20s, drag game', mod.GameRegistry.get('defrag').reviveLabel === '+20s' && dm.wantsDrag === true);
 });
 
 // ─────────────────────────────────────────────
