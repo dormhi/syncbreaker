@@ -648,7 +648,7 @@ if (typeof I18n !== 'undefined') {
         'QUARANTINE': 'KARANTİNA',
         'DELETE': 'SİL',
         'KEEP': 'TUT',
-        'SEND CLEAN FILES': 'TEMİZ DOSYALARI GÖNDER',
+        'SEND CLEAN FILES': 'TEMİZLERİ GÖNDER',
         'to the owner': 'sahibine',
         'PACKET {n}/3 · {name}': 'PAKET {n}/3 · {name}',
         'waiting for scan': 'tarama bekliyor',

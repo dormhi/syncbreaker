@@ -1313,8 +1313,10 @@ class LogicBombMechanic extends _MechanicBaseLB {
             if (mod.kind === 'button') {
                 let y = lay.bottom + 14;
                 ctx.font = '700 16px Rajdhani';
-                this._drawRich(ctx, lbT('STEP 2 — HOLDING? Let go when the timer shows:'), x, y, '#fde68a');
-                y += 14;
+                // Wraps when the line runs long (Turkish); one line in English as before.
+                const step2 = this._wrap(ctx, lbT('STEP 2 — HOLDING? Let go when the timer shows:'), w);
+                step2.forEach((l, k) => this._drawRich(ctx, l, x, y + k * 20, '#fde68a'));
+                y += 14 + (step2.length - 1) * 20;
                 const items = [['BLUE', mod.release.BLUE], ['WHITE', mod.release.WHITE], ['YELLOW', mod.release.YELLOW], ['OTHER', mod.release.other]];
                 items.forEach(([c, d], i) => {
                     const cx = x + (i % 2) * (w / 2), cy = y + 12 + Math.floor(i / 2) * 24;

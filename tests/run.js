@@ -4760,6 +4760,69 @@ suite('Languages (I18n) — phase 7: Endless, leaderboard, profile form, Code Br
 });
 
 // ─────────────────────────────────────────────
+suite('Languages (I18n) — every stage played in Turkish draws no English it has a translation for', () => {
+    const mod = loadGameManager();
+    const { I18n, CAMPAIGN } = mod;
+    const tr = I18n.dict.tr;
+    const trValues = new Set(Object.values(tr));
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    let px = 16;
+    ctx.measureText = (t) => ({ width: String(t).length * px * 0.56 });
+    Object.defineProperty(ctx, 'font', { set(v) { const m = String(v).match(/(\d+)px/); px = m ? +m[1] : 16; this._f = v; }, get() { return this._f; } });
+    const drawn = new Map();
+    let where = '';
+    ctx.fillText = (t) => { const k = String(t); if (!drawn.has(k)) drawn.set(k, where); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    const S = gm.state.STATES;
+    const rng = makeRng(42);
+    const keys = ['Space', 'Enter', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyR', 'KeyX', 'Digit1', 'Digit2'];
+    const play = (n) => {
+        for (let i = 0; i < n; i++) {
+            if (i % 9 === 0 && !gm.state.transitioning) {
+                const m = gm._activeMinigame, r = rng();
+                if (!m) gm._dispatchKey({ code: 'Space', timestamp: 0 });
+                else if (m.coach && m.coach.blocks && m.coach.next) m.coach.next();
+                else if (r < 0.35 && typeof m.buttons === 'function') {
+                    const bs = m._controls ? m._controls() : m.buttons();
+                    const b = bs[Math.floor(rng() * bs.length)];
+                    if (b && b.onTap && !b.disabled) b.onTap();
+                } else if (r < 0.6) gm._dispatchKey({ code: keys[Math.floor(rng() * keys.length)], timestamp: 0 });
+                else {
+                    const x = 60 + rng() * 840, y = 90 + rng() * 480;
+                    if (m.wantsDrag) { m.handlePointer(x, y, 'down', 0, 'mouse'); m.handlePointer(x + 40, y + 20, 'up', 0, 'mouse'); }
+                    else if (m.handlePointer) { m.handlePointer(x, y, 'down', 0); if (m.wantsHold) m.handlePointer(x, y, 'up'); }
+                }
+            }
+            gm.update(1 / 60);
+            if (i % 5 === 0) gm.render(ctx, 0.5);
+        }
+    };
+    gm.progress.isStageUnlocked = () => true;
+    for (const act of CAMPAIGN.acts) {
+        act.stages.forEach((st, i) => {
+            ['timingbar', 'stack', 'orbital', 'signal', 'route', 'cut', 'bomb', 'defrag', 'checksum'].forEach(g => mod.storage.removeItem('sb_coach_' + g));
+            where = `act ${act.id} ${st.tier}`;
+            gm.state.transitioning = false;
+            gm.state.pendingState = null;
+            gm._startStage(act.id, i);
+            play(1200);
+        });
+    }
+    // A Turkish entry exists but the English text was drawn: a draw site that skips I18n.
+    // (Act 10's PASSWORD mission name stays English by rule; PAROLA is the form field.)
+    const missed = [...drawn].filter(([t]) => Object.prototype.hasOwnProperty.call(tr, t) && tr[t] !== t && !trValues.has(t) && t !== 'PASSWORD')
+        .map(([t, w]) => `${w}: ${t}`);
+    ok(`no untranslated text while playing every stage${missed.length ? ' (' + missed.slice(0, 8).join(' | ') + ')' : ''}`, missed.length === 0);
+    const broken = [...drawn].filter(([t]) => /\{\w+\}|undefined|NaN|\[object/.test(t)).map(([t, w]) => `${w}: ${t}`);
+    ok(`no unfilled placeholder or broken value on screen${broken.length ? ' (' + broken.slice(0, 8).join(' | ') + ')' : ''}`, broken.length === 0);
+    ok('the sweep really played (many different texts drawn)', drawn.size > 1000);
+    I18n.set('en', store);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);
