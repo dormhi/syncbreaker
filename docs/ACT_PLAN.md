@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
 > Durum (2026-10-25): **10 act'in hepsi oynanabilir ve yayında** (son yayın: commit 8effa04). Act 7–10'un kademeleri ve yıldız kuralları taslak, oyuncu görüşlerine göre ayarlanacak.
-> Açık işler: Act 7–9 ayarı (Act 9'un anlaşılırlığı için oyuncu görüşü bekleniyor), bütün oyunları içeren yeni Endless (bölüm 8b), son sürümde veri silme (bölüm 5b). Yan görev: Türkçe dil desteği (`docs/I18N_PLAN.md`).
+> Açık işler: Act 7–9 ayarı (Act 9'un anlaşılırlığı için oyuncu görüşü bekleniyor), bütün oyunları içeren yeni Endless (bölüm 8b), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'da yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -341,7 +341,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - En üstte sarı bir **hedef cümlesi** var, örneğin "Check the rules from the top. Do ONLY the first one that is true."
 - Kurallar numaralı ayrı kutularda, iki satır halinde: "IF …" ve altında "→ …". Renk adları kendi renginde yazılıyor.
 - Yazı sığmazsa boyutu küçülüyor (16 → 13 px).
-- İleride oyunun Türkçesi gelince anlaşılması daha da kolaylaşacak.
+- Türkçe sürüm 2026-10-26'da geldi: kılavuz ve kural kartları oyuncunun dilinde üretiliyor.
 
 **Modüller:**
 1. **DATA LINES (veri hatları):** 3–6 renkli hat. Her hattın yanında rengi yazıyor. Kılavuzdaki kurallar yukarıdan aşağı okunuyor ve **ilk doğru kural** uygulanıyor. Son satır "OTHERWISE". Her satır bu modülde uygulanabilir. İlk dokunuş hattı seçiyor, ikincisi kesiyor. Yanlış hat bir arıza yazıyor, hat hemen onarılıyor.
@@ -551,7 +551,7 @@ Yukarıdaki sonuçlar 4 / 5 / 6 / 7 canla ve Çok zor'da 245 px/s hızla ölçü
 - Yanlış bir seçim ceza değil: oyun nedenini açıklıyor ve doğrusunu yaptırıyor.
 - Sonunda "GÖREV TAMAMLANDI" ve 3 maddelik "Bunu hatırla" kartı. Her zaman 3 yıldız.
 - Telefonda dokunarak, masaüstünde fare ya da klavyeyle oynanıyor.
-- Metinler şimdilik İngilizce; Türkçe sürüm gelince çevrilecek.
+- Metinler İngilizce ve Türkçe (2026-10-26).
 
 **Uygulama (2026-10-25):**
 - Ortak çerçeve `js/mechanics/MissionMechanic.js` (düğmeler, klavye odağı, olay kartları `Coach` ile, geri bildirim satırı, REMEMBER kartı ve "MISSION COMPLETE" düğmesi). Altı görev `js/mechanics/HandoverMissions.js` içinde.

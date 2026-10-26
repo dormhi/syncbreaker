@@ -1,6 +1,19 @@
 # SyncBreaker — Türkçe dil desteği planı
 
-> Durum (2026-10-26): **Yedi fazın hepsi uygulandı. Faz 1–7 commit edildi (push yok)** (Endless, leaderboard, operatör profil formu, Code Breaker, Dual Ring, Packet Purge, son kontrol). 1116 test geçiyor. Yayın (`v2` push) kullanıcının kararıyla.
+> Durum (2026-10-26): **Tamamlandı ve yayında.** Yedi faz ve son tarama commit edildi, `v2` ile yayına alındı. Bundan sonra **her yeni özellik iki dili de destekler** (bölüm 0).
+
+## 0. Yeni özellik eklerken (kural, kullanıcı 2026-10-26)
+
+Oyun artık iki dilli: **İngilizce ve Türkçe**. Bundan sonraki bütün eklemeler (yeni oyun, ekran, ders, mesaj, düğme, Endless'ın yeni hâli, dik ekran düzeni…) **iki dili de baştan destekler**. "Önce İngilizce, Türkçesi sonra" yok: bir özellik ancak iki dilde de hazırsa bitmiş sayılır.
+
+Kontrol listesi:
+1. Oyuncunun gördüğü her metin çeviriden geçer: `UITheme.t` / `I18n.t`, ders adımları `Coach` (adımda `vars`), ipuçları `TipBar` (`{ text, vars }`), düğme etiketleri kendiliğinden. Sayılı ya da adlı metinler yer tutucuyla yazılır (`'Land {n} hits'`), parça parça birleştirilmez.
+2. Türkçe girdiler **aynı değişiklikte** `js/i18n/tr.js`'e, o özelliğin başlığı altında eklenir. Bölüm 1 ve 3'teki kurallar geçerli: jargon ve level / oyun adları İngilizce, aşama adları Türkçe, "kampanya" ve "koşu" yok, doğal ve kısa "sen" dili.
+3. Türkçe metin üzerinde `toUpperCase` / `toLowerCase` ve CSS `text-transform` kullanılmaz (İ / ı bozulur). Büyük harf gereken Türkçe sözlükte büyük harfle yazılır.
+4. Canvas fontu `'Orbitron, OrbitronTR'` (ya da `UITheme.font(…, 'Orbitron')`): Orbitron'da Ğ yok.
+5. Yazı her iki dilde de sığmalı: gerekirse `UITheme.fitFont` ile küçülür ya da sarılır; kesilmez, `fillText(…, maxWidth)` ile sıkıştırılmaz.
+6. `node tests/run.js` geçmeli. I18n test grupları kaynak dosyaları tarar ve bütün aşamaları Türkçe oynatır; yeni dosyalar ilgili test listelerine eklenir. Yeni bir oyun, tarama testinin oynattığı aşamalara kendiliğinden girer.
+7. Yeni ekranlar tarayıcıda iki dilde, telefonda (844×390) ve masaüstünde kontrol edilir.
 
 ## 1. Kurallar (kullanıcı, 2026-10-25)
 

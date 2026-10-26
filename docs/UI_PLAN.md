@@ -203,6 +203,10 @@ Yeni bir `js/UITheme.js` dosyası (global nesne) bütün ekranların ortak değe
 8. Giriş menüsü UI-4'te bütünlük göstergesiyle yenileniyor. UI-1'de sadece okunurluk düzeltiliyor.
 9. Telefonda yan boşluklar CSS ile katman arka planıyla dolduruluyor.
 
+## 9b. İki dil (2026-10-26)
+
+Arayüz İngilizce ve Türkçe. Yeni ekranlar ve parçalar iki dili de baştan destekler; Türkçe metin genelde daha uzun olduğu için her yerleşim iki dilde, telefonda ve masaüstünde kontrol edilir (kurallar: `docs/I18N_PLAN.md` bölüm 0).
+
 ## 10. Hâlâ açık olanlar
 
 - Yetki seviyelerinin isimleri (bölüm 3c'deki liste taslak).

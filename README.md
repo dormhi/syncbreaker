@@ -13,6 +13,7 @@ You are tasked with defending a system against an active cyber attack. You must 
 - **Object-Oriented Architecture:** Fully decoupled systems for UI, Game State, Energy Management, and Level configurations.
 - **Endless Mode:** Survive an infinite wave of attacks where difficulty progressively scales up.
 - **Online Endless Leaderboard:** Unlock Endless Mode, pick a unique operator name and password, and keep your rank on any browser.
+- **English and Turkish:** pick the language with the globe badge on the main menu; every screen, lesson and game is translated (`js/i18n/tr.js`). New features support both languages from the start.
 - **Field guide & tips:** a `?` button (or H) opens a short in-game guide; a quiet tip line adapts to touch or keyboard.
 - **Energy & Progression System:** Energy depletes when taking shortcuts or reviving, and slowly regenerates over time (persists via `localStorage`).
 - **Mobile-Ready:** Fully supports touch interactions (Tap to shoot, Swipe to lockpick) for a seamless mobile experience.
