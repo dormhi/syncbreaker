@@ -4823,6 +4823,35 @@ suite('Languages (I18n) — every stage played in Turkish draws no English it ha
 });
 
 // ─────────────────────────────────────────────
+suite('RESET deletes every saved game key, lessons included', () => {
+    const before = {
+        sb_campaign_v1: '{"acts":{}}', sb_energy: '3', sb_guide_seen: '1', sb_gate_2: '[]', sb_endless_best: '900',
+        sb_coach_timingbar: '{"tutorial":true}', sb_coach_bomb: '{"wires":true}', sb_lang: 'tr', sb_muted: '1', other_site_key: 'x'
+    };
+    const mod = loadGameManager(before);
+    const st = mod.storage;
+    // The harness store has no length / key(); give RESET a real Storage-like view.
+    const map = new Map(Object.entries(before));
+    const storage = {
+        get length() { return map.size; },
+        key: (i) => [...map.keys()][i] || null,
+        getItem: (k) => (map.has(k) ? map.get(k) : null),
+        removeItem: (k) => { map.delete(k); st.removeItem(k); }
+    };
+    const gone = mod.GameManager.resetData(storage);
+    ok('progress, energy, gates, guide flag and Endless best are deleted',
+        ['sb_campaign_v1', 'sb_energy', 'sb_guide_seen', 'sb_gate_2', 'sb_endless_best'].every(k => !map.has(k)));
+    ok('lessons seen are deleted, so lessons show again', !map.has('sb_coach_timingbar') && !map.has('sb_coach_bomb'));
+    ok('the language and sound choice stay', map.get('sb_lang') === 'tr' && map.get('sb_muted') === '1');
+    ok('keys of other sites are left alone', map.get('other_site_key') === 'x' && !gone.includes('other_site_key'));
+    // After the reset the first Timing Bar stage opens with its lesson again.
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    gm._startStage(1, 0);
+    ok('the Timing Bar lesson shows after a reset', !!gm.levels.coach && gm.levels.coach.active);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

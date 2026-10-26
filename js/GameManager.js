@@ -1561,14 +1561,27 @@ class GameManager {
         this.ui.addButton('reset', '🗑 RESET', W - 75, H - 35, 110, 32,
             () => {
                 if (window.confirm(UITheme.t('Are you sure you want to delete all data and start fresh?'))) {
-                    ['sb_progress', 'sb_energy', 'sb_congrats_seen', 'sb_group2_unlocked',
-                        'sb_dualring', 'sb_packetpurge', CampaignProgress.KEY, 'sb_guide_seen',
-                        ...CAMPAIGN.gates.map(g => `sb_gate_${g.id}`)]
-                        .forEach(k => localStorage.removeItem(k));
+                    GameManager.resetData(localStorage);
                     window.location.href = window.location.href;
                 }
             },
             { color: '#ef4444' });
+    }
+
+    /**
+     * RESET: delete every saved game key (sb_*) — progress, energy, gates,
+     * lessons seen (sb_coach_*), the field guide flag, Endless best — so the
+     * game really starts fresh, lessons included. The player's language and
+     * sound choice stay.
+     */
+    static resetData(storage) {
+        if (!storage) return [];
+        const keep = new Set(['sb_lang', 'sb_muted']);
+        const keys = [];
+        for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));
+        const gone = keys.filter(k => k && k.startsWith('sb_') && !keep.has(k));
+        gone.forEach(k => storage.removeItem(k));
+        return gone;
     }
 
     /** Sum of best scores over an act's stages. */

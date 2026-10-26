@@ -606,7 +606,7 @@ Mevcut oyuncular ilerlemelerini kaybetmemeli. Yeni kayıt anahtarı `sb_campaign
 | 6 düğümün hepsi tamamlandı | Endless açık kalır (`endlessUnlocked: true`) |
 | `sb_congrats_seen` | Korunur |
 
-Göç tekrar çalıştırılsa sonuç değişmez. Reset butonu yeni anahtarı da siler.
+Göç tekrar çalıştırılsa sonuç değişmez. Reset butonu (SIFIRLA) oyunun bütün `sb_` kayıtlarını siler: ilerleme, enerji, kapılar, ders işaretleri (`sb_coach_*`), rehber işareti, Endless rekoru; sadece dil (`sb_lang`) ve ses (`sb_muted`) tercihi kalır (`GameManager.resetData`, 2026-10-26: önceden ders işaretleri silinmiyordu, sıfırlamadan sonra dersler çıkmıyordu).
 
 ### 5b. Herkesin verileri tamamen silinecek (karar 2026-10-23, güncellendi 2026-10-24, henüz uygulanmadı)
 
