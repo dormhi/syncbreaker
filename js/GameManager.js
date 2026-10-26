@@ -554,10 +554,10 @@ class GameManager {
                 ctx.fillStyle = '#f59e0b';
                 ctx.font = '700 22px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
-                ctx.fillText(title, W / 2, 40);
+                ctx.fillText(UITheme.t(title), W / 2, 40);
                 ctx.fillStyle = '#64748b';
                 ctx.font = '400 14px Rajdhani';
-                ctx.fillText(subtitle, W / 2, 60);
+                ctx.fillText(UITheme.t(subtitle), W / 2, 60);
 
                 // Instructions
                 ctx.fillStyle = '#64748b';
@@ -565,7 +565,7 @@ class GameManager {
                 const hint = this.lockpick.started
                     ? 'Press the correct arrow key when cursor reaches a node!'
                     : 'Press any arrow key (↑↓←→) or WASD to start';
-                ctx.fillText(hint, W / 2, 70);
+                ctx.fillText(UITheme.t(hint), W / 2, 70);
 
                 // Lockpick
                 this.lockpick.render(ctx, W / 2, H / 2 + 10);
@@ -871,7 +871,7 @@ class GameManager {
                     }).then(() => {
                         this._endlessUploadStatus = this.leaderboard.hasProfile()
                             ? 'Score synced to leaderboard'
-                            : 'Score saved; create a profile to sync it';
+                            : 'Score saved; create a profile to sync it';   // translated when drawn
                     }).catch(() => {
                         this._endlessUploadStatus = 'Score saved locally — sync will retry later';
                     });
@@ -924,7 +924,7 @@ class GameManager {
                 ctx.fillStyle = '#ef4444';
                 ctx.font = '900 26px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
-                ctx.fillText('DEFENSE COLLAPSED', cx, cy - 80);
+                ctx.fillText(UITheme.t('DEFENSE COLLAPSED'), cx, cy - 80);
 
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '700 32px Orbitron, OrbitronTR';
@@ -932,30 +932,30 @@ class GameManager {
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '500 16px Rajdhani';
-                ctx.fillText(`Wave: ${this._eoWave} | Hit: ${this._eoHitCount} | Max Combo: x${this._eoMaxCombo}`, cx, cy - 10);
+                ctx.fillText(UITheme.t('Wave: {wave} | Hit: {hits} | Max Combo: x{combo}', { wave: this._eoWave, hits: this._eoHitCount, combo: this._eoMaxCombo }), cx, cy - 10);
 
                 // Best
                 const best = this.levels._loadEndlessBest();
                 if (this._eoScore >= best && best > 0) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '600 16px Rajdhani';
-                    ctx.fillText('🏆 NEW RECORD!', cx, cy + 15);
+                    ctx.fillText(UITheme.t('🏆 NEW RECORD!'), cx, cy + 15);
                 } else if (best > 0) {
                     ctx.fillStyle = '#475569';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText(`Best: ${best}`, cx, cy + 15);
+                    ctx.fillText(UITheme.t('Best: {n}', { n: best }), cx, cy + 15);
                 }
 
                 if (this._eoNoRevive) {
                     ctx.fillStyle = '#ef4444';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText('Recovery protocol failed', cx, cy + 32);
+                    ctx.fillText(UITheme.t('Recovery protocol failed'), cx, cy + 32);
                 }
 
                 if (this._endlessUploadStatus) {
                     ctx.fillStyle = '#64748b';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText(this._endlessUploadStatus, cx, cy + 50);
+                    ctx.fillText(UITheme.t(this._endlessUploadStatus), cx, cy + 50);
                 }
 
                 this.ui.renderButtons();
@@ -1149,11 +1149,11 @@ class GameManager {
         ctx.fillStyle = '#f59e0b';
         ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
-        ctx.fillText('OPERATOR PROFILE', cx, H / 2 - 40);
+        ctx.fillText(UITheme.t('OPERATOR PROFILE'), cx, H / 2 - 40);
         if (this._profileStatus) {
             ctx.fillStyle = /not configured|Offline/.test(this._profileStatus) ? '#ef4444' : '#94a3b8';
             ctx.font = '400 16px Rajdhani';
-            ctx.fillText(this._profileStatus, cx, H / 2);
+            ctx.fillText(UITheme.t(this._profileStatus), cx, H / 2);
         }
         ctx.restore();
         this.ui.renderButtons();
@@ -1181,10 +1181,10 @@ class GameManager {
         ctx.fillStyle = '#f59e0b';
         ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
-        ctx.fillText('∞ ENDLESS LEADERBOARD', cx, 60);
+        ctx.fillText(UITheme.t('∞ ENDLESS LEADERBOARD'), cx, 60);
         ctx.fillStyle = '#64748b';
         ctx.font = '400 16px Rajdhani';
-        ctx.fillText('Top 10 operators by best score', cx, 82);
+        ctx.fillText(UITheme.t('Top 10 operators by best score'), cx, 82);
 
         const x = cx - 300;
         const y = 110;
@@ -1197,11 +1197,11 @@ class GameManager {
         ctx.fillStyle = '#64748b';
         ctx.font = '600 14px Rajdhani';
         ctx.textAlign = 'left';
-        ctx.fillText('RANK', x + 20, y + 22);
-        ctx.fillText('OPERATOR', x + 100, y + 22);
+        ctx.fillText(UITheme.t('RANK'), x + 20, y + 22);
+        ctx.fillText(UITheme.t('OPERATOR'), x + 100, y + 22);
         ctx.textAlign = 'right';
-        ctx.fillText('WAVE', x + 480, y + 22);
-        ctx.fillText('SCORE', x + 575, y + 22);
+        ctx.fillText(UITheme.t('WAVE'), x + 480, y + 22);
+        ctx.fillText(UITheme.t('SCORE'), x + 575, y + 22);
 
         this._leaderboardEntries.forEach((entry, index) => {
             const rowY = y + rowH * (index + 1);
@@ -1222,18 +1222,18 @@ class GameManager {
             ctx.fillStyle = '#f59e0b';
             ctx.font = '600 16px Rajdhani';
             ctx.textAlign = 'center';
-            ctx.fillText(`YOUR RANK  #${this._leaderboardMe.rank}  •  ${Number(this._leaderboardMe.best_score).toLocaleString()} points`, cx, 515);
+            ctx.fillText(UITheme.t('YOUR RANK  #{rank}  •  {score} points', { rank: this._leaderboardMe.rank, score: Number(this._leaderboardMe.best_score).toLocaleString() }), cx, 515);
         } else if (!this._leaderboardMe && !this._leaderboardStatus) {
             ctx.fillStyle = '#64748b';
             ctx.font = '400 16px Rajdhani';
             ctx.textAlign = 'center';
-            ctx.fillText('Finish an Endless run to claim your place.', cx, 515);
+            ctx.fillText(UITheme.t('Finish an Endless run to claim your place.'), cx, 515);
         }
         if (this._leaderboardStatus) {
             ctx.fillStyle = '#94a3b8';
             ctx.font = '400 16px Rajdhani';
             ctx.textAlign = 'center';
-            ctx.fillText(this._leaderboardStatus, cx, 515);
+            ctx.fillText(UITheme.t(this._leaderboardStatus), cx, 515);
         }
         ctx.restore();
         this.ui.renderButtons();
@@ -2039,13 +2039,13 @@ class GameManager {
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#facc15';
         ctx.font = UITheme.font('label', 700, 'Orbitron');
-        ctx.fillText(`AFTER ACT ${CAMPAIGN.finalAct} · NO FINISH LINE`, cx, 40);
+        ctx.fillText(UITheme.t('AFTER ACT {n} · NO FINISH LINE', { n: CAMPAIGN.finalAct }), cx, 40);
         ctx.fillStyle = UITheme.color.text;
         ctx.font = '900 34px Orbitron, OrbitronTR';
         ctx.fillText('ENDLESS MODE', cx, 82);
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('body', 500);
-        ctx.fillText('The attacker never stops. Hold the line as long as you can.', cx, 110);
+        ctx.fillText(UITheme.t('The attacker never stops. Hold the line as long as you can.'), cx, 110);
 
         // Emblem in a slowly turning dashed ring
         const ey = 232;
@@ -2062,10 +2062,10 @@ class GameManager {
         const best = this.levels._loadEndlessBest();
         ctx.fillStyle = best > 0 ? '#facc15' : UITheme.color.textMute;
         ctx.font = UITheme.font('title', 700, 'Orbitron');
-        ctx.fillText(best > 0 ? `BEST ${best}` : 'NO RUN YET', cx, 365);
+        ctx.fillText(best > 0 ? UITheme.t('BEST {n}', { n: best }) : UITheme.t('NO RUN YET'), cx, 365);
         ctx.fillStyle = UITheme.color.textMute;
         ctx.font = UITheme.font('label', 600);
-        ctx.fillText('Timing Bar for now — more campaign games are coming to Endless', cx, 548);
+        ctx.fillText(UITheme.t('Timing Bar for now — more campaign games are coming to Endless'), cx, 548);
         ctx.restore();
     }
 
@@ -3284,7 +3284,7 @@ class GameManager {
 
         ctx.font = '700 17px Orbitron, OrbitronTR';
         ctx.fillStyle = status === 'cleared' ? UITheme.color.ok : status === 'next' ? actColor : UITheme.color.textMute;
-        ctx.fillText(this.ui._fitText(UITheme.t(stage.tier), btn.w - 16), btn.x, top + 72);
+        ctx.fillText(this.ui._fitText(UITheme.tierName(stage.tier), btn.w - 16), btn.x, top + 72);
 
         const summary = this._stageSummary(act, stage);
         UITheme.fitFont(ctx, summary, btn.w - 16, 'body', 600);
@@ -3588,7 +3588,7 @@ class GameManager {
             this.levels.useCoach(this._coachStore(act.game), index === 0);
             this.levels.startStage(Object.assign({
                 id: act.themeId,
-                name: `${act.key} · ${UITheme.t(stage.tier)}`,
+                name: `${act.key} · ${UITheme.tierName(stage.tier)}`,
                 desc: act.story
             }, stage.params));
             this.state.change(S.LEVEL);
@@ -3602,7 +3602,7 @@ class GameManager {
         const cfg = {
             mechanic,
             stage: true,
-            title: `${act.key} · ${UITheme.t(stage.tier)}`,
+            title: `${act.key} · ${UITheme.tierName(stage.tier)}`,
             subtitle: act.story,
             footHint: index === 0 ? act.hint : null,
             onComplete: (success, m) => {

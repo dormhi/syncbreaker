@@ -880,4 +880,95 @@ if (typeof I18n !== 'undefined') {
         '🔒 YOUR FILES ARE ENCRYPTED': '🔒 DOSYALARINIZ ŞİFRELENDİ',
         'Pay 2 BTC within 48 h': '48 saat içinde 2 BTC ödeyin'
     });
+
+    // ── Phase 7 · Endless, leaderboard, operator profile, Code Breaker, Dual Ring, Packet Purge ──
+    I18n.add('tr', {
+        // Endless lobby and runs (no "koşu": a run is a game here)
+        'AFTER ACT {n} · NO FINISH LINE': 'ACT {n} SONRASI · BİTİŞ ÇİZGİSİ YOK',
+        'The attacker never stops. Hold the line as long as you can.': 'Saldırgan hiç durmuyor. Dayanabildiğin kadar dayan.',
+        'Timing Bar for now — more campaign games are coming to Endless': "Şimdilik Timing Bar — diğer oyunlar da yakında Endless'a geliyor",
+        '▶  START RUN': '▶  BAŞLA',
+        '🏆  LEADERBOARD': '🏆  LEADERBOARD',
+        'WAVE {n}': 'DALGA {n}',
+        '∞ ENDLESS MODE — Survive as long as you can': '∞ ENDLESS MODE — Dayanabildiğin kadar dayan',
+        'BEST: {n}': 'EN İYİ: {n}',
+        'DEFENSE COLLAPSED': 'SAVUNMA ÇÖKTÜ',
+        'Wave: {wave} | Hit: {hits} | Max Combo: x{combo}': 'Dalga: {wave} | İsabet: {hits} | En iyi COMBO: x{combo}',
+        '🏆 NEW RECORD!': '🏆 YENİ REKOR!',
+        'Best: {n}': 'En iyi: {n}',
+        'Score synced to leaderboard': "Skor leaderboard'a işlendi",
+        'Score saved; create a profile to sync it': 'Skor kaydedildi; leaderboard için bir profil oluştur',
+        'Score saved locally — sync will retry later': 'Skor bu cihaza kaydedildi — gönderim sonra tekrar denenecek',
+        '🔄 RECOVERY PROTOCOL (1⚡)': '🔄 KURTARMA PROTOKOLÜ (1⚡)',
+        '↻ RESTART': '↻ BAŞTAN BAŞLA',
+        '← ENDLESS': '← ENDLESS',
+
+        // Leaderboard
+        '∞ ENDLESS LEADERBOARD': '∞ ENDLESS LEADERBOARD',
+        'Top 10 operators by best score': 'En iyi skora göre ilk 10 operator',
+        'RANK': 'SIRA',
+        'OPERATOR': 'OPERATOR',
+        'WAVE': 'DALGA',
+        'SCORE': 'SKOR',
+        'YOUR RANK  #{rank}  •  {score} points': 'SIRAN  #{rank}  •  {score} puan',
+        'Finish an Endless run to claim your place.': 'Listeye girmek için bir Endless oyununu bitir.',
+        'Connecting...': 'Bağlanılıyor...',
+        'Loading leaderboard...': 'Leaderboard yükleniyor...',
+        'No Endless scores yet. Set the first record!': 'Henüz Endless skoru yok. İlk rekoru sen kır!',
+        'Leaderboard unavailable. Try again.': 'Leaderboard şu an açılamıyor. Tekrar dene.',
+        'Leaderboard unavailable. Check your connection.': 'Leaderboard şu an açılamıyor. Bağlantını kontrol et.',
+        '↻ REFRESH': '↻ YENİLE',
+
+        // Operator profile (canvas screen + DOM form)
+        'OPERATOR PROFILE': 'OPERATOR PROFİLİ',
+        'Connecting to leaderboard...': "Leaderboard'a bağlanılıyor...",
+        'Leaderboard is not configured yet.': 'Leaderboard henüz ayarlanmadı.',
+        'Offline: connect to the internet and try again.': 'Çevrimdışı: internete bağlan ve tekrar dene.',
+        '← BACK': '← GERİ',
+        'Pick a unique name and a password — use them to play from any browser.': 'Benzersiz bir ad ve bir parola seç — onlarla her tarayıcıdan oynayabilirsin.',
+        'CREATE OPERATOR': 'OPERATOR OLUŞTUR',
+        'SIGN IN': 'GİRİŞ YAP',
+        'Continue your operator from another browser.': 'Operator hesabına başka bir tarayıcıdan devam et.',
+        'SECURE YOUR NAME': 'ADINI KORU',
+        'Set a password so you can play this operator from any browser.': 'Bu operator adıyla her tarayıcıdan oynayabilmek için bir parola belirle.',
+        'SAVE PASSWORD': 'PAROLAYI KAYDET',
+        'OPERATOR NAME': 'OPERATOR ADI',
+        '3–16 letters, numbers, _ -': '3–16 harf, rakam, _ -',
+        'PASSWORD': 'PAROLA',
+        'at least 8 characters': 'en az 8 karakter',
+        'CONFIRM PASSWORD': 'PAROLAYI TEKRARLA',
+        'Already have a name? SIGN IN': 'Adın var mı? GİRİŞ YAP',
+        'New here? CREATE A NAME': 'Yeni misin? AD OLUŞTUR',
+        'LATER': 'SONRA',
+        'Passwords do not match.': 'Parolalar eşleşmiyor.',
+        'Signing in…': 'Giriş yapılıyor…',
+        'Saving…': 'Kaydediliyor…',
+        'Something went wrong.': 'Bir şeyler ters gitti.',
+        'Something went wrong. Try again.': 'Bir şeyler ters gitti. Tekrar dene.',
+        'Name or password is incorrect.': 'Ad ya da parola yanlış.',
+        // Server messages (LeaderboardService.friendlyError)
+        'That operator name is already taken.': 'Bu operator adı zaten alınmış.',
+        'Too many attempts. Try again in 15 minutes.': 'Çok fazla deneme. 15 dakika sonra tekrar dene.',
+        'This browser already plays as an operator.': 'Bu tarayıcı zaten bir operator olarak oynuyor.',
+        'Current password is incorrect.': 'Mevcut parola yanlış.',
+        'Password must be 8–72 characters.': 'Parola 8–72 karakter olmalı.',
+        'Name must be 3–16 letters, numbers, spaces, _ or - .': 'Ad 3–16 karakter olmalı: harf, rakam, boşluk, _ ya da - .',
+        'Offline — check your connection.': 'Çevrimdışı — bağlantını kontrol et.',
+        'Create your operator profile first.': 'Önce operator profilini oluştur.',
+
+        // Code Breaker (lockpick)
+        'Break the code to restore the connection': 'Bağlantıyı geri getirmek için kodu kır',
+        'Press the correct arrow key when cursor reaches a node!': 'İmleç bir düğüme gelince doğru ok tuşuna bas!',
+        'Press any arrow key (↑↓←→) or WASD to start': "Başlamak için bir ok tuşuna (↑↓←→) ya da WASD'ye bas",
+        'Press an arrow key to start': 'Başlamak için bir ok tuşuna bas',
+        'FAILED': 'BAŞARISIZ',
+
+        // Dual Ring (energy recovery) and Packet Purge (gates)
+        'ROUND {n} / {total}': 'TUR {n} / {total}',
+        'RECOVERY FAILED': 'KURTARMA BAŞARISIZ',
+        'WAVE {n} INCOMING…': 'DALGA {n} GELİYOR…',
+        'WAVE {n} / {total}': 'DALGA {n} / {total}',
+        'Cleared: {n}': 'Temizlenen: {n}',
+        'PURGE FAILED': 'TEMİZLİK BAŞARISIZ'
+    });
 }

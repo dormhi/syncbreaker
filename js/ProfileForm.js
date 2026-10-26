@@ -47,16 +47,21 @@ class ProfileForm {
     setStatus(text, isError) {
         if (!this.root) return;
         const el = this.root.querySelector('.sb-form-status');
-        el.textContent = text || '';
+        el.textContent = ProfileForm.t(text || '');
         el.classList.toggle('is-error', !!isError);
     }
 
     // ── Build ──
 
+    /** Text in the player's language (the form is rebuilt each time it opens). */
+    static t(text) {
+        return typeof UITheme !== 'undefined' ? UITheme.t(text) : text;
+    }
+
     _el(tag, cls, text) {
         const el = document.createElement(tag);
         if (cls) el.className = cls;
-        if (text !== undefined) el.textContent = text;
+        if (text !== undefined) el.textContent = ProfileForm.t(text);
         return el;
     }
 
@@ -64,7 +69,7 @@ class ProfileForm {
         const wrap = this._el('label', 'sb-form-field');
         wrap.appendChild(this._el('span', 'sb-form-label', label));
         const input = this._el('input', 'sb-form-input');
-        for (const k of Object.keys(attrs)) input.setAttribute(k, attrs[k]);
+        for (const k of Object.keys(attrs)) input.setAttribute(k, k === 'placeholder' ? ProfileForm.t(attrs[k]) : attrs[k]);
         wrap.appendChild(input);
         return wrap;
     }

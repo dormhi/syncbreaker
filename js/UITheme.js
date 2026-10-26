@@ -84,6 +84,14 @@ const UITheme = {
         { key: 'BACKUPS',    numeral: '6', color: '#2dd4bf' }
     ],
 
+    /**
+     * A stage tier name as the player reads it: EASY … EXPERT are translated,
+     * Act 10's mission names (SCAN, PASSWORD…) stay English like level names.
+     */
+    tierName(tier) {
+        return ['EASY', 'NORMAL', 'HARD', 'VERY HARD', 'EXPERT'].includes(tier) ? UITheme.t(tier) : tier;
+    },
+
     /** Tier entry by name ('VERY HARD', any case) or 0-based index. */
     tier(nameOrIndex) {
         if (typeof nameOrIndex === 'number') return UITheme.tiers[nameOrIndex] || UITheme.tiers[0];

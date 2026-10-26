@@ -205,7 +205,7 @@ class DualRingMechanic extends _MechanicBaseDR {
         ctx.font = '600 12px Rajdhani';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`ROUND ${Math.min(this.round + 1, this.rounds)} / ${this.rounds}`, cx, pipY - 20);
+        ctx.fillText(UITheme.t('ROUND {n} / {total}', { n: Math.min(this.round + 1, this.rounds), total: this.rounds }), cx, pipY - 20);
 
         // Progress flash on a successful round
         if (this.roundFlash > 0) {
@@ -232,7 +232,7 @@ class DualRingMechanic extends _MechanicBaseDR {
             ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(ok ? `+${this.reward} ENERGY` : 'RECOVERY FAILED', cx, cy - rOuter - 84);
+            ctx.fillText(ok ? UITheme.t('+{n} ENERGY', { n: this.reward }) : UITheme.t('RECOVERY FAILED'), cx, cy - rOuter - 84);
         }
     }
 

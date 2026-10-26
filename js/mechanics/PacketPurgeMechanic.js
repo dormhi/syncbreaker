@@ -211,14 +211,14 @@ class PacketPurgeMechanic extends _MechanicBasePP {
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
         const phaseLabel = this.phase === 'break'
-            ? `WAVE ${this.wave + 1} INCOMING…`
-            : `WAVE ${this.wave} / ${this.waves}`;
+            ? UITheme.t('WAVE {n} INCOMING…', { n: this.wave + 1 })
+            : UITheme.t('WAVE {n} / {total}', { n: this.wave, total: this.waves });
         ctx.fillText(phaseLabel, W / 2 + 170, H * 0.82);
 
         ctx.fillStyle = '#64748b';
         ctx.font = '400 13px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(`Cleared: ${this.hits}`, W / 2 + 170, H * 0.82 + 20);
+        ctx.fillText(UITheme.t('Cleared: {n}', { n: this.hits }), W / 2 + 170, H * 0.82 + 20);
 
         // Phase progress bar
         const barW = 320, barH = 5;
@@ -236,7 +236,7 @@ class PacketPurgeMechanic extends _MechanicBasePP {
             ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(ok ? 'ACCESS GRANTED' : 'PURGE FAILED', W / 2, H * 0.18);
+            ctx.fillText(UITheme.t(ok ? 'ACCESS GRANTED' : 'PURGE FAILED'), W / 2, H * 0.18);
         }
     }
 }

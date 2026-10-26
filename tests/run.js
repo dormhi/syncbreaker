@@ -4695,6 +4695,71 @@ suite('Languages (I18n) — phase 6: Checksum Grid and the Act 10 missions', () 
 });
 
 // ─────────────────────────────────────────────
+suite('Languages (I18n) — phase 7: Endless, leaderboard, profile form, Code Breaker, Dual Ring, Packet Purge', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const mod = loadGameManager();
+    const { I18n, UITheme } = mod;
+    const tr = I18n.dict.tr;
+    const has = (t) => Object.prototype.hasOwnProperty.call(tr, t);
+    const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    const missing = [];
+    // Drawn literals in the phase 7 files
+    for (const f of ['js/GameManager.js', 'js/LevelManager.js', 'js/LockpickSystem.js', 'js/mechanics/DualRingMechanic.js', 'js/mechanics/PacketPurgeMechanic.js']) {
+        for (const m of read(f).matchAll(/UITheme\.t\('((?:[^'\\]|\\.)*)'/g)) {
+            const k = m[1].replace(/\\'/g, "'");
+            if (k !== 'MINIGAME' && !has(k)) missing.push(`${path.basename(f)}: ${k}`);
+        }
+    }
+    // Every button label in the game (symbols and the hidden Endless card aside)
+    const dirs = ['js', 'js/mechanics', 'js/core'];
+    for (const d of dirs) {
+        for (const f of fs.readdirSync(path.join(__dirname, '..', d)).filter(n => n.endsWith('.js'))) {
+            for (const m of read(`${d}/${f}`).matchAll(/addButton\('[^']*', '((?:[^'\\]|\\.)*)'/g)) {
+                const k = m[1].replace(/\\'/g, "'");
+                if (k && !/^[‹›]$/.test(k) && k !== 'ENDLESS MODE' && !has(k)) missing.push(`${f}: button ${k}`);
+            }
+        }
+    }
+    // Profile form (DOM): titles, help lines, buttons, field labels, placeholders, statuses
+    const form = read('js/ProfileForm.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const m of form.matchAll(/'((?:[^'\\]|\\.)*)'/g)) {
+        const k = m[1].replace(/\\'/g, "'");
+        if (!/[A-Z][a-zA-Z]|[a-z] [a-z]/.test(k) || /^(sb-|is-)|^(Escape|div|span|form|label|button|input)$|input\[/.test(k)) continue;
+        if (/^(username|password|confirm|text|current-password|new-password|off|false|submit|novalidate|resize|keydown|pointerdown|click)$/.test(k)) continue;
+        if (!has(k)) missing.push(`ProfileForm.js: ${k}`);
+    }
+    // Server messages a player can see
+    for (const m of read('js/LeaderboardService.js').matchAll(/return '((?:[^'\\]|\\.)*)';/g)) if (m[1] && !has(m[1])) missing.push(`LeaderboardService.js: ${m[1]}`);
+    ok(`every phase 7 text and every button has a Turkish entry${missing.length ? ' (missing: ' + [...new Set(missing)].join(' | ') + ')' : ''}`, missing.length === 0);
+
+    const store = { getItem: () => null, setItem: () => {} };
+    I18n.set('tr', store);
+    ok('difficulty tiers are translated, Act 10 mission names stay English',
+        UITheme.tierName('VERY HARD') === 'ÇOK ZOR' && UITheme.tierName('PASSWORD') === 'PASSWORD' && I18n.t('PASSWORD') === 'PAROLA');
+    ok('server messages are shown in Turkish', I18n.t(mod.LeaderboardService.friendlyError({ message: 'duplicate key' }, '')) === 'Bu operator adı zaten alınmış.');
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    I18n.set('tr', store);
+    const S = gm.state.STATES;
+    gm.state.currentState = S.ENDLESS_OVER;
+    gm.state.transitioning = false;
+    gm.state._handlers[S.ENDLESS_OVER].enter({ score: 0, wave: 3, hitCount: 0, maxCombo: 2 });
+    drawn.length = 0;
+    gm.render(ctx, 0);
+    ok('Endless results in Turkish', drawn.includes('SAVUNMA ÇÖKTÜ') && drawn.some(t => t.startsWith('Dalga: 3')));
+    gm._leaderboardEntries = [];
+    gm._leaderboardStatus = 'No Endless scores yet. Set the first record!';
+    drawn.length = 0;
+    gm._renderLeaderboard(ctx);
+    ok('leaderboard in Turkish', drawn.includes('SIRA') && drawn.includes('Henüz Endless skoru yok. İlk rekoru sen kır!'));
+    I18n.set('en', store);
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);

@@ -753,12 +753,12 @@ class LevelManager {
         ctx.fillStyle = '#f59e0b';
         ctx.font = '700 18px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
-        ctx.fillText(`WAVE ${this.endlessWave}`, W / 2, 70);
+        ctx.fillText(UITheme.t('WAVE {n}', { n: this.endlessWave }), W / 2, 70);
 
         // Desc
         ctx.fillStyle = '#64748b';
         ctx.font = '400 13px Rajdhani';
-        ctx.fillText('∞ ENDLESS MODE — Survive as long as you can', W / 2, 90);
+        ctx.fillText(UITheme.t('∞ ENDLESS MODE — Survive as long as you can'), W / 2, 90);
 
         // Wave progress bar
         const progW = 120;
@@ -791,7 +791,7 @@ class LevelManager {
             ctx.fillStyle = '#475569';
             ctx.font = '400 12px Rajdhani';
             ctx.textAlign = 'right';
-            ctx.fillText(`BEST: ${this.endlessBest}`, W - 16, 100);
+            ctx.fillText(UITheme.t('BEST: {n}', { n: this.endlessBest }), W - 16, 100);
         }
 
         ctx.restore();

@@ -309,7 +309,7 @@ class LockpickSystem {
             ctx.fillStyle = '#64748b';
             ctx.font = '500 15px Rajdhani';
             ctx.textAlign = 'center';
-            ctx.fillText('Press an arrow key to start', 0, radius + 65);
+            ctx.fillText(UITheme.t('Press an arrow key to start'), 0, radius + 65);
         }
 
         // 8. Result text
@@ -478,6 +478,6 @@ class LockpickSystem {
         ctx.font = '700 22px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(text, 0, -radius - 30);
+        ctx.fillText(UITheme.t(text), 0, -radius - 30);
     }
 }

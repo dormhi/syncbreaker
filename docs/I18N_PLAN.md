@@ -1,6 +1,6 @@
 # SyncBreaker — Türkçe dil desteği planı
 
-> Durum (2026-10-26): **Faz 1–5 commit edildi (push yok). Faz 6 da commit edildi (push yok)** (Checksum Grid; Act 10 görev çerçevesi ve altı görevin bütün içeriği). 1111 test geçiyor. Sıradaki: **Faz 7** (son faz), kullanıcının onayıyla. Fazlar sırayla, her biri kullanıcı onayıyla ilerler; her fazdan sonra kullanıcı commit / yayın kararı verir.
+> Durum (2026-10-26): **Yedi fazın hepsi uygulandı. Faz 1–7 commit edildi (push yok)** (Endless, leaderboard, operatör profil formu, Code Breaker, Dual Ring, Packet Purge, son kontrol). 1116 test geçiyor. Yayın (`v2` push) kullanıcının kararıyla.
 
 ## 1. Kurallar (kullanıcı, 2026-10-25)
 
@@ -45,7 +45,7 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 | **4** | Act 1–5: dersler ve oyun içi yazılar (HUD, mesajlar). | ✅ Uygulandı |
 | **5** | Act 6–8: Network Cut, Logic Bomb (kural kartı üretici dahil), Defrag. | ✅ Uygulandı |
 | **6** | Act 9 Checksum Grid ve Act 10 görevleri (en çok içerik). | ✅ Uygulandı |
-| 7 | Kalanlar: Endless, leaderboard, operatör profili formu (DOM), lockpick / Code Breaker, Dual Ring, Packet Purge. Son kontrol: bütün ekranlar iki dilde, telefon ve masaüstü. | Bekliyor |
+| **7** | Kalanlar: Endless, leaderboard, operatör profili formu (DOM), lockpick / Code Breaker, Dual Ring, Packet Purge. Son kontrol: bütün ekranlar iki dilde, telefon ve masaüstü. | ✅ Uygulandı |
 
 ## 5. Bir faza başlarken / devam ederken (notlar)
 
@@ -70,3 +70,8 @@ Doğal Türkçe karşılığı yaygın olanlar çevrilir: güncelleme (update), 
 - Faz 6: Görevlerin çizim yardımcıları (`hmText`, `hmPanel`, görev çerçevesi) çeviriden geçer; sayılı ve adlı cümleler yer tutuculu anahtarlarla kurulur (`hmT('Scan packet {n}: {name}', …)`). Veriler (dosya kaynakları, notlar, e-posta adı / konu / gövde / açıklama, program adları ve riskleri, yedek yerleri) çevrilir; **e-posta adresleri, gerçek bağlantı adresleri, dosya adları, sürüm numaraları ve eski parolalar olduğu gibi kalır** (phishing dersi bunlara bakarak verilir). Parola cümlesi kelimeleri de Türkçe (nehir, lamba…). Türkçe metinde `toLowerCase` kullanılmaz: küçük harfli hâl ayrı anahtar (`documents`, `in centuries`). İngilizce kalanlar: görev / aşama adları (SCAN, PASSWORD…), PHISHING, AUDIT, PayPal. "SAFE" artık her yerde **GÜVENLİ** (Network Cut'taki CORE etiketi dahil).
 - Görev geri bildirim satırı uzun metinde iki satıra bölünür (sıkıştırılmaz); Checksum Grid'in HEDEF kutusundaki satır kutuya sığacak kadar küçülür (İngilizcesi de kutuya ancak sığıyordu).
 - Test: "phase 6" grubu Checksum ve görev dosyalarındaki bütün metin dizelerini (yorumlar hariç) tarar; kod kelimeleri, dosya adları, adresler ve kural gereği İngilizce kalanlar dışında hepsinin Türkçesi olmalı. Altı görevin GÖREV satırı Türkçe çizilmeli.
+- Faz 7: Profil formu (DOM) her açılışta yeniden kurulduğu için yazıları, yer tutucuları ve durum mesajları çevriden geçer (`ProfileForm.t`); sunucu mesajları (`LeaderboardService.friendlyError`) gösterildikleri yerde çevrilir, durum metinleri İngilizce anahtar olarak saklanır (renk kontrolü gibi kodlar onlara bakar). Endless "run" burada da **oyun** (BAŞLA, "bir Endless oyununu bitir"). İngilizce kalanlar: Endless Mode, ENDLESS OPERATOR, LEADERBOARD, OPERATOR, CODE BREAKER.
+- **Aşama adı çakışması:** profil formundaki "PASSWORD" alanı PAROLA olarak çevrilince Act 10'un PASSWORD görev adı da çevrilecekti. Aşama adları artık `UITheme.tierName` ile çizilir: sadece EASY…EXPERT çevrilir, görev adları İngilizce kalır.
+- Son kontrol (2026-10-26, telefon 844×390 ve masaüstü): Endless lobisi, Endless oyunu ve sonuç ekranı, duraklatma uyarısı, profil formu Türkçe; dil düğmesiyle İngilizceye anında geçiş. Leaderboard ve profil ekranı canlı Supabase'e bağlandığı için tarayıcıda açılmadı (testle kontrol edildi); Endless sadece isabetsiz oynandı (skor gönderilmedi). Bütün düğme etiketleri testle denetleniyor; çeviriden geçmeyen tek çizimler sayılar, act / oyun adları ve kural gereği İngilizce etiketler (CORE, MANUAL, PAYLOAD, katman adları).
+- Çeviriden bağımsız, sonraya kalan iki gözlem: Code Breaker ipuçları dokunmatikte de "ok tuşuna bas" diyor (dokunmatikte kaydırılıyor); Endless'tan isteyerek çıkınca da "Recovery protocol failed / Kurtarma protokolü başarısız" yazıyor.
+- Test: "phase 7" grubu Faz 7 dosyalarının çizilen metinlerini, **oyundaki bütün düğme etiketlerini**, profil formunu ve sunucu mesajlarını denetler.
