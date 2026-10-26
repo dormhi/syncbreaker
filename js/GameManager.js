@@ -562,9 +562,11 @@ class GameManager {
                 // Instructions
                 ctx.fillStyle = '#64748b';
                 ctx.font = '400 16px Rajdhani';
+                // Touch plays by swiping (see _handleSwipe), keys elsewhere.
+                const touch = this._inputMode() === 'touch';
                 const hint = this.lockpick.started
-                    ? 'Press the correct arrow key when cursor reaches a node!'
-                    : 'Press any arrow key (↑↓←→) or WASD to start';
+                    ? (touch ? 'Swipe the way the node\'s arrow points when the cursor reaches it!' : 'Press the correct arrow key when cursor reaches a node!')
+                    : (touch ? 'Swipe in any direction to start' : 'Press any arrow key (↑↓←→) or WASD to start');
                 ctx.fillText(UITheme.t(hint), W / 2, 70);
 
                 // Lockpick

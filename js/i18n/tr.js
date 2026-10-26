@@ -961,6 +961,9 @@ if (typeof I18n !== 'undefined') {
         'Press the correct arrow key when cursor reaches a node!': 'İmleç bir düğüme gelince doğru ok tuşuna bas!',
         'Press any arrow key (↑↓←→) or WASD to start': "Başlamak için bir ok tuşuna (↑↓←→) ya da WASD'ye bas",
         'Press an arrow key to start': 'Başlamak için bir ok tuşuna bas',
+        'Swipe the way the node\'s arrow points when the cursor reaches it!': 'İmleç bir düğüme gelince düğümdeki ok yönünde kaydır!',
+        'Swipe in any direction to start': 'Başlamak için herhangi bir yöne kaydır',
+        'Swipe to start': 'Başlamak için kaydır',
         'FAILED': 'BAŞARISIZ',
 
         // Dual Ring (energy recovery) and Packet Purge (gates)

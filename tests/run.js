@@ -4756,7 +4756,21 @@ suite('Languages (I18n) — phase 7: Endless, leaderboard, profile form, Code Br
     drawn.length = 0;
     gm._renderLeaderboard(ctx);
     ok('leaderboard in Turkish', drawn.includes('SIRA') && drawn.includes('Henüz Endless skoru yok. İlk rekoru sen kır!'));
+    // Code Breaker is swiped on touch: its hints say so, in both languages.
+    const lock = () => {
+        gm.state.currentState = S.LOCKPICK;
+        gm.state.transitioning = false;
+        gm.state._handlers[S.LOCKPICK].enter({ reason: 'revive', difficulty: 1 });
+        drawn.length = 0;
+        gm.render(ctx, 0);
+        return drawn;
+    };
+    gm.input.mode = 'touch';
+    ok('Code Breaker on touch says swipe (Turkish)', lock().includes('Başlamak için herhangi bir yöne kaydır') && drawn.includes('Başlamak için kaydır'));
     I18n.set('en', store);
+    ok('Code Breaker on touch says swipe (English)', lock().includes('Swipe in any direction to start') && !drawn.some(t => /arrow key/.test(t)));
+    gm.input.mode = 'desktop';
+    ok('Code Breaker on desktop still names the arrow keys', lock().some(t => /arrow key/.test(t)));
 });
 
 // ─────────────────────────────────────────────

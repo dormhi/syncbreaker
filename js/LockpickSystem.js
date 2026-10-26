@@ -309,7 +309,8 @@ class LockpickSystem {
             ctx.fillStyle = '#64748b';
             ctx.font = '500 15px Rajdhani';
             ctx.textAlign = 'center';
-            ctx.fillText(UITheme.t('Press an arrow key to start'), 0, radius + 65);
+            const touch = typeof Coach !== 'undefined' && Coach.inputMode() === 'touch';
+            ctx.fillText(UITheme.t(touch ? 'Swipe to start' : 'Press an arrow key to start'), 0, radius + 65);
         }
 
         // 8. Result text

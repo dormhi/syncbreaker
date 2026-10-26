@@ -726,6 +726,7 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
   - Her act'in rapordaki adı `Campaign.js`'teki `done` alanında.
 - **Tebrik penceresi (kampanya bitince bir kez):** Başlık "CONTROL RETURNED". 10 act'in hikayesi kısaca anlatılıyor ve PERIMETER / INTERNAL / CORE / HANDOVER statülerinin hepsi ✓ olarak gösteriliyor. Altında yetki seviyesi (L10 GUARDIAN), altın bir "ENDLESS MODE UNLOCKED" bandı (∞ halkasına ve içindeki leaderboard'a yönlendiriyor) ve toplam yıldız / en iyi skor var.
 - Yeni oyunlar tasarlanırken sonsuz bir modda da çalışabilecekleri göz önünde tutulmalı. Yani zorluğun sürekli artırılabilir olması ve skor üretebilmeleri gerekiyor.
+- **Yeni Endless'ta düzeltilecek (2026-10-26, kullanıcı):** oyuncu Endless'tan isteyerek çıkınca (⏸ → ÇIK) sonuç ekranı "Recovery protocol failed" / "Kurtarma protokolü başarısız" yazıyor. Oysa kurtarma hiç denenmedi; çıkış `noRevive: true` ile geldiği için bu satır gösteriliyor. Yeni sonsuz modda isteyerek çıkış ayrı bir durum olmalı (ör. "Oyun bitirildi" / "Run ended"), kurtarma satırı sadece kurtarma gerçekten başarısız olunca çıkmalı. İki dilde.
 
 ## 9. Kararlar
 
