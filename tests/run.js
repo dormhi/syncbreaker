@@ -854,6 +854,14 @@ suite('Act map HUB + gates', () => {
     if (gm._activeMinigame) gm._activeMinigame.result = 'success';
     for (let i = 0; i < 120; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
     ok('gate success opens act 2', gm.progress.isGateOpen(1) && gm.progress.isActUnlocked(2));
+    for (let i = 0; i < 120 && gm.state.currentState !== S.HUB; i++) { gm.update(1 / 60); gm.render(ctx, 0); }
+    ok('the map opens on the new act after a breached gate', gm.state.currentState === S.HUB && gm._mapIndex === 1);
+    // It slides there from the act just cleared.
+    gm._actView = 2; gm._hubSlideFrom = 0;
+    gm.state._handlers[S.HUB].enter();
+    const startScroll = gm._mapScroll;
+    for (let i = 0; i < 60; i++) gm.state._handlers[S.HUB].update(1 / 60);
+    ok('…sliding over from the cleared act', startScroll === 0 && gm._mapIndex === 1 && gm._mapScroll === 1 && gm._hubSlideFrom === null);
 
     // Gate 2 now opens act 3; gate 3 waits while act 4 is in development.
     for (let i = 0; i < 3; i++) gm.progress.completeStage(2, i, 100);

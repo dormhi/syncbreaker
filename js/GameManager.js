@@ -266,6 +266,11 @@ class GameManager {
                     ? this.progress.acts.length
                     : (this._actView || this.progress.currentActId()) - 1;
                 this._mapScroll = this._mapIndex;
+                // A breached gate: slide from the cleared act to the new one (not with reduced motion).
+                if (this._hubSlideFrom !== undefined && this._hubSlideFrom !== null) {
+                    if (!UITheme.reducedMotion) this._mapScroll = this._hubSlideFrom;
+                    this._hubSlideFrom = null;
+                }
                 if (this._securedAnim) this._securedAnim.t = -0.5;   // after the screen change
                 this._buildActMapButtons();
                 this._pickEnergyEggCell();
@@ -4019,6 +4024,9 @@ class GameManager {
                 if (success) {
                     this.progress.openGate(n);
                     this._hubMessage = UITheme.t('ACT {n} UNLOCKED', { n: n + 1 });
+                    // The map opens on the new act, sliding over from the one just cleared.
+                    this._actView = n + 1;
+                    this._hubSlideFrom = n - 1;
                 } else {
                     this._hubMessage = 'Purge failed — the lock holds';
                 }
