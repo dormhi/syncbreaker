@@ -4207,8 +4207,11 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     [0, 2, 4].forEach(r => tapL(r, 2));
     while (lm.coach.blocks) lm.handleKey('Space');
     ok('lesson: then the 1 1 1 row', lm.coach.step.kind === 'g4');
-    tapL(2, 0); tapL(2, 4); tapL(2, 1, true); tapL(2, 3, true);
-    tapL(0, 0, true); tapL(4, 0, true); tapL(0, 4, true); tapL(4, 4, true);
+    tapL(2, 0); tapL(2, 4);
+    const at5 = (r, c) => lm.cells[r * 5 + c];
+    ok('lesson: filling the two ends greys the row and its gaps get ✕ by themselves', at5(2, 1) === 2 && at5(2, 3) === 2);
+    ok('lesson: columns 1 and 5 turned grey too, their empty cells ✕', at5(0, 0) === 2 && at5(4, 0) === 2 && at5(0, 4) === 2 && at5(4, 4) === 2);
+    ok('lesson: the next step explains the automatic ✕', lm.coach.step.kind === 'info' && /by themselves/.test(lm.coach.step.text.desktop || lm.coach.step.text));
     while (lm.coach.blocks) lm.handleKey('Space');
     ok('lesson: HINT, AUDIT and UNDO are explained before the last step', lm.coach.step.kind === 'g6');
     tapL(0, 1); tapL(0, 3);   // the middle one is already filled (column 3)
@@ -4220,6 +4223,34 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     again.useCoach(st, true);
     again.init({});
     ok('lesson: shown once', !again.lesson && again.rows === tiers[0].rows);
+
+    // Auto ✕: a line the stroke turns grey gets ✕ in its empty cells; UNDO takes them back.
+    const ax = make(tiers[0], 41);
+    const row = ax.solution.slice(0, ax.cols);
+    ax.mode = 'fill';
+    row.forEach((v, c) => { if (v) { ax._begin(0, c, false); ax._end(); } });
+    ok('auto ✕: the row that turned grey gets ✕ in its empty cells', ax.lineOk('row', 0) && row.every((v, c) => ax.cells[c] === (v ? 1 : 2)));
+    ax.undoLast();
+    ok('auto ✕: UNDO takes the last fill and its ✕ back together', !ax.lineOk('row', 0) && ax.cells.slice(0, ax.cols).every(v => v !== 2));
+    // A line that was grey already keeps a ✕ the player removed.
+    row.forEach((v, c) => { if (v && ax.cells[c] !== 1) { ax._begin(0, c, false); ax._end(); } });
+    const gap = row.indexOf(0);
+    if (gap >= 0) {
+        ax.mode = 'mark';
+        ax._begin(0, gap, true); ax._end();
+        ok('auto ✕: a ✕ removed from a grey line stays removed', ax.cells[gap] === 0);
+    }
+    // Right button held: ✕ along a line, like FILL.
+    const rd = make(tiers[0], 42);
+    const RL = rd.layout();
+    const cell = (r, c) => ({ x: RL.x + (c + 0.5) * RL.cell, y: RL.y + (r + 0.5) * RL.cell });
+    ok('the game asks for right-button drags', rd.wantsAltDrag === true);
+    rd.handleAltPointer(cell(3, 0).x, cell(3, 0).y, 'down');
+    rd.handlePointer(cell(3, 4).x, cell(3, 4).y, 'move');
+    rd.handlePointer(cell(3, 4).x, cell(3, 4).y, 'up');
+    ok('right-drag marks ✕ along the row', [0, 1, 2, 3, 4].every(c => rd.cells[3 * rd.cols + c] === 2) && rd.undo.length === 1);
+    rd.handleAltPointer(cell(5, 5).x, cell(5, 5).y);
+    ok('a plain right click still marks one cell', rd.cells[5 * rd.cols + 5] === 2 && !rd.stroke);
 
     // HINT: a line that follows from what is known, its cells and why.
     const hm = make(tiers[0], 21);

@@ -19,6 +19,10 @@
    the row or column of the first move. Desktop right click is always ✕.
    UNDO takes back the last stroke. AUDIT lights wrong cells red; an
    audit that finds a mistake counts as an audit error (stars).
+   A row or column that turns grey with a stroke gets ✕ in its empty cells
+   by itself (part of that stroke, so UNDO takes them back too); a line
+   that was grey already is left alone. Right click marks ✕ and, held,
+   drags along a line like FILL (`wantsAltDrag`; beta feedback 2026-10-28).
    HINT (beta feedback 2026-10-27: players did not get how to play) lights
    a row or column that can be solved from what is known, the cells it
    decides, and why ("5 of 5 cells", "a block of 4 in 6 covers the
@@ -56,6 +60,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         this.endless = !!options.endless;              // Endless: a time pool, audit errors cost time
         this.auditPenalty = options.auditPenalty || 0;
         this.wantsDrag = true;
+        this.wantsAltDrag = true;      // right button held: ✕ along a line
         this.coachStore = null;
         this.firstStage = false;
 
@@ -324,7 +329,11 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const want = mark ? CG_MARK : CG_FILL;
         const from = this.cells[i];
         const to = from === want ? CG_EMPTY : want;
-        this.stroke = { r, c, from, to, axis: null, changes: [] };
+        // Lines grey before the stroke: only the ones it turns grey get auto ✕.
+        const okBefore = new Set();
+        for (let k = 0; k < this.rows; k++) if (this.lineOk('row', k)) okBefore.add('r' + k);
+        for (let k = 0; k < this.cols; k++) if (this.lineOk('col', k)) okBefore.add('c' + k);
+        this.stroke = { r, c, from, to, axis: null, changes: [], okBefore };
         this._set(i, to);
         this.cursor = { r, c };
     }
@@ -359,12 +368,28 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
             return;
         }
         if (s.changes.length) {
+            this._autoMark(s);
             this.undo.push(s.changes);
             this.hint = null;
             if (typeof Sound !== 'undefined' && Sound.playClick) Sound.playClick();
         }
         if (this.lesson) this._lessonCheck();
         this._checkDone();
+    }
+
+    /** Lines this stroke turned grey: their empty cells get ✕ (in the stroke, for UNDO). */
+    _autoMark(s) {
+        const mark = (i) => {
+            if (this.cells[i] !== CG_EMPTY) return;
+            s.changes.push({ i, was: CG_EMPTY });
+            this.cells[i] = CG_MARK;
+        };
+        for (let r = 0; r < this.rows; r++) {
+            if (!s.okBefore.has('r' + r) && this.lineOk('row', r)) for (let c = 0; c < this.cols; c++) mark(r * this.cols + c);
+        }
+        for (let c = 0; c < this.cols; c++) {
+            if (!s.okBefore.has('c' + c) && this.lineOk('col', c)) for (let r = 0; r < this.rows; r++) mark(r * this.cols + c);
+        }
     }
 
     /** Does cell i hold something the solution disagrees with? */
@@ -491,6 +516,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const h = this.stepDt;
         this.time += h;
         if (this.coach) { this.coach.update(h); if (!this.coach.active) this.coach = null; }
+        if (this.lesson && !this.stroke) this._lessonCheck();
         if (this.message) { this.message.t -= h; if (this.message.t <= 0) this.message = null; }
         if (this.audited) { this.audited.t -= h; if (this.audited.t <= 0) this.audited = null; }
         if (this.reveal > 0 && this.reveal < 1) this.reveal = Math.min(1, this.reveal + h * 1.5);
@@ -570,13 +596,17 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         return true;
     }
 
-    /** Right click: always ✕ on that cell. */
-    handleAltPointer(x, y) {
+    /**
+     * Right click: always ✕ on that cell. With `phase` 'down' (right button
+     * held, from the host) the stroke stays open and moves extend it.
+     */
+    handleAltPointer(x, y, phase) {
         if (this.busy) return false;
         const at = this.cellAt(x, y);
         if (!at) return false;
+        this.kbd = false;
         this._begin(at.r, at.c, true);
-        this._end();
+        if (phase !== 'down') this._end();
         return true;
     }
 
@@ -876,9 +906,9 @@ ChecksumGridMechanic.LESSON = [
         text: 'Column 3 says 5: fill it from top to bottom.' },
     { kind: 'info', rects: 'goal', text: 'See? The numbers of finished rows and columns turned GREY. That is the goal: turn EVERY number grey.' },
     { kind: 'g4', rects: { lines: [['row', 2]] }, goal: [[2, 0, 1], [2, 4, 1], [2, 1, 0], [2, 3, 0]],
-        text: { desktop: 'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends, then mark the gaps ✕ (pick ✕, or right click).', touch: 'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends, then pick ✕ and mark the gaps.' } },
-    { kind: 'g5', rects: { lines: [['col', 0], ['col', 4]] }, goal: [[0, 0, 0], [4, 0, 0], [0, 4, 0], [4, 4, 0]],
-        text: 'Columns 1 and 5 say 3 and already have their 3: they are done (grey). Their other cells must be empty — mark the top and bottom cell of both with ✕.' },
+        text: 'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends: once a row matches its numbers, its empty cells get ✕ by themselves.' },
+    { kind: 'info', rects: { lines: [['col', 0], ['col', 4]] },
+        text: { desktop: 'Columns 1 and 5 say 3 and now have their 3: they turned grey, and their empty cells got ✕ by themselves. ✕ means "surely empty" — you can also mark it yourself: pick ✕, or right click (hold and drag for a whole line).', touch: 'Columns 1 and 5 say 3 and now have their 3: they turned grey, and their empty cells got ✕ by themselves. ✕ means "surely empty" — you can also mark it yourself: pick ✕ and tap (or drag along a line).' } },
     { kind: 'info', rects: 'tools', text: 'Stuck on a real map? HINT lights a row or column you can solve and tells you why. AUDIT shows wrong cells, but every audit that finds a mistake costs a star. UNDO takes back a move.' },
     { kind: 'g6', key: 'tutorial', rects: { lines: [['row', 0]] }, goal: [[0, 1, 1], [0, 2, 1], [0, 3, 1]],
         text: 'Last one. Row 1 says 3, and both of its ends are ✕ now: the 3 fits only in the middle. Fill it — and every number turns grey.' }

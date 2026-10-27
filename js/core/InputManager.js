@@ -20,6 +20,8 @@
      onPointerUp(x, y)             -> any mouse / touch release (hold end);
                                       mouse releases carry their position
      onAltPress(x, y)              -> right click on the canvas (no menu)
+     onAltDown(x, y) -> bool       -> right button pressed (a game may drag with it;
+                                      true = handled, the following right click is skipped)
      onDragStart / onDragMove / onDragEnd(x, y, tap, cancelled)
                                    -> a touch the host claimed as a drag
      onBlur()                      -> window lost focus: drop every hold
@@ -90,6 +92,12 @@ class InputManager {
                 if (e.button === 0 && H.onMouseDown) {
                     const p = this._coords(e.clientX, e.clientY);
                     H.onMouseDown(p.x, p.y);
+                }
+                // A right-button drag (Checksum Grid ✕). The contextmenu event that
+                // follows (on press on macOS, on release elsewhere) is then skipped.
+                if (e.button === 2 && H.onAltDown) {
+                    const p = this._coords(e.clientX, e.clientY);
+                    if (H.onAltDown(p.x, p.y)) this._altDown = true;
                 }
                 return;
             }
@@ -175,6 +183,7 @@ class InputManager {
         // Right click: an alternate action (rotate a block), never the browser menu.
         canvas.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+            if (this._altDown) { this._altDown = false; return; }
             if (!H.onAltPress) return;
             const p = this._coords(e.clientX, e.clientY);
             H.onAltPress(p.x, p.y);

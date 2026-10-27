@@ -3385,6 +3385,15 @@ class GameManager {
         this._releaseHold('pointer');
     }
 
+    /** Right button down: a game that drags with it (`wantsAltDrag`) starts a stroke. */
+    _handleAltDown(x, y) {
+        const d = this._dragGame();
+        if (!d || !d.wantsAltDrag || this._quit || this.state.transitioning) return false;
+        this._mouseDrag = true;
+        d.handleAltPointer(x, y, 'down');
+        return true;
+    }
+
     _handleAltPress(x, y) {
         const d = this._dragGame();
         if (d && d.handleAltPointer && !this._quit && !this.state.transitioning) d.handleAltPointer(x, y);
@@ -4518,6 +4527,7 @@ class GameManager {
             onBlur: () => this._releaseHold('all'),
             onWheel: (delta) => this._handleWheel(delta),
             onAltPress: (x, y) => this._handleAltPress(x, y),
+            onAltDown: (x, y) => this._handleAltDown(x, y),
             onDragStart: (x, y) => this._dragStart(x, y),
             onDragMove: (x, y) => this._dragMove(x, y),
             onDragEnd: (x, y, tap, cancelled) => this._dragEnd(x, y, tap, cancelled)
