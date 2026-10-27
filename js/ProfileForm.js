@@ -77,8 +77,8 @@ class ProfileForm {
     _build() {
         const m = this.mode;
         const copy = {
-            create: { title: 'OPERATOR PROFILE', sub: 'Pick a unique name and a password — use them to play from any browser.', cta: 'CREATE OPERATOR' },
-            signin: { title: 'SIGN IN', sub: 'Continue your operator from another browser.', cta: 'SIGN IN' },
+            create: { title: 'OPERATOR PROFILE', sub: 'An operator is needed to play. Pick a unique name and a password: your progress is saved with it on every browser.', cta: 'CREATE OPERATOR' },
+            signin: { title: 'SIGN IN', sub: 'Sign in to your operator: your progress comes with it.', cta: 'SIGN IN' },
             secure: { title: 'SECURE YOUR NAME', sub: 'Set a password so you can play this operator from any browser.', cta: 'SAVE PASSWORD' }
         }[m];
 
@@ -87,6 +87,8 @@ class ProfileForm {
         form.setAttribute('novalidate', '');
         form.appendChild(this._el('div', 'sb-form-title', copy.title));
         form.appendChild(this._el('div', 'sb-form-sub', copy.sub));
+        // Names and passwords get basic protection only: say so plainly.
+        form.appendChild(this._el('div', 'sb-form-warn', '⚠ Basic protection only — never use a password you use anywhere else.'));
 
         if (m !== 'secure') {
             form.appendChild(this._field('OPERATOR NAME', {

@@ -2946,7 +2946,12 @@ suite('Endless welcome menu + campaign-complete screen', () => {
     ok('gold ENTER button', /ENTER/.test(btn('start').label) && btn('start').color === '#facc15');
     ok('footer still shown', t.includes('v3.0 · Written by dormhi'));
     btn('start').onClick();
+    ok('ENTER without an operator asks for one first', gm.state.pendingState === S.PROFILE_SETUP && gm.state.pendingContext.cancelState === S.MENU);
+    gm.state.transitioning = false; gm.state.pendingState = null;
+    gm.leaderboard.profile = { id: 'op', displayName: 'Tester' };
+    btn('start').onClick();
     ok('ENTER goes to the act map', gm.state.pendingState === S.HUB);
+    gm.leaderboard.profile = null;
 
     enter(S.CONGRATS);
     t = textsOf(S.CONGRATS);
@@ -5243,6 +5248,97 @@ suite('New Endless (E5): Checksum Grid on one time pool', () => {
     enter(S.MINIGAME, Object.assign(gm._endlessCfg, { resume: true }));
     step(1);
     ok('a recovery gives the pool 20 s on the same grid', !run.over && run.timeLeft > 19 && gm._activeMinigame === m);
+});
+
+suite('Operator account: required to play, progress saved with it, one-time wipe', () => {
+    // ── Save epoch: the owner's wipe, once per browser ──
+    const old = loadGameManager({ sb_campaign_v1: '{"v":1}', sb_endless_bests: '{"stack":{"score":5,"round":1}}', sb_coach_stack: '{"tutorial":true}',
+        sb_energy: '{}', sb_lang: 'tr', sb_muted: '1', 'sb-abc-auth-token': '{"x":1}', sb_operator: '{"id":"a","displayName":"Old"}', other: 'kept' });
+    const PS = old.ProgressSync;
+    ok('the epoch wipes every saved key once', PS.applyEpoch(old.storage) === true &&
+        ['sb_campaign_v1', 'sb_endless_bests', 'sb_coach_stack', 'sb_energy', 'sb-abc-auth-token', 'sb_operator'].every(k => old.storage.getItem(k) === null));
+    ok('…language, sound and other sites\' keys stay', old.storage.getItem('sb_lang') === 'tr' && old.storage.getItem('sb_muted') === '1' && old.storage.getItem('other') === 'kept');
+    old.storage.setItem('sb_campaign_v1', '{"v":1}');
+    ok('…and never again', PS.applyEpoch(old.storage) === false && old.storage.getItem('sb_campaign_v1') === '{"v":1}');
+
+    // ── Merge: nothing cleared anywhere is lost ──
+    const a = { campaign: { v: 1, stages: { 1: [{ completed: true, best: 900, stars: 2 }, { completed: false, best: 0, stars: 0 }] }, gates: [1], endlessUnlocked: false, congratsSeen: false },
+        endlessBests: { stack: { score: 500, round: 3 } }, coach: { stack: { tutorial: true } }, guideSeen: false };
+    const b = { campaign: { v: 1, stages: { 1: [{ completed: true, best: 700, stars: 3 }, { completed: true, best: 400, stars: 1 }], 2: [{ completed: true, best: 50, stars: 1 }] }, gates: [2, 1], endlessUnlocked: true, congratsSeen: true },
+        endlessBests: { stack: { score: 300, round: 9 }, cut: { score: 80, round: 2 } }, coach: { stack: { owner: true }, cut: { tutorial: true } }, guideSeen: true };
+    const m = PS.merge(a, b);
+    const st = m.campaign.stages;
+    ok('merge: best score and stars win per stage, clears add up', st[1][0].best === 900 && st[1][0].stars === 3 && st[1][1].completed && st[2][0].completed);
+    ok('merge: gates, flags and Endless unlock add up', m.campaign.gates.join() === '1,2' && m.campaign.endlessUnlocked && m.campaign.congratsSeen && m.guideSeen);
+    ok('merge: the better Endless best per game', m.endlessBests.stack.score === 500 && m.endlessBests.stack.round === 3 && m.endlessBests.cut.score === 80);
+    ok('merge: lessons seen anywhere stay seen', m.coach.stack.tutorial && m.coach.stack.owner && m.coach.cut.tutorial);
+    const canon = (x) => JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.keys(v).sort().reduce((o, key) => (o[key] = v[key], o), {}) : v));
+    ok('merge is symmetric', canon(PS.merge(b, a)) === canon(m));
+
+    // ── Pull / push with a fake service ──
+    const mod = loadGameManager({ sb_epoch: PS.EPOCH });
+    const S2 = mod.ProgressSync;
+    const store = mod.storage;
+    let server = null, saves = 0;
+    const service = {
+        profile: { id: 'op', displayName: 'Ace' },
+        hasProfile() { return !!this.profile; },
+        getProgress: async () => server,
+        saveProgress: async (blob) => { server = JSON.parse(JSON.stringify(blob)); saves++; return true; }
+    };
+    store.setItem('sb_coach_route', '{"tutorial":true}');
+    const sync = new S2(store, service);
+    pendingSuites.push((async () => {
+        server = { v: 1, campaign: b.campaign, endlessBests: b.endlessBests, coach: {}, guideSeen: true };
+        const changed = await sync.pull();
+        ok('pull: the account\'s progress comes into the browser', changed && JSON.parse(store.getItem('sb_campaign_v1')).gates.join() === '1,2' && store.getItem('sb_guide_seen') === '1');
+        ok('pull: what only this browser had goes to the account', saves === 1 && server.coach.route.tutorial === true);
+        ok('push: nothing new, nothing sent', (await sync.push()) === false && saves === 1);
+        store.setItem('sb_coach_cut', '{"tutorial":true}');
+        ok('push: a change is sent', (await sync.push()) === true && saves === 2 && server.coach.cut.tutorial);
+        S2.clear(store);
+        await sync.push(true);
+        ok('RESET replaces the account\'s copy with an empty one', saves === 3 && !server.campaign && !Object.keys(server.coach).length);
+        ok('clear keeps the browser\'s own keys', store.getItem('sb_epoch') === S2.EPOCH);
+    })());
+
+    // ── The game: gate, account screen, sign out ──
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    gm._enterGame();
+    ok('no operator: ENTER opens create / sign in, backing out returns to the menu', gm.state.pendingState === S.PROFILE_SETUP && gm.state.pendingContext.cancelState === S.MENU);
+    store.setItem('sb_operator', JSON.stringify({ id: 'op', displayName: 'Ace' }));
+    gm.state.transitioning = false; gm.state.pendingState = null;
+    gm._enterGame();
+    ok('an operator remembered on this browser plays (offline too)', gm.state.pendingState === S.HUB);
+    gm.state.transitioning = false; gm.state.pendingState = null;
+    gm._openAccount();
+    ok('the account badge opens the account screen when signed in', gm.state.pendingState === S.ACCOUNT);
+    enter(S.ACCOUNT);
+    drawn.length = 0;
+    gm.render(ctx, 0);
+    ok('the account screen shows the operator, the warning and SIGN OUT', drawn.includes('Ace') && drawn.some(t => /Basic protection only/.test(t)) && !!gm.ui.buttons.find(b => b.id === 'account-signout'));
+    const keep = mod.GameManager.resetData({ length: 4, key: (i) => ['sb_operator', 'sb_epoch', 'sb_campaign_v1', 'sb_lang'][i], removeItem: function (k) { (this.gone = this.gone || []).push(k); } });
+    ok('RESET keeps the operator signed in and the epoch done', keep.join() === 'sb_campaign_v1');
+    // Sign out with a fake service: progress saved first, then forgotten here.
+    store.setItem('sb_campaign_v1', JSON.stringify(a.campaign));
+    gm.progress = new mod.CampaignProgress(mod.CAMPAIGN);
+    const lb = gm.leaderboard;
+    let pushed = 0, out = 0;
+    lb.initialize = async () => lb.profile;
+    lb.profile = { id: 'op', displayName: 'Ace' };
+    lb.signOut = async () => { out++; lb._setProfile(null); return true; };
+    gm.sync.service = { hasProfile: () => !!lb.profile, saveProgress: async () => { pushed++; return true; }, getProgress: async () => null };
+    pendingSuites.push(gm._signOut().then(() => {
+        ok('sign out saves the progress first', pushed === 1 && out === 1);
+        ok('…then forgets the operator and its progress on this browser', !lb.knownOperator() && store.getItem('sb_campaign_v1') !== JSON.stringify(a.campaign) && !gm.progress.isStageCompleted(1, 0));
+        ok('…and returns to the menu', gm.state.pendingState === S.MENU);
+    }));
 });
 
 // ─────────────────────────────────────────────

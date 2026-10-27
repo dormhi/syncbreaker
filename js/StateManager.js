@@ -19,6 +19,7 @@ class StateManager {
             ENDLESS_OVER: 'ENDLESS_OVER',
             CONGRATS: 'CONGRATS',
             PROFILE_SETUP: 'PROFILE_SETUP',
+            ACCOUNT: 'ACCOUNT',
             LEADERBOARD: 'LEADERBOARD'
         };
 

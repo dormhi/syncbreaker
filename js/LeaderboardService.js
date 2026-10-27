@@ -6,8 +6,11 @@
    to the operator, so scores and rank carry over.
    One list per Endless game (docs/ACT_PLAN.md 8b): results are queued per
    game ({ game: { score, round } }) until the operator can send them.
-   Server side: supabase/leaderboard.sql + supabase/2026-10-19_operator_password.sql
-   + supabase/2026-10-27_endless_games.sql
+   An operator is required to play (2026-10-27): the signed-in operator is
+   remembered on this browser (`sb_operator`) so the game also starts
+   offline, and its progress is saved with it (getProgress / saveProgress,
+   see ProgressSync).
+   Server side: supabase/schema.sql
    ========================================= */
 
 class LeaderboardService {
@@ -17,6 +20,27 @@ class LeaderboardService {
         this._clientLoading = null;
         this.profile = null;
         this.pendingKey = 'sb_endless_pending_submission';
+        this.operatorKey = 'sb_operator';
+    }
+
+    /** The operator last signed in on this browser ({ id, displayName }), even offline. */
+    knownOperator() {
+        if (this.profile) return this.profile;
+        try {
+            const o = JSON.parse(localStorage.getItem(this.operatorKey));
+            return o && o.id && o.displayName ? o : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    _setProfile(profile) {
+        this.profile = profile || null;
+        try {
+            if (this.profile) localStorage.setItem(this.operatorKey, JSON.stringify({ id: this.profile.id, displayName: this.profile.displayName }));
+            else localStorage.removeItem(this.operatorKey);
+        } catch (error) { }
+        return this.profile;
     }
 
     // The config is loaded lazily because the static site stores it in an
@@ -62,6 +86,14 @@ class LeaderboardService {
         if (!session) {
             const result = await this.client.auth.signInAnonymously();
             if (result.error) throw result.error;
+        } else {
+            // A session whose user is gone (the data wipe): start a new anonymous one.
+            const { error: userError } = await this.client.auth.getUser();
+            if (userError && userError.status >= 400 && userError.status < 500) {
+                await this.client.auth.signOut({ scope: 'local' }).catch(() => {});
+                const result = await this.client.auth.signInAnonymously();
+                if (result.error) throw result.error;
+            }
         }
         await this.loadProfile();
         await this.flushPending();
@@ -82,11 +114,9 @@ class LeaderboardService {
                 .eq('id', user.id)
                 .maybeSingle();
             if (legacy.error) throw legacy.error;
-            this.profile = legacy.data ? { id: user.id, displayName: legacy.data.display_name, hasPassword: null } : null;
-            return this.profile;
+            return this._setProfile(legacy.data ? { id: user.id, displayName: legacy.data.display_name, hasPassword: null } : null);
         }
-        this.profile = this._rowToProfile(data);
-        return this.profile;
+        return this._setProfile(this._rowToProfile(data));
     }
 
     _rowToProfile(data) {
@@ -146,7 +176,7 @@ class LeaderboardService {
             p_password: password
         });
         if (error) throw error;
-        this.profile = this._rowToProfile(data);
+        this._setProfile(this._rowToProfile(data));
         await this.flushPending();
         return this.profile;
     }
@@ -167,9 +197,42 @@ class LeaderboardService {
         if (error) throw error;
         const profile = this._rowToProfile(data);
         if (!profile) return null;
-        this.profile = profile;
+        this._setProfile(profile);
         await this.flushPending();
         return this.profile;
+    }
+
+    /**
+     * Leave the operator on this browser: queued results are sent first
+     * (they belong to it), then the browser gets a new anonymous session.
+     * Needs a connection, so nothing of the operator is left behind.
+     */
+    async signOut() {
+        await this.initialize();
+        await this.flushPending();
+        const { error } = await this.client.auth.signOut({ scope: 'local' });
+        if (error) throw error;
+        this._setProfile(null);
+        this._writePending({});
+        const result = await this.client.auth.signInAnonymously();
+        if (result.error) throw result.error;
+        return true;
+    }
+
+    /** The operator's saved progress (ProgressSync blob), or null if none yet. */
+    async getProgress() {
+        if (!this.client || !this.profile) throw new Error('Profile required');
+        const { data, error } = await this.client.rpc('get_my_progress');
+        if (error) throw error;
+        const row = Array.isArray(data) ? data[0] : data;
+        return row && row.data ? row.data : null;
+    }
+
+    async saveProgress(blob) {
+        if (!this.client || !this.profile) throw new Error('Profile required');
+        const { error } = await this.client.rpc('save_my_progress', { p_data: blob });
+        if (error) throw error;
+        return true;
     }
 
     /** Protect the current operator (or change its password). */

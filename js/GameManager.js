@@ -21,6 +21,9 @@ class GameManager {
         this.profileForm = (typeof document !== 'undefined' && document.createElement && typeof ProfileForm !== 'undefined')
             ? new ProfileForm(canvas) : null;
         this._securePromptDismissed = false;
+        // The operator's progress follows the account (ProgressSync).
+        this.sync = new ProgressSync(this._storage(), this.leaderboard);
+        this._accountStatus = '';
 
         // Campaign: acts, stages, gates (docs/ACT_PLAN.md)
         this.progress = new CampaignProgress(CAMPAIGN);
@@ -71,6 +74,7 @@ class GameManager {
 
         // Input
         this._setupInput();
+        this._accountBoot();
     }
 
     // ── Game Loop ──
@@ -87,6 +91,11 @@ class GameManager {
         this._syncPageLayer(layer);
         // The "leave this game?" prompt pauses the game underneath.
         if (!this._quit) this.state.update(dt);
+        // Every screen change saves the operator's progress if it changed.
+        if (this.state.currentState !== this._syncState) {
+            this._syncState = this.state.currentState;
+            if (this.leaderboard.hasProfile()) this.sync.sync();
+        }
 
         if (typeof performance !== 'undefined') {
             // Wall-clock anchor for the simulation frontier. MUST be captured
@@ -128,10 +137,10 @@ class GameManager {
                 // Players who unlocked Endless get their own welcome screen.
                 if (this.progress.isEndlessUnlocked()) {
                     this.ui.addButton('start', '▶  ENTER', cx, 520, 240, 48,
-                        () => this.state.change(S.HUB), { color: '#facc15' });
+                        () => this._enterGame(), { color: '#facc15' });
                 } else {
                     this.ui.addButton('start', '▶  START MISSION', cx, 520, 240, 48,
-                        () => this.state.change(S.HUB));
+                        () => this._enterGame());
                 }
                 this._setBrandLink(true);
             },
@@ -1059,6 +1068,8 @@ class GameManager {
                 this.ui.clearButtons();
                 const lCtx = context || {};
                 this._profileReturnState = lCtx.returnState || S.HUB;
+                // Backing out of the sign-in gate goes back to the menu, not into the game.
+                this._profileCancelState = lCtx.cancelState || this._profileReturnState;
                 this._profileMode = lCtx.mode || null;
                 this._profileStatus = 'Connecting to leaderboard...';
 
@@ -1086,7 +1097,23 @@ class GameManager {
                 this.ui.clearButtons();
                 if (this.profileForm) this.profileForm.close();
             },
-            onKey: (e) => { if (e.code === 'Escape') this.state.change(this._profileReturnState); }
+            onKey: (e) => { if (e.code === 'Escape') this.state.change(this._profileCancelState); }
+        });
+
+        // ── ACCOUNT (the signed-in operator: name, sign out) ──
+        this.state.register(S.ACCOUNT, {
+            enter: () => {
+                this.ui.clearButtons();
+                const cx = VIEW.W / 2;
+                this._accountStatus = '';
+                this.ui.addButton('account-signout', '⏻  SIGN OUT', cx, 430, 240, 44,
+                    () => this._signOut(), { color: '#ef4444' });
+                this.ui.addButton('account-back', '← BACK', cx, 490, 160, 38,
+                    () => this.state.change(S.MENU), { color: '#64748b' });
+            },
+            render: (ctx) => this._renderAccount(ctx),
+            exit: () => this.ui.clearButtons(),
+            onKey: (e) => { if (e.code === 'Escape') this.state.change(S.MENU); }
         });
 
         // ── LEADERBOARD ──
@@ -1119,9 +1146,9 @@ class GameManager {
 
                 this.leaderboard.initialize().then((profile) => {
                     if (this.state.currentState !== S.LEADERBOARD) return;
-                    if (!profile) this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD });
+                    if (!profile) this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD, cancelState: S.ENDLESS_HUB });
                     else if (this.leaderboard.needsPassword() && !this._securePromptDismissed) {
-                        this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD, mode: 'secure' });
+                        this.state.change(S.PROFILE_SETUP, { returnState: S.LEADERBOARD, cancelState: S.ENDLESS_HUB, mode: 'secure' });
                     } else this._loadLeaderboard();
                 }).catch(() => {
                     if (this.state.currentState === S.LEADERBOARD) {
@@ -1143,7 +1170,116 @@ class GameManager {
         const cx = VIEW.W / 2;
         const cy = VIEW.H / 2;
         this.ui.addButton('profile-back', '← BACK', cx, cy + 60, 160, 40,
-            () => this.state.change(this._profileReturnState), { color: '#64748b' });
+            () => this.state.change(this._profileCancelState || this._profileReturnState), { color: '#64748b' });
+    }
+
+    // ── Operator account (required to play, docs/ACT_PLAN.md 8d) ──
+
+    /** ENTER / START MISSION: in with an operator, otherwise create or sign in first. */
+    _enterGame() {
+        const S = this.state.STATES;
+        if (this.leaderboard.knownOperator()) this.state.change(S.HUB);
+        else this.state.change(S.PROFILE_SETUP, { returnState: S.HUB, cancelState: S.MENU, mode: 'create' });
+    }
+
+    /** The round account badge on the menu. */
+    _openAccount() {
+        const S = this.state.STATES;
+        if (this.state.transitioning) return;
+        if (this.leaderboard.knownOperator()) this.state.change(S.ACCOUNT);
+        else this.state.change(S.PROFILE_SETUP, { returnState: S.MENU, mode: 'create' });
+    }
+
+    /** On load: bring the remembered operator's saved progress in (quietly, offline is fine). */
+    _accountBoot() {
+        if (!this.leaderboard.knownOperator()) return;
+        Promise.resolve()
+            .then(() => this.leaderboard.initialize())
+            .then((profile) => (profile ? this._pullProgress() : null))
+            .catch(() => {})
+            .finally(() => this._updateAccountButton());
+    }
+
+    /** Merge the account's saved progress into this browser. */
+    async _pullProgress() {
+        try {
+            if (await this.sync.pull()) this._reloadProgress();
+        } catch (e) { }
+    }
+
+    /** Read the saved progress again after a sync, sign-out or reset. */
+    _reloadProgress() {
+        const S = this.state.STATES;
+        this.progress = new CampaignProgress(CAMPAIGN);
+        this.endlessProgress = new EndlessProgress(this._storage());
+        this._guideSeen = this._readFlag('sb_guide_seen');
+        this._actView = this.progress.currentActId();
+        this._mapIndex = this._actView - 1;
+        this._mapScroll = this._mapIndex;
+        this._hubEndlessFocus = true;
+        // The menu's button and story follow the progress.
+        if (this.state.currentState === S.MENU && !this.state.transitioning) this.state._handlers[S.MENU].enter();
+    }
+
+    /** Sign out: save the progress, then forget the operator on this browser. */
+    async _signOut() {
+        const S = this.state.STATES;
+        const op = this.leaderboard.knownOperator();
+        if (this._accountBusy || !op) return;
+        if (typeof window !== 'undefined' && window.confirm && !window.confirm(UITheme.t('Sign out of {name}? Your progress stays saved with the operator.', { name: op.displayName }))) return;
+        this._accountBusy = true;
+        this._accountStatus = 'Signing out...';
+        try {
+            await this.leaderboard.initialize();
+            await this.sync.push();
+            await this.leaderboard.signOut();
+        } catch (e) {
+            this._accountStatus = 'Connect to the internet to sign out.';
+            this._accountBusy = false;
+            return;
+        }
+        this._accountBusy = false;
+        ProgressSync.clear(this._storage());
+        this._reloadProgress();
+        this._updateAccountButton();
+        if (this.state.currentState === S.ACCOUNT) this.state.change(S.MENU);
+    }
+
+    _renderAccount(ctx) {
+        const W = VIEW.W;
+        const cx = W / 2;
+        const op = this.leaderboard.knownOperator();
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = '700 24px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('OPERATOR PROFILE'), cx, 170);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '700 34px Orbitron, OrbitronTR';
+        ctx.fillText(op ? op.displayName : '—', cx, 232);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '500 17px Rajdhani';
+        UITheme.fitFont(ctx, UITheme.t('Your progress is saved with this operator: sign in on any browser to go on.'), 720, 'body', 500);
+        ctx.fillText(UITheme.t('Your progress is saved with this operator: sign in on any browser to go on.'), cx, 278);
+        this._drawPasswordWarning(ctx, cx, 330);
+        if (this._accountStatus) {
+            ctx.fillStyle = /Connect/.test(this._accountStatus) ? '#ef4444' : '#94a3b8';
+            ctx.font = '500 16px Rajdhani';
+            ctx.fillText(UITheme.t(this._accountStatus), cx, 385);
+        }
+        ctx.restore();
+        this.ui.renderButtons();
+    }
+
+    /** The plain truth about passwords here: basic protection only. */
+    _drawPasswordWarning(ctx, cx, y) {
+        const text = UITheme.t('⚠ Basic protection only — never use a password you use anywhere else.');
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fbbf24';
+        UITheme.fitFont(ctx, text, 760, 'body', 600);
+        ctx.fillText(text, cx, y);
+        ctx.restore();
     }
 
     _openProfileForm(mode) {
@@ -1154,7 +1290,7 @@ class GameManager {
             onCancel: () => {
                 // "Later" on the password prompt: don't nag again this session.
                 if (mode === 'secure') this._securePromptDismissed = true;
-                this.state.change(this._profileReturnState || S.HUB);
+                this.state.change(this._profileCancelState || this._profileReturnState || S.HUB);
             }
         });
     }
@@ -1173,6 +1309,9 @@ class GameManager {
         } catch (error) {
             return LeaderboardService.friendlyError(error, 'Something went wrong. Try again.');
         }
+        // The operator's progress comes along (a new operator gets this browser's).
+        await this._pullProgress();
+        this._updateAccountButton();
         if (this.profileForm) this.profileForm.close();
         this.state.change(this._profileReturnState);
         return null;
@@ -1601,12 +1740,7 @@ class GameManager {
         this._addGuideButton();
 
         this.ui.addButton('reset', '🗑 RESET', W - 75, H - 35, 110, 32,
-            () => {
-                if (window.confirm(UITheme.t('Are you sure you want to delete all data and start fresh?'))) {
-                    GameManager.resetData(localStorage);
-                    window.location.href = window.location.href;
-                }
-            },
+            () => this._resetAll(),
             { color: '#ef4444' });
     }
 
@@ -1618,12 +1752,37 @@ class GameManager {
      */
     static resetData(storage) {
         if (!storage) return [];
-        const keep = new Set(['sb_lang', 'sb_muted']);
+        // The operator stays signed in; the save epoch must not run again.
+        const keep = new Set(['sb_lang', 'sb_muted', 'sb_epoch', 'sb_operator']);
         const keys = [];
         for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));
         const gone = keys.filter(k => k && k.startsWith('sb_') && !keep.has(k));
         gone.forEach(k => storage.removeItem(k));
         return gone;
+    }
+
+    /**
+     * RESET: the operator's saved progress is replaced by an empty one first
+     * (it would come back on the next sync otherwise), then the browser's
+     * data goes. Offline, nothing is deleted.
+     */
+    async _resetAll() {
+        if (!window.confirm(UITheme.t('Are you sure you want to delete all data and start fresh?'))) return;
+        const storage = this._storage();
+        if (this.leaderboard.knownOperator()) {
+            const before = ProgressSync.collect(storage);
+            ProgressSync.clear(storage);
+            try {
+                await this.leaderboard.initialize();
+                await this.sync.push(true);
+            } catch (e) {
+                ProgressSync.write(storage, before);
+                window.alert(UITheme.t('Connect to the internet to reset your operator\'s progress.'));
+                return;
+            }
+        }
+        GameManager.resetData(storage);
+        window.location.href = window.location.href;
     }
 
     /** Sum of best scores over an act's stages. */
@@ -2695,6 +2854,7 @@ class GameManager {
      */
     _setBrandLink(visible) {
         this._setLangButton(visible);
+        this._setAccountButton(visible);
         if (typeof document === 'undefined' || !document.createElement || !document.body) return;
         if (!this._brand) {
             const a = document.createElement('a');
@@ -2726,6 +2886,52 @@ class GameManager {
         } else if (this._brand.isConnected) {
             this._brand.remove();
         }
+    }
+
+    // ── Account button (menu only, top-right, same round badge) ──
+
+    /** A round badge with an operator mark: the account screen, or create / sign in. */
+    _setAccountButton(visible) {
+        if (typeof document === 'undefined' || !document.createElement || !document.body) return;
+        if (!this._account) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'sb-brand sb-account';
+            b.innerHTML = '<svg class="sb-lang-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7">' +
+                '<circle cx="12" cy="8.5" r="3.6"/><path d="M4.8 20c.9-3.7 3.7-5.6 7.2-5.6s6.3 1.9 7.2 5.6"/></svg>';
+            b.addEventListener('click', () => {
+                if (typeof Sound !== 'undefined' && Sound.playClick) Sound.playClick();
+                this._openAccount();
+            });
+            this._account = b;
+            this._placeAccount = () => {
+                const r = this.canvas.getBoundingClientRect();
+                const k = r.width / VIEW.W;
+                const fs = Math.max(10, 12 * k);
+                // Mirrors the dormhi.com badge: same size, top-right corner.
+                b.style.fontSize = fs + 'px';
+                b.style.left = (r.left + (VIEW.W - 16) * k - 2.4 * fs) + 'px';
+                b.style.top = (r.top + 16 * k) + 'px';
+            };
+            window.addEventListener('resize', this._placeAccount);
+        }
+        if (visible) {
+            if (!this._account.isConnected) document.body.appendChild(this._account);
+            this._placeAccount();
+            this._updateAccountButton();
+        } else if (this._account.isConnected) {
+            this._account.remove();
+        }
+    }
+
+    /** Signed in: lit, named in the tooltip. */
+    _updateAccountButton() {
+        if (!this._account) return;
+        const op = this.leaderboard.knownOperator();
+        const label = op ? UITheme.t('Operator: {name}', { name: op.displayName }) : UITheme.t('Create an operator or sign in');
+        this._account.classList.toggle('is-on', !!op);
+        this._account.title = label;
+        this._account.setAttribute('aria-label', label);
     }
 
     // ── Language button (menu only, next to the dormhi.com badge) ──
@@ -2988,7 +3194,8 @@ class GameManager {
                 return true;
             case S.LEADERBOARD: this.state.change(S.ENDLESS_HUB); return true;
             case S.ENDLESS_HUB: this.state.change(S.HUB); return true;
-            case S.PROFILE_SETUP: this.state.change(this._profileReturnState || S.HUB); return true;
+            case S.PROFILE_SETUP: this.state.change(this._profileCancelState || this._profileReturnState || S.HUB); return true;
+            case S.ACCOUNT: this.state.change(S.MENU); return true;
             case S.CONGRATS: this._finishCongrats(); return true;
             case S.MENU:
                 // First back on the menu warns; a second one within 2.5 s leaves.

@@ -5,6 +5,9 @@
 (function() {
     'use strict';
 
+    // The owner's data wipe (save epoch): once per browser, before anything reads a save.
+    try { ProgressSync.applyEpoch(window.localStorage); } catch (e) { }
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 

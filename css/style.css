@@ -123,6 +123,14 @@ canvas {
     text-align: center;
 }
 
+.sb-form-warn {
+    font-size: 13px;
+    line-height: 1.3;
+    font-weight: 600;
+    color: var(--warning);
+    text-align: center;
+}
+
 .sb-form-field {
     display: flex;
     flex-direction: column;
@@ -234,6 +242,9 @@ canvas {
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
     outline: none;
 }
+
+/* Account badge (menu, top-right): lit while an operator is signed in. */
+.sb-account.is-on { color: #4ade80; border-color: rgba(74, 222, 128, 0.45); }
 
 /* The white mark as a mask, painted in the current text colour. */
 .sb-brand-mark {

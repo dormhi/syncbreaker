@@ -175,6 +175,7 @@ const FULL_FILES = [
     'js/LevelIcons.js',
     'js/LevelManager.js',
     'js/LeaderboardService.js',
+    'js/ProgressSync.js',
     'js/ProfileForm.js',
     'js/TipBar.js',
     'js/GameManager.js'
@@ -182,7 +183,7 @@ const FULL_FILES = [
 
 const FULL_EXPORTS = ['GameManager', 'UITheme', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
-    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach', 'I18n', 'ENDLESS', 'EndlessRun', 'EndlessProgress'];
+    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach', 'I18n', 'ENDLESS', 'EndlessRun', 'EndlessProgress', 'ProgressSync'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {
@@ -219,7 +220,9 @@ function loadGameManager(initialStorage = {}) {
     const localStorage = {
         getItem: (k) => (store.has(k) ? store.get(k) : null),
         setItem: (k, v) => { store.set(k, String(v)); },
-        removeItem: (k) => { store.delete(k); }
+        removeItem: (k) => { store.delete(k); },
+        get length() { return store.size; },
+        key: (i) => [...store.keys()][i] ?? null
     };
     const listeners = {};
     const document = {

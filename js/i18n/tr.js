@@ -926,10 +926,10 @@ if (typeof I18n !== 'undefined') {
         'Leaderboard is not configured yet.': 'Leaderboard henüz ayarlanmadı.',
         'Offline: connect to the internet and try again.': 'Çevrimdışı: internete bağlan ve tekrar dene.',
         '← BACK': '← GERİ',
-        'Pick a unique name and a password — use them to play from any browser.': 'Benzersiz bir ad ve bir parola seç — onlarla her tarayıcıdan oynayabilirsin.',
+        'An operator is needed to play. Pick a unique name and a password: your progress is saved with it on every browser.': 'Oynamak için bir operator gerekli. Benzersiz bir ad ve bir parola seç: ilerlemen her tarayıcıda onunla kaydedilir.',
         'CREATE OPERATOR': 'OPERATOR OLUŞTUR',
         'SIGN IN': 'GİRİŞ YAP',
-        'Continue your operator from another browser.': 'Operator hesabına başka bir tarayıcıdan devam et.',
+        'Sign in to your operator: your progress comes with it.': 'Operator hesabına giriş yap: ilerlemen de onunla gelir.',
         'SECURE YOUR NAME': 'ADINI KORU',
         'Set a password so you can play this operator from any browser.': 'Bu operator adıyla her tarayıcıdan oynayabilmek için bir parola belirle.',
         'SAVE PASSWORD': 'PAROLAYI KAYDET',
@@ -990,5 +990,18 @@ if (typeof I18n !== 'undefined') {
         '✂ {n}': '✂ {n}',
         'RUN ENDED': 'OYUN BİTİRİLDİ',
         'ROUND': 'TUR'
+    });
+
+    // Operator account required to play (2026-10-27)
+    I18n.add('tr', {
+        '⚠ Basic protection only — never use a password you use anywhere else.': '⚠ Koruma basit düzeyde — başka bir yerde kullandığın bir parolayı kullanma.',
+        'Your progress is saved with this operator: sign in on any browser to go on.': 'İlerlemen bu operatorla kaydedilir: devam etmek için herhangi bir tarayıcıda giriş yap.',
+        '⏻  SIGN OUT': '⏻  ÇIKIŞ YAP',
+        'Sign out of {name}? Your progress stays saved with the operator.': '{name} hesabından çıkılsın mı? İlerlemen operatorla kayıtlı kalır.',
+        'Signing out...': 'Çıkış yapılıyor...',
+        'Connect to the internet to sign out.': 'Çıkış yapmak için internete bağlan.',
+        'Connect to the internet to reset your operator\'s progress.': 'Operatorunun ilerlemesini sıfırlamak için internete bağlan.',
+        'Operator: {name}': 'Operator: {name}',
+        'Create an operator or sign in': 'Operator oluştur ya da giriş yap'
     });
 }
