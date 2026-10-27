@@ -138,12 +138,14 @@ const CAMPAIGN = {
             // in scissors (a hidden bottleneck) and `slack` the spare scissors.
             // Cables at ATK and the CORE are shielded. Owner lines (blue) cost a
             // life when cut, armored cables need two cuts, failover lines
-            // wake when their tagged cable is cut.
+            // wake when their tagged cable is cut. Beta feedback 2026-10-27
+            // ("cut 3 in the middle" won): HARD / VERY HARD have 4 relay rows
+            // and no straight middle cut fits the scissors.
             stages: [
                 { tier: 'EASY',      params: { networks: 3, cols: 5, minCutMin: 2, minCutMax: 2, slack: 2, lives: 3 } },
                 { tier: 'NORMAL',    params: { networks: 3, cols: 5, minCutMin: 2, minCutMax: 3, slack: 1, ownerMin: 2, ownerMax: 3, lives: 4 } },
-                { tier: 'HARD',      params: { networks: 4, cols: 6, minCutMin: 3, minCutMax: 3, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 1, armoredMax: 2, lives: 5 } },
-                { tier: 'VERY HARD', params: { networks: 4, cols: 6, minCutMin: 3, minCutMax: 4, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 2, armoredMax: 2, failoverMin: 1, failoverMax: 2, lives: 5 } }
+                { tier: 'HARD',      params: { networks: 4, cols: 6, rows: 4, minCutMin: 3, minCutMax: 3, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 1, armoredMax: 2, lives: 5 } },
+                { tier: 'VERY HARD', params: { networks: 4, cols: 6, rows: 4, minCutMin: 3, minCutMax: 4, slack: 1, ownerMin: 3, ownerMax: 4, armoredMin: 2, armoredMax: 2, failoverMin: 1, failoverMax: 2, lives: 5 } }
             ]
         },
         {

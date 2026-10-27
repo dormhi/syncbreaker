@@ -1035,6 +1035,16 @@ if (typeof I18n !== 'undefined') {
         'Last one. Row 1 says 3, and both of its ends are ✕ now: the 3 fits only in the middle. Fill it — and every number turns grey.': 'Son adım. Satır 1, 3 diyor ve iki ucu artık ✕: 3 sadece ortaya sığar. Doldur — bütün sayılar griye döner.'
     });
 
+    // Network Cut timed challenge in Endless (beta feedback, 2026-10-28)
+    I18n.add('tr', {
+        '∞ NORMAL': '∞ NORMAL',
+        '⏱ {n} MIN': '⏱ {n} DK',
+        '{game} · {n} MIN': '{game} · {n} DK',
+        'TIME': 'SÜRE',
+        "TIME'S UP": 'SÜRE BİTTİ',
+        'Solve as many networks as you can in {n} minutes. A mistake costs {s} s. No leaderboard: just your own record.': '{n} dakikada çözebildiğin kadar ağ çöz. Her hata {s} sn götürür. Sıralama yok: sadece kendi rekorun.'
+    });
+
     // Volume panel (beta feedback, 2026-10-27)
     I18n.add('tr', {
         'SOUND': 'SES',

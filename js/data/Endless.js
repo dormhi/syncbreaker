@@ -96,10 +96,14 @@ const ENDLESS = {
             points: (m) => m.score },
         // A round is one network: wider, with owner lines from round 3,
         // armored cables from 6 and failover lines from 9.
+        // Beta feedback 2026-10-27: a timed challenge too (5 / 10 minutes, no
+        // health bar, a mistake costs `penalty` s, local record only).
         { key: 'cut', act: 6, kind: 'health', ready: true, damage: 0.25, refillEvery: 3, refill: 0.25,
+            challenge: { minutes: [5, 10], penalty: 15 },
             round: (r) => ({
                 networks: 1,
                 cols: r <= 3 ? 5 : 6,
+                rows: r >= 4 ? 4 : 3,
                 minCutMin: r <= 4 ? 2 : 3,
                 minCutMax: r <= 2 ? 2 : r <= 7 ? 3 : 4,
                 slack: r <= 2 ? 2 : 1,

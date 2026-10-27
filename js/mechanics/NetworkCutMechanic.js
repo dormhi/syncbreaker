@@ -12,14 +12,22 @@
    The cables at ATK and at the CORE are shielded trunks: they cannot be
    cut, so the cut always has to be found inside the network. A network is
    also thrown away when a blind recipe would solve it within the scissors
-   (cut everything around the relays next to ATK, or next to the CORE).
-   Layouts vary: 3 or 4 rows, ATK and CORE swap sides, relays shift.
+   (cut everything around the relays next to ATK, or next to the CORE, or
+   one straight column gap). Beta feedback 2026-10-27: "cut 3 in the
+   middle" solved almost every network, because a straight middle gap
+   only had to cost more than the cheapest cut and the spare scissor paid
+   for it. Now it must not fit the scissors at all (tiers with one spare
+   scissor; the EASY stage with two keeps the old rule), and the harder
+   tiers have 4 rows of relays (`rows`) so such networks exist.
+   Layouts vary: ATK and CORE swap sides, relays shift.
 
    Harder tiers add:
    - owner lines (blue): the owner's own link to the core. Cutting one
      costs a life (the line is repaired, the scissors are spent).
    - armored cables: two cuts to sever.
-   - failover lines: dormant cables that wake when a marked cable is cut.
+   - failover lines: dormant cables that wake when a marked cable is cut;
+     each one lies as far as possible from the cable that wakes it, so a
+     cut in one place opens a route somewhere else.
 
    Running out of scissors while the attacker still reaches the core
    costs a life and rebuilds the same network.
@@ -47,7 +55,8 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         this.rng = options.rng || Math.random;
 
         this.networks = options.networks || 3;
-        this.cols = Math.max(5, options.cols || 5);   // relay columns (3 rows each)
+        this.cols = Math.max(5, options.cols || 5);   // relay columns
+        this.rows = Math.max(3, options.rows || 3);   // relay rows
         this.minCutMin = options.minCutMin || 2;        // cheapest solution, in scissors
         this.minCutMax = options.minCutMax || this.minCutMin;
         this.slack = options.slack !== undefined ? options.slack : 2;   // spare scissors
@@ -204,11 +213,11 @@ class NetworkCutMechanic extends _MechanicBaseNC {
     _tryNetwork(anyCost) {
         const B = this.boardRect();
         const owner = this.ownerMax > 0;
-        // Three rows of relays in `cols` columns. The two columns at each end
+        // `rows` rows of relays in `cols` columns. The two columns at each end
         // stay full, so every gap near ATK or the CORE has 5 cables: a blind
         // cut there costs more than the scissors. Middle columns (wide
         // networks only) may lose a relay, never below two, so layouts vary.
-        const rows = 3;
+        const rows = this.rows;
         const cols = this.cols;
         const cells = [];
         for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) cells.push({ c, r });
@@ -309,16 +318,30 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             edges[i].hp = edges[i].armor = 2;
         }
 
-        // Failover lines: a dormant cable that wakes when a cable of the cheapest cut is cut.
+        // Failover lines: a dormant cable that wakes when a cable of the cheapest
+        // cut is cut. It lies as far as it can from that cable (and from the
+        // other backups), so the cut in one place opens a route somewhere else.
         const failovers = this._between(this.failoverMin, this.failoverMax);
+        const mid = (a, b) => ({ x: (nodes[a].x + nodes[b].x) / 2, y: (nodes[a].y + nodes[b].y) / 2 });
+        const far = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
         for (let k = 0; k < failovers; k++) {
             if (!spare.length) return null;
-            const [a, b] = spare.splice(this._int(spare.length), 1)[0];
             const cut = NetworkCutMechanic.cheapestCut(nodes.length, edges).filter(i => !edges[i].owner && edges[i].trigger < 0);
             const triggers = cut.filter(i => !edges.some(d => d.dormant && d.trigger === i));
             if (!triggers.length) return null;
-            edges.push({ a, b, hp: 1, armor: 1, owner: false, dormant: true, awake: false, shielded: false,
-                trigger: triggers[this._int(triggers.length)], tag: 'AB'[k] });
+            // The farthest (trigger, backup) pair, a little apart from earlier backups.
+            const placed = edges.filter(d => d.dormant).map(d => mid(d.a, d.b));
+            let pick = null;
+            for (const trigger of triggers) {
+                const t = mid(edges[trigger].a, edges[trigger].b);
+                spare.forEach((e, j) => {
+                    const m = mid(e[0], e[1]);
+                    const score = far(m, t) + (placed.length ? 0.5 * Math.min(...placed.map(p => far(m, p))) : 0) + this.rng() * 8;
+                    if (!pick || score > pick.score) pick = { trigger, j, score };
+                });
+            }
+            const [a, b] = spare.splice(pick.j, 1)[0];
+            edges.push({ a, b, hp: 1, armor: 1, owner: false, dormant: true, awake: false, shielded: false, trigger: pick.trigger, tag: 'AB'[k] });
         }
 
         const net = { nodes, edges };
@@ -335,8 +358,9 @@ class NetworkCutMechanic extends _MechanicBaseNC {
      * Would a recipe that ignores the layout do (nearly) as well as thinking?
      * - Cutting everything next to ATK or the CORE (the end gaps, and around
      *   the relays next to the ends) must not fit the scissors at all.
-     * - Cutting one straight column gap in the middle is a real cut, but it
-     *   must cost more than the cheapest one (the bent bottleneck wins).
+     * - Cutting one straight column gap in the middle must not fit the
+     *   scissors either. Only the EASY stage (two spare scissors) lets it
+     *   fit as long as it costs more than the cheapest cut.
      * Owner lines are left alone; backups woken on the way are cut too.
      */
     _blindSolves(nodes, edges, minCost, budget) {
@@ -352,7 +376,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
                 if (Math.min(ca, cb) <= g && Math.max(ca, cb) > g) cut.add(i);
             });
             const end = g === 0 || g === cols - 2;
-            if (this._cutSolves(nodes, edges, cut, end ? budget : minCost)) return true;
+            if (this._cutSolves(nodes, edges, cut, end || this.slack < 2 ? budget : minCost)) return true;
         }
         // Recipe set 2: cut everything around the relays next to ATK / the CORE.
         for (const end of [0, 1]) {

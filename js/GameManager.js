@@ -30,6 +30,7 @@ class GameManager {
         // New Endless (docs/ACT_PLAN.md 8b): best per game, the game picked in the lobby.
         this.endlessProgress = new EndlessProgress(this._storage());
         this._endlessGame = this._readEndlessGame();
+        this._endlessMode = this._readEndlessMode();
         this._stage = null;      // { actId, index } of the stage being played
         this._actView = this.progress.currentActId();
         // Act map carousel: focused act index and its eased scroll position.
@@ -710,10 +711,10 @@ class GameManager {
                     this.ui.renderScore(run.score, 0);
                     if (run.kind === 'health') UITheme.healthBar(ctx, W - 196, 70, 180, run.health, { flash: run.hurtFlash });
                     if (run.kind === 'pool') {
-                        // The time pool: a full bar is five minutes or more.
+                        // The time pool: a full bar is five minutes or more; a challenge's bar is its own time.
                         const s = Math.ceil(run.timeLeft);
-                        UITheme.healthBar(ctx, W - 196, 70, 180, run.timeLeft / 300, {
-                            flash: run.hurtFlash, label: 'TIME POOL', text: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+                        UITheme.healthBar(ctx, W - 196, 70, 180, run.timeLeft / (run.challenge ? run.challenge * 60 : 300), {
+                            flash: run.hurtFlash, label: run.challenge ? 'TIME' : 'TIME POOL', text: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
                         });
                     }
                 }
@@ -911,15 +912,18 @@ class GameManager {
                     maxCombo: bar ? (lv.maxCombo || 0) : (lCtx.maxCombo || 0),
                     hitCount: bar ? (lv.hitCount || 0) : (lCtx.hitCount || 0),
                     quit: !!run && run.reason === 'quit',
-                    noRevive: !!lCtx.noRevive || (!!run && run.reason === 'quit'),
+                    // A timed challenge (minutes): local record only, no recovery.
+                    challenge: (run && run.challenge) || 0,
+                    noRevive: !!lCtx.noRevive || (!!run && (run.reason === 'quit' || !!run.challenge)),
                     recoveryFailed: !!lCtx.recoveryFailed
                 };
                 const eo = this._eo;
-                eo.best = this.endlessProgress.best(eo.game).score;
-                eo.newBest = this.endlessProgress.record(eo.game, eo.score, eo.round);
+                const bestKey = this._endlessBestKey(eo.game, eo.challenge);
+                eo.best = this.endlessProgress.best(bestKey).score;
+                eo.newBest = this.endlessProgress.record(bestKey, eo.score, eo.round);
                 this._endlessUploadStatus = '';
 
-                if (eo.score > 0) {
+                if (eo.score > 0 && !eo.challenge) {
                     this.leaderboard.recordResult({ game: eo.game, score: eo.score, round: eo.round }).then(() => {
                         this._endlessUploadStatus = this.leaderboard.hasProfile()
                             ? 'Score synced to leaderboard'
@@ -967,12 +971,12 @@ class GameManager {
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#facc15';
                 ctx.font = UITheme.font('label', 700, 'Orbitron');
-                ctx.fillText(`∞ ${this._endlessTitle(eo.game)}`, cx, cy - 112);
+                ctx.fillText(`∞ ${this._endlessRunTitle(eo.game, eo.challenge)}`, cx, cy - 112);
 
-                // Leaving on purpose is not a defeat.
-                ctx.fillStyle = eo.quit ? '#94a3b8' : '#ef4444';
+                // Leaving on purpose is not a defeat; a challenge ends when its time is up.
+                ctx.fillStyle = eo.quit ? '#94a3b8' : eo.challenge ? '#facc15' : '#ef4444';
                 ctx.font = '900 26px Orbitron, OrbitronTR';
-                ctx.fillText(UITheme.t(eo.quit ? 'RUN ENDED' : 'DEFENSE COLLAPSED'), cx, cy - 80);
+                ctx.fillText(UITheme.t(eo.quit ? 'RUN ENDED' : eo.challenge ? "TIME'S UP" : 'DEFENSE COLLAPSED'), cx, cy - 80);
 
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '700 32px Orbitron, OrbitronTR';
@@ -2267,6 +2271,36 @@ class GameManager {
         try { localStorage.setItem('sb_endless_game', key); } catch (e) { }
     }
 
+    /** Timed challenge picked in the lobby: 0 (normal run) or minutes. */
+    _readEndlessMode() {
+        let m = 0;
+        try { m = parseInt(localStorage.getItem('sb_endless_mode'), 10) || 0; } catch (e) { m = 0; }
+        return m;
+    }
+
+    _pickEndlessMode(mode) {
+        this._endlessMode = mode;
+        try { localStorage.setItem('sb_endless_mode', String(mode)); } catch (e) { }
+    }
+
+    _rebuildEndlessHub() {
+        const focus = this.ui.focusId;
+        this.ui.clearButtons();
+        this._buildEndlessHubButtons();
+        if (focus && this.ui.buttons.some(b => b.id === focus)) this.ui.focus(focus);
+    }
+
+    /** Bests are per game, and per challenge length ("cut:5"). */
+    _endlessBestKey(game, challenge) {
+        return challenge ? `${game}:${challenge}` : game;
+    }
+
+    /** "NETWORK CUT" or "NETWORK CUT · 5 MIN". */
+    _endlessRunTitle(game, challenge) {
+        const title = this._endlessTitle(game);
+        return challenge ? UITheme.t('{game} · {n} MIN', { game: title, n: challenge }) : title;
+    }
+
     /** Lobby layout: a 3 × 3 grid of game cards, then the play row. */
     _endlessHubLayout() {
         const cardW = 260, cardH = 78, gapX = 16, gapY = 12;
@@ -2277,7 +2311,7 @@ class GameManager {
             y: y0 + Math.floor(k / 3) * (cardH + gapY),
             w: cardW, h: cardH
         }));
-        return { cards, playY: 466 };
+        return { cards, modeY: 414, playY: 492 };
     }
 
     _buildEndlessHubButtons() {
@@ -2295,8 +2329,20 @@ class GameManager {
                     // A tap picks the game; a second tap on the picked one starts it.
                     if (this._endlessGame === c.game.key) { this._startEndlessRun(); return; }
                     this._pickEndlessGame(c.game.key);
+                    this._rebuildEndlessHub();   // the mode row follows the game
                 },
                 { draw: (ctx, btn, hovered) => this._drawEndlessGameCard(ctx, btn, hovered, c) });
+        }
+        // Timed challenges (Network Cut): NORMAL / 5 MIN / 10 MIN.
+        const picked = ENDLESS.game(this._endlessGame);
+        if (picked && picked.challenge) {
+            const modes = [0].concat(picked.challenge.minutes);
+            modes.forEach((mode, k) => {
+                const label = mode ? UITheme.t('⏱ {n} MIN', { n: mode }) : UITheme.t('∞ NORMAL');
+                this.ui.addButton(`endless-mode-${mode}`, label, cx + (k - (modes.length - 1) / 2) * 150, L.modeY, 136, 34,
+                    () => { this._pickEndlessMode(mode); this._rebuildEndlessHub(); },
+                    { color: this._endlessMode === mode ? '#facc15' : '#94a3b8' });
+            });
         }
         this.ui.addButton('endless-play', '▶  START RUN', cx - 140, L.playY, 260, 50,
             () => this._startEndlessRun(), { color: '#facc15' });
@@ -2313,10 +2359,15 @@ class GameManager {
         const game = ENDLESS.game(this._endlessGame) || ENDLESS.game('timingbar');
         this.levels.endlessMode = false;
         if (game.key === 'timingbar') { this.state.change(S.ENDLESS); return; }
-        // A time pool starts with round 1's time.
-        const run = new EndlessRun(game, { time: game.kind === 'pool' ? game.round(1).addTime : 0 });
+        const challenge = game.challenge ? this._endlessMode : 0;
+        // A time pool starts with round 1's time; a timed challenge (minutes)
+        // is a pool that only runs down: no health bar, mistakes cost time.
+        const run = challenge
+            ? new EndlessRun(Object.assign({}, game, { kind: 'pool' }), { time: challenge * 60 })
+            : new EndlessRun(game, { time: game.kind === 'pool' ? game.round(1).addTime : 0 });
+        run.challenge = challenge;
         this._endlessActive = run;
-        this._endlessCfg = { endless: run, title: `∞ ${this._endlessTitle(game.key)}`, mechanic: this._endlessMechanic(game, run.round) };
+        this._endlessCfg = { endless: run, title: `∞ ${this._endlessRunTitle(game.key, challenge)}`, mechanic: this._endlessMechanic(game, run.round) };
         this.state.change(S.MINIGAME, this._endlessCfg);
     }
 
@@ -2348,6 +2399,11 @@ class GameManager {
             const costs = (m.auditErrors || 0) + (m.hints || 0);
             if (costs > this._mgAudits) run.spendTime((costs - this._mgAudits) * (m.auditPenalty || 0));
             this._mgAudits = costs;
+            // A challenge has no health bar: a lost life costs time instead.
+            if (run.challenge && typeof m.lives === 'number' && m.lives < this._mgLives) {
+                run.spendTime((this._mgLives - m.lives) * ENDLESS.game(run.game).challenge.penalty);
+                this._mgLives = m.lives;
+            }
             if (run.over) { this.state.change(S.ENDLESS_OVER, {}); return; }
         } else {
             run.update(dt);
@@ -2378,7 +2434,7 @@ class GameManager {
         const next = this._endlessMechanic(game, won ? run.round + 1 : run.round);
         next.init({ width: VIEW.W, height: VIEW.H });
         // A timer game starts with its fresh clock; a pool gets the next grid's time.
-        if (won) run.nextRound(run.kind === 'pool' ? game.round(run.round + 1).addTime : (next.timeLimit || 0));
+        if (won) run.nextRound(run.kind === 'pool' ? (game.round(run.round + 1).addTime || 0) : (next.timeLimit || 0));
         else run.hurt();
         this._activeMinigame = next;
         this._mgConfig.mechanic = next;
@@ -2461,12 +2517,23 @@ class GameManager {
 
         // Picked game: its best result, over the play row
         const L = this._endlessHubLayout();
-        const best = this.endlessProgress.best(this._endlessGame);
+        const picked = ENDLESS.game(this._endlessGame);
+        const mode = picked && picked.challenge ? this._endlessMode : 0;
+        const best = this.endlessProgress.best(this._endlessBestKey(this._endlessGame, mode));
+        const name = this._endlessRunTitle(this._endlessGame, mode);
         ctx.fillStyle = best.score > 0 ? '#facc15' : UITheme.color.textMute;
         ctx.font = UITheme.font('body', 700, 'Orbitron');
         ctx.fillText(best.score > 0
-            ? UITheme.t('{game} · BEST {n}', { game: this._endlessTitle(this._endlessGame), n: best.score })
-            : UITheme.t('{game} · NO RUN YET', { game: this._endlessTitle(this._endlessGame) }), cx, L.playY - 38);
+            ? UITheme.t('{game} · BEST {n}', { game: name, n: best.score })
+            : UITheme.t('{game} · NO RUN YET', { game: name }), cx, L.playY - 38);
+        // A challenge: how it works, in one line.
+        if (mode) {
+            ctx.fillStyle = UITheme.color.textDim;
+            ctx.font = UITheme.font('label', 600);
+            const rule = UITheme.t('Solve as many networks as you can in {n} minutes. A mistake costs {s} s. No leaderboard: just your own record.', { n: mode, s: picked.challenge.penalty });
+            UITheme.fitFont(ctx, rule, 860, 'label', 600);
+            ctx.fillText(rule, cx, L.playY + 46);
+        }
 
         const ready = ENDLESS.readyGames().length;
         if (ready < ENDLESS.games.length) {

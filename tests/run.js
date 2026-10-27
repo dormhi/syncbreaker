@@ -5435,6 +5435,112 @@ suite('Volume (beta feedback): music and sound effects, each with its own %', ()
     ok('the save wipe keeps both levels', st.getItem('sb_volume') === '0.5' && st.getItem('sb_music') === '0.2' && st.getItem('sb_energy') === null);
 });
 
+suite('Network Cut (beta feedback): no straight middle cut wins, backups spread out', () => {
+    const mod = loadGameManager();
+    const NC = mod.NetworkCutMechanic;
+    const stages = mod.CAMPAIGN.acts[5].stages;
+    const straightWins = (m) => {
+        const nodes = m.nodes, edges = m.start;
+        const cols = Math.max(...nodes.filter(n => n.kind === 'relay').map(n => n.c)) + 1;
+        const colOf = (v) => v === 0 ? -1 : v === 1 ? Infinity : (nodes[v].kind === 'relay' ? nodes[v].c : null);
+        for (let g = 0; g < cols - 1; g++) {
+            const cut = new Set();
+            edges.forEach((e, i) => {
+                if (e.dormant || e.owner || e.shielded) return;
+                const ca = colOf(e.a), cb = colOf(e.b);
+                if (ca !== null && cb !== null && Math.min(ca, cb) <= g && Math.max(ca, cb) > g) cut.add(i);
+            });
+            if (m._cutSolves(nodes, edges, cut, m.budget)) return true;
+        }
+        return false;
+    };
+    ok('HARD and VERY HARD have 4 relay rows', stages[2].params.rows === 4 && stages[3].params.rows === 4);
+    for (const st of stages.slice(1)) {
+        let wins = 0, slow = 0;
+        for (let seed = 1; seed <= 12; seed++) {
+            const t0 = Date.now();
+            const m = new NC(Object.assign({ rng: makeRng(seed * 17 + 3) }, st.params));
+            m.init({ width: 960, height: 640 });
+            slow = Math.max(slow, Date.now() - t0);
+            if (straightWins(m)) wins++;
+        }
+        ok(`${st.tier}: cutting one straight column gap never fits the scissors`, wins === 0, `${wins}/12`);
+        ok(`${st.tier}: networks still build quickly`, slow < 300, `${slow} ms`);
+    }
+    // Backups lie far from the cable that wakes them.
+    let near = 0, total = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+        const m = new NC(Object.assign({ rng: makeRng(seed * 23 + 5) }, stages[3].params));
+        m.init({ width: 960, height: 640 });
+        for (const d of m.start.filter(e => e.dormant)) {
+            const t = m.start[d.trigger], n = m.nodes;
+            const dist = Math.hypot((n[d.a].x + n[d.b].x - n[t.a].x - n[t.b].x) / 2, (n[d.a].y + n[d.b].y - n[t.a].y - n[t.b].y) / 2);
+            total++;
+            if (dist < 80) near++;
+        }
+    }
+    ok('VERY HARD: backups wake far from their trigger', total > 0 && near <= Math.ceil(total * 0.1), `${near}/${total} closer than 80 px`);
+});
+
+suite('Network Cut timed challenge in Endless (beta feedback): 5 / 10 minutes, mistakes cost time', () => {
+    const mod = loadGameManager({});
+    const { ENDLESS } = mod;
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    gm.progress.isEndlessUnlocked = () => true;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    const step = (n) => { for (let k = 0; k < n; k++) gm.state._handlers[S.MINIGAME].update(1 / 60); };
+    enter(S.ENDLESS_HUB);
+    ok('other games show no challenge row', !btn('endless-mode-5'));
+    btn('endless-g-cut').onClick();
+    ok('Network Cut shows NORMAL / 5 MIN / 10 MIN', !!btn('endless-mode-0') && !!btn('endless-mode-5') && !!btn('endless-mode-10'));
+    btn('endless-mode-5').onClick();
+    ok('the picked length is remembered', gm._endlessMode === 5 && mod.storage.getItem('sb_endless_mode') === '5' && btn('endless-mode-5').color === '#facc15');
+    drawn.length = 0;
+    gm.state._handlers[S.ENDLESS_HUB].render(ctx, 0);
+    ok('the lobby explains the challenge', drawn.some(t => /in 5 minutes/.test(t)) && drawn.some(t => /NETWORK CUT · 5 MIN/.test(t)));
+    btn('endless-play').onClick();
+    enter(S.MINIGAME, gm._endlessCfg);
+    const run = gm._endlessCfg.endless;
+    ok('a 5-minute run: one shared clock, no health bar', run.challenge === 5 && run.kind === 'pool' && run.timeLeft === 300 && /5 MIN/.test(gm._endlessCfg.title));
+    drawn.length = 0;
+    gm.state._handlers[S.MINIGAME].render(ctx, 0);
+    ok('the host shows TIME, not HEALTH', drawn.includes('TIME') && !drawn.includes('HEALTH') && drawn.includes('5:00'));
+    step(60);
+    ok('the clock runs', Math.abs(run.timeLeft - 299) < 0.05);
+    gm._activeMinigame.lives -= 1;
+    step(1);
+    ok('a mistake costs 15 s', Math.abs(run.timeLeft - (299 - 15 - 1 / 60)) < 0.05 && !run.over);
+    const m = gm._activeMinigame;
+    m.solved = 1; m.result = 'success';
+    const before = run.timeLeft;
+    step(120);
+    ok('a solved network adds no time, the next one is harder', run.round === 2 && run.timeLeft <= before);
+    run.timeLeft = 0.01;
+    step(2);
+    ok('time up ends the run', run.over && run.reason === 'time' && gm.state.pendingState === S.ENDLESS_OVER);
+    let sent = 0;
+    gm.leaderboard.recordResult = async () => { sent++; };
+    run.score = 1234;
+    enter(S.ENDLESS_OVER, {});
+    ok('results: no recovery, no leaderboard, its own record', !btn('revive') && sent === 0 && gm._eo.challenge === 5 &&
+        gm.endlessProgress.best('cut:5').score === 1234 && gm.endlessProgress.best('cut').score === 0);
+    drawn.length = 0;
+    gm.state._handlers[S.ENDLESS_OVER].render(ctx, 0);
+    ok("results read TIME'S UP", drawn.includes("TIME'S UP") && drawn.some(t => /5 MIN/.test(t)));
+    btn('restart').onClick();
+    ok('RESTART plays the same challenge again', gm._endlessCfg.endless.challenge === 5 && gm._endlessCfg.endless !== run);
+    // A normal run is unchanged.
+    gm._pickEndlessMode(0);
+    gm._startEndlessRun();
+    ok('NORMAL is the health-bar run as before', gm._endlessCfg.endless.kind === 'health' && !gm._endlessCfg.endless.challenge);
+});
+
 // ─────────────────────────────────────────────
 suite('RESET deletes every saved game key, lessons included', () => {
     const before = {
