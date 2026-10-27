@@ -24,6 +24,9 @@ class GameManager {
 
         // Campaign: acts, stages, gates (docs/ACT_PLAN.md)
         this.progress = new CampaignProgress(CAMPAIGN);
+        // New Endless (docs/ACT_PLAN.md 8b): best per game, the game picked in the lobby.
+        this.endlessProgress = new EndlessProgress(this._storage());
+        this._endlessGame = this._readEndlessGame();
         this._stage = null;      // { actId, index } of the stage being played
         this._actView = this.progress.currentActId();
         // Act map carousel: focused act index and its eased scroll position.
@@ -486,7 +489,7 @@ class GameManager {
                         : 'The energy spent on this recovery is not refunded.',
                     onLeave: () => {
                         if (endlessRevive) {
-                            this.state.change(S.ENDLESS_OVER, Object.assign({}, this._lockpickEndlessCtx, { noRevive: true }));
+                            this.state.change(S.ENDLESS_OVER, { noRevive: true });
                         } else {
                             this._backToAct();
                         }
@@ -494,13 +497,6 @@ class GameManager {
                 });
                 this._lockpickReason = lCtx.reason || 'revive';
                 this._lockpickScore = lCtx.score || 0;
-                // Endless revive context
-                this._lockpickEndlessCtx = {
-                    score: lCtx.endlessScore || 0,
-                    wave: lCtx.endlessWave || 1,
-                    maxCombo: lCtx.endlessMaxCombo || 0,
-                    hitCount: lCtx.endlessHitCount || 0
-                };
 
                 const diff = lCtx.difficulty || 1;
                 this.lockpick.start(diff, (success) => {
@@ -518,8 +514,8 @@ class GameManager {
                             this.levels.revivesUsed = (this.levels.revivesUsed || 0) + 1;
                             this.state.change(S.LEVEL);
                         } else if (this._lockpickReason === 'endless_revive') {
-                            // Continue from where left off in endless — 1 life
-                            this.levels.lives = 1;
+                            // The same run goes on: one mistake's worth of health.
+                            this.levels.endlessRun.revive();
                             this.levels.levelFailed = false;
                             this.state.change(S.ENDLESS);
                         }
@@ -530,10 +526,7 @@ class GameManager {
                                 noRevive: true
                             });
                         } else if (this._lockpickReason === 'endless_revive') {
-                            this.state.change(S.ENDLESS_OVER, {
-                                ...this._lockpickEndlessCtx,
-                                noRevive: true
-                            });
+                            this.state.change(S.ENDLESS_OVER, { noRevive: true, recoveryFailed: true });
                         } else {
                             this.state.change(S.HUB);
                         }
@@ -800,21 +793,19 @@ class GameManager {
             enter: () => {
                 this.ui.clearButtons();
                 Sound.stopAmbient();
+                const game = ENDLESS.game(this._endlessGame) || ENDLESS.game('timingbar');
                 this._addLeaveButton({
-                    label: 'ENDLESS MODE',
+                    label: this._endlessTitle(game.key),
                     title: 'END THIS RUN?',
                     detail: 'Your score so far still counts.',
-                    onLeave: () => this.state.change(S.ENDLESS_OVER, {
-                        score: this.levels.score,
-                        wave: this.levels.endlessWave,
-                        maxCombo: this.levels.maxCombo,
-                        hitCount: this.levels.hitCount,
-                        noRevive: true
-                    })
+                    onLeave: () => {
+                        this.levels.endlessRun.quit();
+                        this.state.change(S.ENDLESS_OVER, { noRevive: true });
+                    }
                 });
                 // If returning from revive, continue without reset
                 if (!this.levels.endlessMode) {
-                    this.levels.startEndless();
+                    this.levels.startEndless(new EndlessRun(game), this.endlessProgress.best(game.key).score);
                 }
             },
             update: (dt) => {
@@ -822,12 +813,7 @@ class GameManager {
 
                 if (this.levels.levelFailed === true) {
                     this.levels.levelFailed = 'handled';
-                    this.state.change(S.ENDLESS_OVER, {
-                        score: this.levels.score,
-                        wave: this.levels.endlessWave,
-                        maxCombo: this.levels.maxCombo,
-                        hitCount: this.levels.hitCount
-                    });
+                    this.state.change(S.ENDLESS_OVER, {});
                 }
             },
             render: (ctx, alpha) => {
@@ -850,27 +836,35 @@ class GameManager {
             }
         });
 
-        // ── ENDLESS OVER ──
+        // ── ENDLESS OVER (results of one run) ──
         this.state.register(S.ENDLESS_OVER, {
             enter: (context) => {
                 this.ui.clearButtons();
                 const cx = VIEW.W / 2;
                 const cy = VIEW.H / 2;
                 const lCtx = context || {};
+                const lv = this.levels;
+                // The run that just ended (a context can stand in when there is none).
+                const run = lv.endlessMode && lv.endlessRun ? lv.endlessRun : null;
 
-                this._eoScore = lCtx.score || 0;
-                this._eoWave = lCtx.wave || 1;
-                this._eoMaxCombo = lCtx.maxCombo || 0;
-                this._eoHitCount = lCtx.hitCount || 0;
-                this._eoNoRevive = lCtx.noRevive || false;
+                this._eo = {
+                    game: run ? run.game : this._endlessGame,
+                    score: run ? (lv.score || 0) : (lCtx.score || 0),
+                    round: run ? run.round : (lCtx.wave || 1),
+                    wave: run ? (lv.endlessWave || 1) : (lCtx.wave || 1),
+                    maxCombo: run ? (lv.maxCombo || 0) : (lCtx.maxCombo || 0),
+                    hitCount: run ? (lv.hitCount || 0) : (lCtx.hitCount || 0),
+                    quit: !!run && run.reason === 'quit',
+                    noRevive: !!lCtx.noRevive || (!!run && run.reason === 'quit'),
+                    recoveryFailed: !!lCtx.recoveryFailed
+                };
+                const eo = this._eo;
+                eo.best = this.endlessProgress.best(eo.game).score;
+                eo.newBest = this.endlessProgress.record(eo.game, eo.score, eo.round);
                 this._endlessUploadStatus = '';
 
-                if (this._eoScore > 0 && this._eoHitCount > 0) {
-                    this.leaderboard.recordResult({
-                        score: this._eoScore,
-                        wave: this._eoWave,
-                        hitCount: this._eoHitCount
-                    }).then(() => {
+                if (eo.score > 0) {
+                    this.leaderboard.recordResult({ game: eo.game, score: eo.score, round: eo.round }).then(() => {
                         this._endlessUploadStatus = this.leaderboard.hasProfile()
                             ? 'Score synced to leaderboard'
                             : 'Score saved; create a profile to sync it';   // translated when drawn
@@ -879,27 +873,20 @@ class GameManager {
                     });
                 }
 
-                // Endless mode revive — unlimited as long as energy lasts!
-                if (!this._eoNoRevive && this.energy.canAfford('REVIVE')) {
-                    const lockDiff = Math.min(this._eoWave, 6);
+                // Recovery (Code Breaker) as long as energy lasts; never after leaving on purpose.
+                if (!eo.noRevive && this.energy.canAfford('REVIVE')) {
+                    const lockDiff = Math.min(eo.round, 6);
                     this.ui.addButton('revive', '🔄 RECOVERY PROTOCOL (1⚡)', cx, cy + 50, 290, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
-                                this.state.change(S.LOCKPICK, {
-                                    reason: 'endless_revive',
-                                    difficulty: lockDiff,
-                                    endlessScore: this._eoScore,
-                                    endlessWave: this._eoWave,
-                                    endlessMaxCombo: this._eoMaxCombo,
-                                    endlessHitCount: this._eoHitCount
-                                });
+                                this.state.change(S.LOCKPICK, { reason: 'endless_revive', difficulty: lockDiff });
                             }
                         },
                         { color: '#f59e0b' }
                     );
                 }
 
-                // Restart
+                // Same game again
                 this.ui.addButton('restart', '↻ RESTART', cx, cy + 105, 200, 40,
                     () => {
                         this.levels.endlessMode = false;
@@ -922,33 +909,39 @@ class GameManager {
                 const H = VIEW.H;
                 const cx = W / 2;
                 const cy = H / 2;
+                const eo = this._eo;
 
-                ctx.fillStyle = '#ef4444';
-                ctx.font = '900 26px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
-                ctx.fillText(UITheme.t('DEFENSE COLLAPSED'), cx, cy - 80);
+                ctx.fillStyle = '#facc15';
+                ctx.font = UITheme.font('label', 700, 'Orbitron');
+                ctx.fillText(`∞ ${this._endlessTitle(eo.game)}`, cx, cy - 112);
+
+                // Leaving on purpose is not a defeat.
+                ctx.fillStyle = eo.quit ? '#94a3b8' : '#ef4444';
+                ctx.font = '900 26px Orbitron, OrbitronTR';
+                ctx.fillText(UITheme.t(eo.quit ? 'RUN ENDED' : 'DEFENSE COLLAPSED'), cx, cy - 80);
 
                 ctx.fillStyle = '#e2e8f0';
                 ctx.font = '700 32px Orbitron, OrbitronTR';
-                ctx.fillText(this._eoScore.toString(), cx, cy - 40);
+                ctx.fillText(eo.score.toString(), cx, cy - 40);
 
                 ctx.fillStyle = '#64748b';
                 ctx.font = '500 16px Rajdhani';
-                ctx.fillText(UITheme.t('Wave: {wave} | Hit: {hits} | Max Combo: x{combo}', { wave: this._eoWave, hits: this._eoHitCount, combo: this._eoMaxCombo }), cx, cy - 10);
+                ctx.fillText(eo.game === 'timingbar'
+                    ? UITheme.t('Wave: {wave} | Hit: {hits} | Max Combo: x{combo}', { wave: eo.wave, hits: eo.hitCount, combo: eo.maxCombo })
+                    : UITheme.t('ROUND {n}', { n: eo.round }), cx, cy - 10);
 
-                // Best
-                const best = this.levels._loadEndlessBest();
-                if (this._eoScore >= best && best > 0) {
+                if (eo.newBest) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '600 16px Rajdhani';
                     ctx.fillText(UITheme.t('🏆 NEW RECORD!'), cx, cy + 15);
-                } else if (best > 0) {
+                } else if (eo.best > 0) {
                     ctx.fillStyle = '#475569';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText(UITheme.t('Best: {n}', { n: best }), cx, cy + 15);
+                    ctx.fillText(UITheme.t('Best: {n}', { n: eo.best }), cx, cy + 15);
                 }
 
-                if (this._eoNoRevive) {
+                if (eo.recoveryFailed) {
                     ctx.fillStyle = '#ef4444';
                     ctx.font = '400 14px Rajdhani';
                     ctx.fillText(UITheme.t('Recovery protocol failed'), cx, cy + 32);
@@ -971,25 +964,14 @@ class GameManager {
             }
         });
 
-        // ── ENDLESS HUB (lobby: play + leaderboard; only after the final act) ──
+        // ── ENDLESS HUB (lobby: pick a game, play it, its leaderboard; only after the final act) ──
         this.state.register(S.ENDLESS_HUB, {
             enter: () => {
                 this.ui.clearButtons();
                 if (!this.progress.isEndlessUnlocked()) { this.state.change(S.HUB); return; }
                 Sound.startAmbient();
                 this._hubEndlessFocus = true;
-                const cx = VIEW.W / 2;
-                this.ui.addButton('endless-play', '▶  START RUN', cx, 418, 260, 50,
-                    () => {
-                        this.levels.endlessMode = false;
-                        this.state.change(S.ENDLESS);
-                    },
-                    { color: '#facc15' });
-                this.ui.addButton('endless-board', '🏆  LEADERBOARD', cx, 482, 260, 46,
-                    () => this.state.change(S.LEADERBOARD), { color: '#38bdf8' });
-                this.ui.addButton('back', '← ACTS', 70, VIEW.H - 35, 100, 32,
-                    () => this.state.change(S.HUB), { color: '#475569' });
-                this._addGuideButton();
+                this._buildEndlessHubButtons();
                 this.ui.focus('endless-play');
             },
             update: (dt) => {
@@ -1003,6 +985,7 @@ class GameManager {
                 });
                 this._renderEndlessHub(ctx);
                 this.ui.renderButtons();
+                this._renderHubMessage(ctx, VIEW.W, VIEW.H);
             },
             exit: () => this.ui.clearButtons(),
             onKey: (e) => {
@@ -1077,6 +1060,20 @@ class GameManager {
                 this._leaderboardEntries = [];
                 this._leaderboardMe = null;
                 this._leaderboardStatus = 'Connecting...';
+                this._leaderboardGame = this._endlessGame;
+                // One list per game: ‹ › walk the games that have an Endless.
+                if (ENDLESS.readyGames().length > 1) {
+                    const step = (d) => {
+                        const keys = ENDLESS.readyGames().map(g => g.key);
+                        const k = keys.indexOf(this._leaderboardGame);
+                        this._leaderboardGame = keys[(k + d + keys.length) % keys.length];
+                        this._leaderboardEntries = [];
+                        this._leaderboardMe = null;
+                        this._loadLeaderboard();
+                    };
+                    this.ui.addButton('leaderboard-prev', '‹', cx - 330, 60, 44, 44, () => step(-1), { color: '#475569' });
+                    this.ui.addButton('leaderboard-next', '›', cx + 330, 60, 44, 44, () => step(1), { color: '#475569' });
+                }
                 this.ui.addButton('leaderboard-retry', '↻ REFRESH', cx - 115, H - 45, 180, 36,
                     () => this._loadLeaderboard(), { color: '#3b82f6' });
                 this.ui.addButton('leaderboard-hub', '← ENDLESS', cx + 115, H - 45, 180, 36,
@@ -1163,8 +1160,10 @@ class GameManager {
 
     async _loadLeaderboard() {
         this._leaderboardStatus = 'Loading leaderboard...';
+        const game = this._leaderboardGame || this._endlessGame;
         try {
-            const result = await this.leaderboard.getLeaderboard();
+            const result = await this.leaderboard.getLeaderboard(game);
+            if (game !== (this._leaderboardGame || this._endlessGame)) return;   // switched meanwhile
             this._leaderboardEntries = result.entries;
             this._leaderboardMe = result.me;
             this._leaderboardStatus = result.entries.length ? '' : 'No Endless scores yet. Set the first record!';
@@ -1183,10 +1182,13 @@ class GameManager {
         ctx.fillStyle = '#f59e0b';
         ctx.font = '700 24px Orbitron, OrbitronTR';
         ctx.textAlign = 'center';
-        ctx.fillText(UITheme.t('∞ ENDLESS LEADERBOARD'), cx, 60);
+        ctx.fillText(UITheme.t('∞ ENDLESS LEADERBOARD'), cx, 52);
+        ctx.fillStyle = '#facc15';
+        ctx.font = UITheme.font('body', 700, 'Orbitron');
+        ctx.fillText(this._endlessTitle(this._leaderboardGame || this._endlessGame), cx, 76);
         ctx.fillStyle = '#64748b';
-        ctx.font = '400 16px Rajdhani';
-        ctx.fillText(UITheme.t('Top 10 operators by best score'), cx, 82);
+        ctx.font = '400 15px Rajdhani';
+        ctx.fillText(UITheme.t('Top 10 operators by best score'), cx, 96);
 
         const x = cx - 300;
         const y = 110;
@@ -1202,7 +1204,7 @@ class GameManager {
         ctx.fillText(UITheme.t('RANK'), x + 20, y + 22);
         ctx.fillText(UITheme.t('OPERATOR'), x + 100, y + 22);
         ctx.textAlign = 'right';
-        ctx.fillText(UITheme.t('WAVE'), x + 480, y + 22);
+        ctx.fillText(UITheme.t('ROUND'), x + 480, y + 22);
         ctx.fillText(UITheme.t('SCORE'), x + 575, y + 22);
 
         this._leaderboardEntries.forEach((entry, index) => {
@@ -1216,7 +1218,7 @@ class GameManager {
             ctx.fillText(`#${index + 1}`, x + 20, rowY + 22);
             ctx.fillText(entry.display_name, x + 100, rowY + 22);
             ctx.textAlign = 'right';
-            ctx.fillText(String(entry.best_wave), x + 480, rowY + 22);
+            ctx.fillText(String(entry.best_round), x + 480, rowY + 22);
             ctx.fillText(Number(entry.best_score).toLocaleString(), x + 575, rowY + 22);
         });
 
@@ -1989,7 +1991,7 @@ class GameManager {
         ctx.font = UITheme.font('body', 500);
         ctx.fillText(this.ui._fitText(UITheme.t('The attack never ends. Climb the leaderboard.'), w - 44), left + 22, top + 160);
 
-        const best = this.levels._loadEndlessBest();
+        const best = this.endlessProgress.topScore();
         ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
         ctx.font = UITheme.font('label', 700);
         ctx.textBaseline = 'middle';
@@ -2045,7 +2047,123 @@ class GameManager {
         ctx.restore();
     }
 
-    /** Endless lobby: emblem, title, best run and what is coming. */
+    // ── New Endless lobby (docs/ACT_PLAN.md 8b) ──
+
+    /** The game shown on screens, e.g. TIMING BAR (game names stay English). */
+    _endlessTitle(key) {
+        const g = GameRegistry.get(key);
+        return g ? g.title : key.toUpperCase();
+    }
+
+    /** The game picked last time (kept per browser), else the first ready one. */
+    _readEndlessGame() {
+        let key = null;
+        try { key = localStorage.getItem('sb_endless_game'); } catch (e) { key = null; }
+        const g = ENDLESS.game(key);
+        return g && g.ready ? key : ENDLESS.readyGames()[0].key;
+    }
+
+    _pickEndlessGame(key) {
+        this._endlessGame = key;
+        try { localStorage.setItem('sb_endless_game', key); } catch (e) { }
+    }
+
+    /** Lobby layout: a 3 × 3 grid of game cards, then the play row. */
+    _endlessHubLayout() {
+        const cardW = 260, cardH = 78, gapX = 16, gapY = 12;
+        const x0 = (VIEW.W - (3 * cardW + 2 * gapX)) / 2, y0 = 128;
+        const cards = ENDLESS.games.map((g, k) => ({
+            game: g,
+            x: x0 + (k % 3) * (cardW + gapX),
+            y: y0 + Math.floor(k / 3) * (cardH + gapY),
+            w: cardW, h: cardH
+        }));
+        return { cards, playY: 466 };
+    }
+
+    _buildEndlessHubButtons() {
+        const S = this.state.STATES;
+        const L = this._endlessHubLayout();
+        const cx = VIEW.W / 2;
+        for (const c of L.cards) {
+            this.ui.addButton(`endless-g-${c.game.key}`, this._endlessTitle(c.game.key), c.x + c.w / 2, c.y + c.h / 2, c.w, c.h,
+                () => {
+                    if (!c.game.ready) {
+                        this._hubMessage = 'Coming in a later update';
+                        this._hubMessageTimer = 2.5;
+                        return;
+                    }
+                    // A tap picks the game; a second tap on the picked one starts it.
+                    if (this._endlessGame === c.game.key) { this._startEndlessRun(); return; }
+                    this._pickEndlessGame(c.game.key);
+                },
+                { draw: (ctx, btn, hovered) => this._drawEndlessGameCard(ctx, btn, hovered, c) });
+        }
+        this.ui.addButton('endless-play', '▶  START RUN', cx - 140, L.playY, 260, 50,
+            () => this._startEndlessRun(), { color: '#facc15' });
+        this.ui.addButton('endless-board', '🏆  LEADERBOARD', cx + 140, L.playY, 260, 50,
+            () => this.state.change(S.LEADERBOARD), { color: '#38bdf8' });
+        this.ui.addButton('back', '← ACTS', 70, VIEW.H - 35, 100, 32,
+            () => this.state.change(S.HUB), { color: '#475569' });
+        this._addGuideButton();
+    }
+
+    _startEndlessRun() {
+        this.levels.endlessMode = false;
+        this.state.change(this.state.STATES.ENDLESS);
+    }
+
+    /** One game card: act icon, game name, best score (or coming soon). */
+    _drawEndlessGameCard(ctx, btn, hovered, c) {
+        const g = c.game;
+        const act = this.progress.act(g.act);
+        const theme = getLevelTheme(act.themeId);
+        const picked = g.ready && this._endlessGame === g.key;
+        const gold = '#facc15';
+        const color = !g.ready ? UITheme.color.locked : picked ? gold : theme.zoneColor;
+        ctx.save();
+        if (!g.ready) ctx.globalAlpha = 0.6;
+        UITheme.panel(ctx, c.x, c.y, c.w, c.h, {
+            chamfer: 10,
+            stroke: color,
+            lineWidth: picked ? 2.2 : hovered ? 1.8 : 1.2,
+            fill: picked || hovered ? UITheme.color.panelHi : UITheme.color.panel,
+            glow: picked ? gold : null,
+            dashed: !g.ready
+        });
+        // Act icon
+        const ix = c.x + 38, iy = c.y + c.h / 2;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(ix, iy, 24, 0, Math.PI * 2); ctx.stroke();
+        ctx.save();
+        ctx.translate(ix, iy);
+        LevelIcons.draw(ctx, act.themeId, 26, color);
+        ctx.restore();
+        // Name, act, best
+        const tx = c.x + 74, tw = c.w - 86;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = g.ready ? UITheme.color.text : UITheme.color.textDim;
+        UITheme.fitFont(ctx, this._endlessTitle(g.key), tw, 'body', 700, 'Orbitron');
+        ctx.fillText(this._endlessTitle(g.key), tx, c.y + 32);
+        ctx.font = UITheme.font('label', 600);
+        ctx.fillStyle = UITheme.color.textMute;
+        ctx.fillText(`ACT ${g.act}`, tx, c.y + 52);
+        const best = this.endlessProgress.best(g.key).score;
+        ctx.textAlign = 'right';
+        ctx.font = UITheme.font('label', 700);
+        if (!g.ready) {
+            ctx.fillStyle = UITheme.color.textDim;
+            ctx.fillText(UITheme.t('COMING SOON'), c.x + c.w - 12, c.y + 64);
+        } else {
+            ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
+            ctx.fillText(best > 0 ? UITheme.t('BEST {n}', { n: best }) : UITheme.t('NO RUN YET'), c.x + c.w - 12, c.y + 64);
+        }
+        ctx.restore();
+    }
+
+    /** Endless lobby: title, the game grid, the picked game and what is coming. */
     _renderEndlessHub(ctx) {
         const W = VIEW.W, cx = W / 2;
         const time = UITheme.reducedMotion ? 0 : (this.bgTime || 0);
@@ -2054,33 +2172,32 @@ class GameManager {
         ctx.textBaseline = 'alphabetic';
         ctx.fillStyle = '#facc15';
         ctx.font = UITheme.font('label', 700, 'Orbitron');
-        ctx.fillText(UITheme.t('AFTER ACT {n} · NO FINISH LINE', { n: CAMPAIGN.finalAct }), cx, 40);
+        ctx.fillText(UITheme.t('AFTER ACT {n} · NO FINISH LINE', { n: CAMPAIGN.finalAct }), cx, 34);
+        // Title with a small infinity emblem on its left
         ctx.fillStyle = UITheme.color.text;
-        ctx.font = '900 34px Orbitron, OrbitronTR';
-        ctx.fillText('ENDLESS MODE', cx, 82);
+        ctx.font = '900 30px Orbitron, OrbitronTR';
+        const titleW = ctx.measureText('ENDLESS MODE').width;
+        ctx.fillText('ENDLESS MODE', cx + 22, 72);
+        this._drawInfinityEmblem(ctx, cx + 22 - (typeof titleW === 'number' ? titleW : 280) / 2 - 34, 61, 18, time);
         ctx.fillStyle = UITheme.color.textDim;
         ctx.font = UITheme.font('body', 500);
-        ctx.fillText(UITheme.t('The attacker never stops. Hold the line as long as you can.'), cx, 110);
+        ctx.fillText(UITheme.t('Pick a game. Rounds keep coming until your run ends.'), cx, 104);
 
-        // Emblem in a slowly turning dashed ring
-        const ey = 232;
-        ctx.save();
-        ctx.translate(cx, ey);
-        ctx.rotate(time * 0.25);
-        ctx.setLineDash([6, 8]);
-        ctx.strokeStyle = 'rgba(250,204,21,0.45)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(0, 0, 100, 0, Math.PI * 2); ctx.stroke();
-        ctx.restore();
-        this._drawInfinityEmblem(ctx, cx, ey, 78, time);
+        // Picked game: its best result, over the play row
+        const L = this._endlessHubLayout();
+        const best = this.endlessProgress.best(this._endlessGame);
+        ctx.fillStyle = best.score > 0 ? '#facc15' : UITheme.color.textMute;
+        ctx.font = UITheme.font('body', 700, 'Orbitron');
+        ctx.fillText(best.score > 0
+            ? UITheme.t('{game} · BEST {n}', { game: this._endlessTitle(this._endlessGame), n: best.score })
+            : UITheme.t('{game} · NO RUN YET', { game: this._endlessTitle(this._endlessGame) }), cx, L.playY - 38);
 
-        const best = this.levels._loadEndlessBest();
-        ctx.fillStyle = best > 0 ? '#facc15' : UITheme.color.textMute;
-        ctx.font = UITheme.font('title', 700, 'Orbitron');
-        ctx.fillText(best > 0 ? UITheme.t('BEST {n}', { n: best }) : UITheme.t('NO RUN YET'), cx, 365);
-        ctx.fillStyle = UITheme.color.textMute;
-        ctx.font = UITheme.font('label', 600);
-        ctx.fillText(UITheme.t('Timing Bar for now — more campaign games are coming to Endless'), cx, 548);
+        const ready = ENDLESS.readyGames().length;
+        if (ready < ENDLESS.games.length) {
+            ctx.fillStyle = UITheme.color.textMute;
+            ctx.font = UITheme.font('label', 600);
+            ctx.fillText(UITheme.t('{n} of {total} games are ready — the rest arrive in the next updates', { n: ready, total: ENDLESS.games.length }), cx, 532);
+        }
         ctx.restore();
     }
 
@@ -2258,7 +2375,7 @@ class GameManager {
             ctx.fillText(text, px + 22, y);
             y += 26;
         }
-        const best = this.levels._loadEndlessBest();
+        const best = this.endlessProgress.topScore();
         ctx.fillStyle = best > 0 ? gold : UITheme.color.textMute;
         ctx.font = UITheme.font('label', 700, 'Orbitron');
         ctx.fillText(best > 0 ? UITheme.t('BEST ENDLESS RUN  {n}', { n: best }) : UITheme.t('NO ENDLESS RUN YET'), px + 22, py + ph - 18);

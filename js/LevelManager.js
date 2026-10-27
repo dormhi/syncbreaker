@@ -480,9 +480,10 @@ class LevelManager {
 
     /**
      * Start endless mode
-     * No timer, wave system, continuously accelerating
+     * No timer, wave system, continuously accelerating. `run` (EndlessRun)
+     * keeps the shared rules: the health bar, rounds (= waves) and score.
      */
-    startEndless() {
+    startEndless(run, best = 0) {
         this.endlessMode = true;
         this.coach = null;
         this.currentLevel = {
@@ -499,7 +500,7 @@ class LevelManager {
         this.score = 0;
         this.combo = 0;
         this.maxCombo = 0;
-        this.lives = 6;
+        this.endlessRun = run || new EndlessRun(ENDLESS.game('timingbar'));
         this.hitCount = 0;
         this.barPosition = 0;
         this.barSpeed = this.currentLevel.barSpeed;
@@ -518,8 +519,8 @@ class LevelManager {
         this.endlessHitsPerWave = 5;
         this.endlessWaveFlash = 0;
 
-        // Best score
-        this.endlessBest = this._loadEndlessBest();
+        // Best score of this game (shown in the HUD)
+        this.endlessBest = best;
 
         this.timingBar.reset(this.currentLevel.barSpeed, this.currentLevel.targetSize);
         this._syncZone();
@@ -556,24 +557,24 @@ class LevelManager {
             this.endlessHitsInWave++;
             if (this.combo > this.maxCombo) this.maxCombo = this.combo;
 
-            // Wave progression
+            // Wave progression: a wave is one Endless round
             if (this.endlessHitsInWave >= this.endlessHitsPerWave) {
                 this.endlessWave++;
                 this.endlessHitsInWave = 0;
                 this.endlessWaveFlash = 1.0;
+                this.endlessRun.nextRound();
                 this._endlessScaleUp();
                 Sound.playWaveUp();
             }
+            this.endlessRun.score = this.score;
         } else {
             this.combo = 0;
-            this.lives--;
             this.lastHitResult = 'miss';
             this._spawnParticles(pos, theme.hitColors.miss, 6);
             Sound.playMiss();
 
-            if (this.lives <= 0) {
+            if (this.endlessRun.hurt()) {
                 this.levelFailed = true;
-                this._saveEndlessBest();
                 Sound.playLevelFail();
                 return;
             }
@@ -595,10 +596,7 @@ class LevelManager {
         this.barSpeed = this.currentLevel.barSpeed;
         // Lockpick difficulty
         this.currentLevel.lockpickDiff = Math.min(this.endlessWave, 6);
-        // Bonus life (every 3 waves)
-        if (this.endlessWave % 3 === 0) {
-            this.lives = Math.min(this.lives + 1, 5);
-        }
+        // Health given back every few waves: EndlessRun.nextRound
     }
 
     /**
@@ -610,6 +608,7 @@ class LevelManager {
         // Animation timers
         this.gameTime += dt;
         if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt * 3;
+        this.endlessRun.update(dt);
 
         // Bar movement — analytic, frame-rate independent
         this.timingBar.update(dt);
@@ -778,13 +777,8 @@ class LevelManager {
         ctx.font = '400 10px Rajdhani';
         ctx.fillText(`${this.endlessHitsInWave}/${this.endlessHitsPerWave}`, W / 2, progY + 16);
 
-        // Lives (solda)
-        ctx.textAlign = 'right';
-        ctx.font = '19px sans-serif';
-        for (let i = 0; i < Math.max(this.lives, 3); i++) {
-            ctx.fillStyle = i < this.lives ? '#ef4444' : 'rgba(239,68,68,0.2)';
-            ctx.fillText('♥', W - 16 - i * 24, 75);
-        }
+        // Health bar (top right)
+        UITheme.healthBar(ctx, W - 196, 70, 180, this.endlessRun.health, { flash: this.endlessRun.hurtFlash });
 
         // Best score
         if (this.endlessBest > 0) {
@@ -797,16 +791,6 @@ class LevelManager {
         ctx.restore();
     }
 
-    _saveEndlessBest() {
-        if (this.score > this.endlessBest) {
-            this.endlessBest = this.score;
-            try { localStorage.setItem('sb_endless_best', this.score); } catch (e) { }
-        }
-    }
-
-    _loadEndlessBest() {
-        try { return parseInt(localStorage.getItem('sb_endless_best')) || 0; } catch (e) { return 0; }
-    }
 
     // ════════════════════════════════════════
     //  LEVEL BACKGROUND ANIMATIONS

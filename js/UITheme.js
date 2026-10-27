@@ -326,6 +326,41 @@ const UITheme = {
         ctx.restore();
     },
 
+    /**
+     * Endless health bar: one bar for the whole run (value 0..1), its share
+     * as a percentage, green → amber → red. opts.flash (seconds left) glows
+     * red right after a mistake. Left edge x, bar centre y, width w.
+     */
+    healthBar(ctx, x, y, w, value, opts = {}) {
+        const v = Math.max(0, Math.min(1, value));
+        const color = v > 0.5 ? UITheme.color.ok : v > 0.25 ? UITheme.color.warn : UITheme.color.danger;
+        const h = 10;
+        ctx.save();
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = UITheme.color.textMute;
+        ctx.font = UITheme.font('label', 600);
+        ctx.fillText(UITheme.t('HEALTH'), x, y - 10);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = color;
+        ctx.font = UITheme.font('label', 700, 'Orbitron');
+        ctx.fillText(Math.ceil(v * 100) + '%', x + w, y - 10);
+        UITheme.chamferPath(ctx, x, y - h / 2, w, h, 3);
+        ctx.fillStyle = 'rgba(30,41,59,0.9)';
+        ctx.fill();
+        if (v > 0) {
+            UITheme.chamferPath(ctx, x, y - h / 2, Math.max(6, w * v), h, 3);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+        const flash = opts.flash > 0 && !UITheme.reducedMotion ? Math.min(1, opts.flash / 0.4) : 0;
+        UITheme.chamferPath(ctx, x - 1, y - h / 2 - 1, w + 2, h + 2, 3);
+        ctx.strokeStyle = flash ? `rgba(239,68,68,${0.4 + 0.6 * flash})` : 'rgba(100,116,139,0.6)';
+        ctx.lineWidth = flash ? 2 : 1;
+        ctx.stroke();
+        ctx.restore();
+    },
+
     /** Cached 1-in-4 scanline pattern (null outside a browser). */
     _scanlines(ctx) {
         if (UITheme._scanPattern !== undefined) return UITheme._scanPattern;

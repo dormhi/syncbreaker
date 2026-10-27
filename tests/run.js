@@ -1693,8 +1693,9 @@ suite('Leave prompt in every game + first-stage hint', () => {
     ok('no RESTART in Endless (the run score counts)', !btn('pause-restart'));
     btn('pause-leave').onClick();
     btn('quit-leave').onClick();
-    ok('leaving Endless goes to the results with the score',
-        gm.state.pendingState === S.ENDLESS_OVER && gm.state.pendingContext.score === 1234 && gm.state.pendingContext.noRevive === true);
+    ok('leaving Endless goes to the results with the score, marked as left on purpose',
+        gm.state.pendingState === S.ENDLESS_OVER && gm.state.pendingContext.noRevive === true &&
+        gm.levels.score === 1234 && gm.levels.endlessRun.reason === 'quit');
 });
 
 // ─────────────────────────────────────────────
@@ -4834,6 +4835,113 @@ suite('Languages (I18n) — every stage played in Turkish draws no English it ha
     ok(`no unfilled placeholder or broken value on screen${broken.length ? ' (' + broken.slice(0, 8).join(' | ') + ')' : ''}`, broken.length === 0);
     ok('the sweep really played (many different texts drawn)', drawn.size > 1000);
     I18n.set('en', store);
+});
+
+// ─────────────────────────────────────────────
+suite('New Endless (E1): run rules, bests per game, leaderboard queue, lobby', () => {
+    const mod = loadGameManager({ sb_endless_best: '4321' });
+    const { ENDLESS, EndlessRun, EndlessProgress, LeaderboardService } = mod;
+
+    // ── EndlessRun ──
+    const tb = new EndlessRun(ENDLESS.game('timingbar'));
+    let ended = false;
+    for (let k = 0; k < 5; k++) ended = tb.hurt();
+    ok('health game: five misses leave one share', !ended && Math.abs(tb.health - 1 / 6) < 1e-9);
+    ok('health game: the sixth miss ends the run', tb.hurt() === true && tb.over && tb.reason === 'health' && tb.health === 0);
+    ok('revive gives one mistake back', tb.revive() && !tb.over && Math.abs(tb.health - 1 / 6) < 1e-9 && tb.revives === 1);
+    const tb2 = new EndlessRun(ENDLESS.game('timingbar'));
+    tb2.hurt(); tb2.hurt();                 // 4/6 left
+    tb2.nextRound(); tb2.nextRound();       // round 3: +1/6, capped at 5/6
+    ok('waves 3, 6, 9 give one share back (never above five)', tb2.round === 3 && Math.abs(tb2.health - 5 / 6) < 1e-9);
+    tb2.nextRound(); tb2.nextRound(); tb2.nextRound();
+    ok('…and never above the cap', Math.abs(tb2.health - 5 / 6) < 1e-9);
+    const timed = new EndlessRun({ key: 'signal', kind: 'timer' }, { time: 10 });
+    timed.update(4);
+    timed.nextRound(30);
+    ok('timer game: a cleared round starts with a fresh timer', timed.round === 2 && timed.timeLeft === 30 && !timed.over);
+    timed.update(31);
+    ok('timer game: time out ends the run', timed.over && timed.reason === 'time');
+    ok('timer game: revive adds 20 s', timed.revive() && timed.timeLeft === 20);
+    const pool = new EndlessRun({ key: 'checksum', kind: 'pool' }, { time: 100 });
+    pool.update(40); pool.nextRound(60);
+    ok('pool game: a solved round adds to the pool', pool.timeLeft === 120);
+    const left = new EndlessRun(ENDLESS.game('timingbar'));
+    left.quit();
+    ok('leaving on purpose ends the run and cannot be revived', left.over && left.reason === 'quit' && !left.revive());
+    ok('nine games, Act 10 not among them', ENDLESS.games.length === 9 && !ENDLESS.game('handover'));
+
+    // ── EndlessProgress ──
+    const ep = new EndlessProgress(mod.storage);
+    ok('the old single best carries over as the Timing Bar best', ep.best('timingbar').score === 4321);
+    ok('a worse run is not a best', ep.record('timingbar', 4000, 3) === false && ep.best('timingbar').score === 4321);
+    ok('a better run is the new best', ep.record('timingbar', 5000, 5) === true && ep.best('timingbar').round === 5);
+    ep.record('stack', 9000, 4);
+    ok('bests are per game; the top score spans games', ep.best('stack').score === 9000 && ep.topScore() === 9000);
+    ok('bests survive a reload', new EndlessProgress(mod.storage).best('stack').round === 4);
+
+    // ── LeaderboardService queue ──
+    const lb = new LeaderboardService();
+    mod.storage.setItem(lb.pendingKey, JSON.stringify({ score: 700, wave: 3, hitCount: 12 }));
+    ok('an old pending result is a Timing Bar run', lb._readPending().timingbar.score === 700 && lb._readPending().timingbar.round === 3);
+    lb.queueResult({ game: 'timingbar', score: 650, round: 4 });
+    lb.queueResult({ game: 'stack', score: 900, round: 2 });
+    ok('only the best result per game waits', lb._readPending().timingbar.score === 700 && lb._readPending().stack.score === 900);
+    const calls = [];
+    lb.profile = { id: 'x' };
+    lb.client = { rpc: async (name, args) => { calls.push([name, args]); return { error: null }; } };
+    pendingSuites.push(lb.flushPending().then(() => {
+        ok('every queued game is sent to its own list', calls.length === 2 && calls.every(c => c[0] === 'submit_endless_game_result') &&
+            calls.some(c => c[1].p_game === 'stack' && c[1].p_score === 900 && c[1].p_round === 2));
+        ok('sent results leave the queue', Object.keys(lb._readPending()).length === 0);
+    }));
+    let bad = null;
+    try { lb._normaliseResult({ game: 'stack', score: 0, round: 1 }); } catch (e) { bad = e; }
+    ok('an empty run is not queued', !!bad);
+
+    // ── Lobby and the Timing Bar run ──
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    gm.progress.isEndlessUnlocked = () => true;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    enter(S.ENDLESS_HUB);
+    ok('the lobby has a card for each of the nine games', ENDLESS.games.every(g => btn(`endless-g-${g.key}`)));
+    btn('endless-g-stack').onClick();
+    ok('a game that is not ready yet says so', gm._hubMessage === 'Coming in a later update' && gm._endlessGame === 'timingbar');
+    btn('endless-g-timingbar').onClick();
+    ok('tapping the picked game again starts its run', gm.state.pendingState === S.ENDLESS);
+    drawn.length = 0;
+    gm.render(ctx, 0);
+    enter(S.ENDLESS);
+    const run = gm.levels.endlessRun;
+    ok('a Timing Bar run starts with a full health bar', !!run && run.game === 'timingbar' && run.health === 1);
+    gm.levels.timingBar.zone.start = 2; gm.levels.timingBar.zone.end = 2.01; gm.levels._syncZone();   // every press misses
+    for (let k = 0; k < 6; k++) gm.levels.hitEndless();
+    ok('six misses end the run', gm.levels.levelFailed === true && run.over);
+    gm.update(1 / 60);
+    ok('…and the results follow', gm.state.pendingState === S.ENDLESS_OVER);
+    enter(S.ENDLESS_OVER, {});
+    drawn.length = 0;
+    gm.render(ctx, 0);
+    ok('a lost run is a defeat, with no recovery line', drawn.includes('DEFENSE COLLAPSED') && !drawn.includes('Recovery protocol failed') && !!btn('revive'));
+    btn('restart').onClick();                // a new run, as from the results screen
+    enter(S.ENDLESS);
+    ok('RESTART starts a fresh run', gm.levels.endlessRun !== run && gm.levels.endlessRun.health === 1);
+    gm.levels.endlessRun.quit();
+    enter(S.ENDLESS_OVER, { noRevive: true });
+    drawn.length = 0;
+    gm.render(ctx, 0);
+    ok('leaving on purpose reads RUN ENDED, offers no recovery', drawn.includes('RUN ENDED') && !drawn.includes('DEFENSE COLLAPSED') && !btn('revive'));
+    enter(S.ENDLESS_OVER, { noRevive: true, recoveryFailed: true });
+    drawn.length = 0;
+    gm.render(ctx, 0);
+    ok('the recovery line only follows a failed recovery', drawn.includes('Recovery protocol failed'));
+    enter(S.LEADERBOARD);
+    ok('the leaderboard opens on the picked game', gm._leaderboardGame === 'timingbar');
 });
 
 // ─────────────────────────────────────────────

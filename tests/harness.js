@@ -42,6 +42,8 @@ const EXPORTS = [
 const GAME_FILES = [
     'js/utils.js',
     'js/data/Campaign.js',
+    'js/data/Endless.js',
+    'js/core/EndlessRun.js',
     'js/core/Collision.js',
     'js/mechanics/Mechanic.js',
     'js/mechanics/TimingBarMechanic.js',
@@ -141,7 +143,9 @@ const FULL_FILES = [
     'js/core/InputManager.js',
     'js/core/BackGuard.js',
     'js/core/Coach.js',
+    'js/core/EndlessRun.js',
     'js/data/Campaign.js',
+    'js/data/Endless.js',
     'js/core/PhysicsWorld.js',
     'js/mechanics/Mechanic.js',
     'js/mechanics/TimingBarMechanic.js',
@@ -160,6 +164,7 @@ const FULL_FILES = [
     'js/mechanics/HandoverMissions.js',
     'js/core/GameRegistry.js',
     'js/CampaignProgress.js',
+    'js/EndlessProgress.js',
     'vendor/matter.min.js',
     'js/EnergySystem.js',
     'js/StateManager.js',
@@ -177,7 +182,7 @@ const FULL_FILES = [
 
 const FULL_EXPORTS = ['GameManager', 'UITheme', 'Matter', 'TimingBarMechanic', 'PhysicsWorld', 'PhysicsMechanic', 'StackOverflowMechanic', 'Sound',
     'CAMPAIGN', 'CampaignProgress', 'GameRegistry', 'LockpickSystem', 'PacketPurgeMechanic',
-    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach', 'I18n'];
+    'LeaderboardService', 'TipBar', 'OrbitalShieldMechanic', 'SignalLockMechanic', 'RouteTraceMechanic', 'NetworkCutMechanic', 'LogicBombMechanic', 'DefragMechanic', 'ChecksumGridMechanic', 'MissionMechanic', 'HandoverMissions', 'BackGuard', 'Coach', 'I18n', 'ENDLESS', 'EndlessRun', 'EndlessProgress'];
 
 /** Chainable no-op 2D context so render() can run outside a browser. */
 function makeFakeCtx(canvas) {

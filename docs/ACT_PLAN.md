@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
 > Durum (2026-10-27): **10 act'in hepsi oynanabilir ve yayında, iki dilde. Bütün act'ler beta testte** (bölüm 8c): kullanıcının arkadaşları oynuyor, kademeler ve yıldız kuralları gelen görüşlere göre ayarlanacak. Act 7–10'un kademeleri ve yıldız kuralları hâlâ taslak.
-> Açık işler: **yeni Endless** (bölüm 8b, planlandı, faz E1'den başlanacak), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
+> Açık işler: **yeni Endless** (bölüm 8b; E1 altyapısı bitti, yayında değil; sırada E2 can oyunları), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -740,12 +740,23 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 
 **Ortak parçalar:** lobide 9 oyun kartı (her birinde en iyi skor), oyun başına leaderboard, tur sayacı, can barı ve tur süresi göstergesi, sonuç ekranı (tur, skor, rekor), isteyerek çıkış için ayrı "Oyun bitirildi" durumu (aşağıdaki not).
 
+**E1'de yapılanlar (2026-10-27):**
+- `js/data/Endless.js` (`ENDLESS`): 9 oyunun listesi, türü (`health` / `timer` / `pool`) ve hazır olup olmadığı. Hazır olmayan oyunlar lobide "YAKINDA" görünür.
+- `js/core/EndlessRun.js`: bir oyunun ortak kuralları — tur, skor, can barı (`hurt`, `damage`), tur süresi / süre havuzu (`timeLeft`, `nextRound(time)`), bitiş nedeni (`health` / `time` / `quit`), Code Breaker ile devam (`revive`: can oyununda bir hatalık can, süreli oyunda +20 sn).
+- `js/EndlessProgress.js`: tarayıcıdaki oyun başına en iyi skor (`sb_endless_bests`); eski tek Endless rekoru (`sb_endless_best`) bir kez Timing Bar rekoru olarak taşınır.
+- Lobi: 3 × 3 oyun kartı (act ikonu, oyun adı, rekor). Bir kartı seçmek için dokun, seçili karta tekrar dokununca ya da BAŞLA ile oyun açılır. Seçilen oyun hatırlanır (`sb_endless_game`).
+- Timing Bar sonsuzu yeni yapıda: 6 can yerine **can barı** (her ıska 1/6), dalga = tur; eski dengeyle birebir aynı (3., 6., 9. dalgada 1/6 geri, en fazla 5/6).
+- Sonuç ekranı: oyunun adı, isteyerek çıkışta **"OYUN BİTİRİLDİ"** (kurtarma yok), yenilgide "SAVUNMA ÇÖKTÜ"; "Kurtarma protokolü başarısız" sadece kurtarma gerçekten başarısız olunca. Rekor oyun başına.
+- Leaderboard oyun başına (`supabase/2026-10-27_endless_games.sql`: `endless_game_scores`, `submit_endless_game_result`, `get_my_endless_game_rank`; eski liste bir kez Timing Bar listesine kopyalanır, eski fonksiyonlar çalışmaya devam eder). Yerel Postgres'te denendi. Ekranda ‹ › ile hazır oyunlar arasında geçilir. Bekleyen gönderimler oyun başına (`sb_endless_pending_submission`), eski biçimdeki bekleyen skor Timing Bar'a sayılır.
+- **Yayın sırası:** önce kullanıcı SQL'i canlı Supabase'de çalıştırır, sonra `v2` push. Yeni istemci eski SQL'le skor gönderemez (yerelde bekler, sonra gönderir).
+- Ortak can barı çizimi: `UITheme.healthBar`. İki dilde (CAN, TUR, OYUN BİTİRİLDİ, YAKINDA…).
+
 **Sonra karar verilecekler:** can barında hata başına yüzde (taslak %20–25) ve başarılı turda biraz dolup dolmayacağı; Code Breaker ile kurtarma kuralı (bugün enerji yettikçe sınırsız; süreli oyunda +20 sn, can oyununda +can); her oyunun zorluk artışı ve tur süreleri (bot taramasıyla); bugünkü Timing Bar sonsuz skorlarının yeni listeye taşınması (son sürümdeki veri silmeyle zaten sıfırlanacak, bölüm 5b).
 
 **Fazlar (öneri):**
 | Faz | Kapsam |
 |---|---|
-| E1 | Altyapı: lobide oyun seçimi, oyun başına en iyi skor, ortak sonsuz barındırıcı (tur akışı, can barı, tur süresi, sonuç ekranı, "Oyun bitirildi"), oyun başına leaderboard (SQL + istemci). Timing Bar yeni yapıya taşınır. |
+| E1 ✅ (2026-10-27, yayında değil) | Altyapı: lobide oyun seçimi, oyun başına en iyi skor, ortak sonsuz barındırıcı (tur akışı, can barı, tur süresi, sonuç ekranı, "Oyun bitirildi"), oyun başına leaderboard (SQL + istemci). Timing Bar yeni yapıya taşınır. |
 | E2 | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
 | E3 | Süreli oyunlar: Signal Lock, Route Trace |
 | E4 | Süreli oyunlar: Logic Bomb, Defrag |

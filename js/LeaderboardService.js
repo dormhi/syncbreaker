@@ -4,7 +4,10 @@
    Every browser is an anonymous Supabase user. An operator (unique name +
    password) can be played from any browser: signIn() links this browser
    to the operator, so scores and rank carry over.
+   One list per Endless game (docs/ACT_PLAN.md 8b): results are queued per
+   game ({ game: { score, round } }) until the operator can send them.
    Server side: supabase/leaderboard.sql + supabase/2026-10-19_operator_password.sql
+   + supabase/2026-10-27_endless_games.sql
    ========================================= */
 
 class LeaderboardService {
@@ -183,64 +186,85 @@ class LeaderboardService {
         return true;
     }
 
+    /** Keep a finished run until it can be sent (only the game's best counts). */
     queueResult(result) {
         const next = this._normaliseResult(result);
-        const current = this._readPending();
-        if (!current || next.score > current.score) this._writePending(next);
+        const pending = this._readPending();
+        const current = pending[next.game];
+        if (!current || next.score > current.score) {
+            pending[next.game] = { score: next.score, round: next.round };
+            this._writePending(pending);
+        }
     }
 
+    /** result: { game, score, round } */
     async recordResult(result) {
         this.queueResult(result);
         if (this.profile) await this.flushPending();
     }
 
+    /** Send every queued game result; each one sent leaves the queue. */
     async flushPending() {
         const pending = this._readPending();
-        if (!pending || !this.profile || !this.client) return false;
-        const { error } = await this.client.rpc('submit_endless_result', {
-            p_score: pending.score,
-            p_wave: pending.wave,
-            p_hit_count: pending.hitCount
-        });
-        if (error) throw error;
-        localStorage.removeItem(this.pendingKey);
+        if (!Object.keys(pending).length || !this.profile || !this.client) return false;
+        for (const game of Object.keys(pending)) {
+            const { error } = await this.client.rpc('submit_endless_game_result', {
+                p_game: game,
+                p_score: pending[game].score,
+                p_round: pending[game].round
+            });
+            if (error) throw error;
+            delete pending[game];
+            this._writePending(pending);
+        }
         return true;
     }
 
-    async getLeaderboard() {
+    /** Top 10 of one game and this operator's place in it. */
+    async getLeaderboard(game) {
         await this.initialize();
         if (!this.profile) throw new Error('Create your operator profile first.');
         const { data: entries, error: listError } = await this.client
-            .from('leaderboard_entries')
-            .select('display_name,best_score,best_wave,achieved_at')
+            .from('endless_game_entries')
+            .select('display_name,best_score,best_round,achieved_at')
+            .eq('game', game)
             .order('best_score', { ascending: false })
             .order('achieved_at', { ascending: true })
             .limit(10);
         if (listError) throw listError;
-        const { data: rankData, error: rankError } = await this.client.rpc('get_my_leaderboard_rank');
+        const { data: rankData, error: rankError } = await this.client.rpc('get_my_endless_game_rank', { p_game: game });
         if (rankError) throw rankError;
         return { entries: entries || [], me: Array.isArray(rankData) ? rankData[0] || null : rankData };
     }
 
     _normaliseResult(result) {
+        const game = String(result.game || '');
         const score = Math.floor(Number(result.score));
-        const wave = Math.floor(Number(result.wave));
-        const hitCount = Math.floor(Number(result.hitCount));
-        if (!Number.isSafeInteger(score) || !Number.isSafeInteger(wave) || !Number.isSafeInteger(hitCount) ||
-            score <= 0 || wave < 1 || hitCount < 1) {
+        const round = Math.floor(Number(result.round));
+        if (!/^[a-z]+$/.test(game) || !Number.isSafeInteger(score) || !Number.isSafeInteger(round) ||
+            score <= 0 || round < 1) {
             throw new Error('Invalid Endless result.');
         }
-        return { score, wave, hitCount };
+        return { game, score, round };
     }
 
+    /** { game: { score, round } }; an old single pending result is a Timing Bar run. */
     _readPending() {
-        try {
-            const saved = JSON.parse(localStorage.getItem(this.pendingKey));
-            return saved ? this._normaliseResult(saved) : null;
-        } catch (error) { return null; }
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(this.pendingKey)); } catch (error) { saved = null; }
+        if (!saved || typeof saved !== 'object') return {};
+        if ('score' in saved && 'wave' in saved) saved = { timingbar: { score: saved.score, round: saved.wave } };
+        const out = {};
+        for (const game of Object.keys(saved)) {
+            try { const r = this._normaliseResult(Object.assign({ game }, saved[game])); out[game] = { score: r.score, round: r.round }; } catch (error) { }
+        }
+        return out;
     }
 
-    _writePending(result) {
-        try { localStorage.setItem(this.pendingKey, JSON.stringify(result)); } catch (error) { }
+    _writePending(pending) {
+        try {
+            if (Object.keys(pending).length) localStorage.setItem(this.pendingKey, JSON.stringify(pending));
+            else localStorage.removeItem(this.pendingKey);
+        } catch (error) { }
     }
 }

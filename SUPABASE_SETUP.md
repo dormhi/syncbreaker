@@ -3,7 +3,10 @@
 1. Create a Supabase project and enable **Anonymous Sign-Ins** under Authentication → Providers.
 2. Run [`supabase/leaderboard.sql`](supabase/leaderboard.sql) in the SQL Editor, then
    [`supabase/2026-10-19_operator_password.sql`](supabase/2026-10-19_operator_password.sql)
-   (operator name + password). Both are safe to re-run.
+   (operator name + password), then
+   [`supabase/2026-10-27_endless_games.sql`](supabase/2026-10-27_endless_games.sql)
+   (one Endless leaderboard per game; it copies the old Timing Bar list over once).
+   All three are safe to re-run. **Run the new file before publishing the site that uses it.**
 3. In Supabase's **Connect** dialog, copy the Project URL and the **publishable** key. Do not use a secret or service-role key in a browser.
 4. Put those values in [`js/supabase-config.js`](js/supabase-config.js), using the exact `.env`-style format below. The game reads this file as text; it is not executed as JavaScript.
 

@@ -974,4 +974,18 @@ if (typeof I18n !== 'undefined') {
         'Cleared: {n}': 'Temizlenen: {n}',
         'PURGE FAILED': 'TEMİZLİK BAŞARISIZ'
     });
+
+    // ── New Endless (E1): lobby, health bar, results ──
+    I18n.add('tr', {
+        'Pick a game. Rounds keep coming until your run ends.': 'Bir oyun seç. Oyunun bitene kadar turlar gelmeye devam eder.',
+        '{game} · BEST {n}': '{game} · EN İYİ {n}',
+        '{game} · NO RUN YET': '{game} · HENÜZ OYNANMADI',
+        'COMING SOON': 'YAKINDA',
+        'Coming in a later update': 'Sonraki bir güncellemeyle geliyor',
+        '{n} of {total} games are ready — the rest arrive in the next updates': '{total} oyundan {n} tanesi hazır — diğerleri sonraki güncellemelerle geliyor',
+        'HEALTH': 'CAN',
+        'ROUND {n}': 'TUR {n}',
+        'RUN ENDED': 'OYUN BİTİRİLDİ',
+        'ROUND': 'TUR'
+    });
 }
