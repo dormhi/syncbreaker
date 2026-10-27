@@ -1288,7 +1288,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.font = '700 15px Orbitron, OrbitronTR';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(`MANUAL · ${LB_TITLES[mod.kind]}`, C.x + 14, C.y + 20);
+        ctx.fillText(UITheme.t('MANUAL · {title}', { title: LB_TITLES[mod.kind] }), C.x + 14, C.y + 20);
         ctx.font = '700 17px Rajdhani';
         lay.goal.forEach((l, k) => this._drawRich(ctx, l, C.x + 14, lay.goalY + k * 21, '#fde68a'));
         const x = C.x + 14, w = C.w - 28;
