@@ -124,7 +124,7 @@ TipBar.ACT = {
     cut: [
         'Red cables are the ones the attacker reaches — cut them before they touch the CORE',
         'Look for the narrowest point between ATK and CORE: fewer cuts there',
-        'Blue cables are the owner\'s own line — cutting one costs a life',
+        'Blue cables are the Director\'s own line — cutting one costs a life',
         'Thick cables are armored and need two cuts',
         'A dashed purple cable wakes when the cable with the same letter is cut',
         'Out of lives? The recovery protocol (1⚡) gives one back'

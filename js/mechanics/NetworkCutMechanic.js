@@ -176,7 +176,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         if (!store) return;
         const topics = [
             ['shielded', e => e.shielded, 'STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Find the cut inside the network.'],
-            ['owner', e => e.owner, 'BLUE cables are the OWNER\'S LINE: they keep the owner connected to the core. Never cut them — it costs a life.'],
+            ['owner', e => e.owner, 'BLUE cables are the DIRECTOR\'S LINE: they keep the Director connected to the core. Never cut them — it costs a life.'],
             ['armored', e => e.armor > 1, 'THICK cables are ARMORED. They need two cuts: the first one only cracks them.'],
             ['failover', e => e.dormant, 'A dashed purple cable is a BACKUP line. It switches on when you cut the cable with the same orange letter.']
         ];
@@ -577,7 +577,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         const mid = this.edgeMid(i);
         if (e.owner) {
             // The owner's own line: it is patched at once, the life is not.
-            this._loseLife('OWNER LINE CUT');
+            this._loseLife('DIRECTOR LINE CUT');
         } else {
             e.hp--;
             this._spark(mid.x, mid.y, e.hp > 0 ? '#fbbf24' : '#c084fc', e.hp > 0 ? 6 : 12);
@@ -860,7 +860,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             let r = 9, color = hit ? red : '#94a3b8', label = null;
             if (n.kind === 'atk') { r = 20; color = red; label = 'ATK'; }
             if (n.kind === 'core') { r = 20; color = hit ? red : teal; label = 'CORE'; }
-            if (n.kind === 'owner') { r = 16; color = blue; label = 'OWNER'; }
+            if (n.kind === 'owner') { r = 16; color = blue; label = 'DIRECTOR'; }
             ctx.fillStyle = 'rgba(15,23,42,0.96)';
             ctx.strokeStyle = color;
             ctx.lineWidth = 2.5;
@@ -876,7 +876,8 @@ class NetworkCutMechanic extends _MechanicBaseNC {
                 ctx.font = '700 14px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(label, n.x, n.y + r + 14);
+                // ATK and CORE are jargon; the Director's terminal reads in the player's language.
+                ctx.fillText(n.kind === 'owner' ? UITheme.t(label) : label, n.x, n.y + r + 14);
             }
             if (n.kind === 'core') {
                 ctx.font = '700 14px Rajdhani';
@@ -919,7 +920,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         const B = this.boardRect();
         const items = [['#ef4444', 4, null, 'Red: the attacker\'s path']];
         if (this.edges.some(e => e.shielded)) items.push(['#94a3b8', 8, null, 'Steel: shielded — can\'t be cut']);
-        if (this.edges.some(e => e.owner)) items.push(['#3b82f6', 5, null, 'Blue: owner line — don\'t cut']);
+        if (this.edges.some(e => e.owner)) items.push(['#3b82f6', 5, null, 'Blue: Director line — don\'t cut']);
         if (this.edges.some(e => e.armor > 1)) items.push(['#64748b', 9, null, 'Thick: armored — 2 cuts']);
         if (this.edges.some(e => e.dormant)) items.push(['rgba(192,132,252,0.8)', 2, [5, 6], 'Dashed: backup — wakes when its orange letter is cut']);
         if (items.length < 2) return;

@@ -46,10 +46,10 @@ class VirusScanMission extends _MissionBaseHM {
         // verdict: what the scanner says; bad: the truth. note: shown once inspected.
         this.packets = [
             { name: 'DOCUMENTS', files: [
-                { name: 'report_q3.pdf', from: 'owner\'s backup', verdict: 'clean' },
+                { name: 'report_q3.pdf', from: 'Director\'s backup', verdict: 'clean' },
                 { name: 'invoice_0423.pdf.exe', from: 'e-mail attachment', verdict: 'infected', bad: true, note: 'Trojan.Dropper — a program dressed up as a PDF' },
-                { name: 'family_photos.zip', from: 'owner\'s backup', verdict: 'clean' },
-                { name: 'budget.xlsx', from: 'owner\'s backup', verdict: 'clean' }
+                { name: 'family_photos.zip', from: 'Director\'s backup', verdict: 'clean' },
+                { name: 'budget.xlsx', from: 'Director\'s backup', verdict: 'clean' }
             ] },
             { name: 'DOWNLOADS', files: [
                 { name: 'photo_editor_setup.exe', from: 'official website', verdict: 'clean' },
@@ -59,7 +59,7 @@ class VirusScanMission extends _MissionBaseHM {
             ] },
             { name: 'USB STICK FROM THE PARKING LOT', files: [
                 { name: 'autorun.inf', from: 'USB stick', verdict: 'infected', bad: true, note: 'Worm.Autorun — starts itself when the stick is plugged in' },
-                { name: 'tax_form_2025.pdf', from: 'owner\'s accountant (USB)', verdict: 'suspicious', bad: false, note: 'a real PDF the owner expected — the alarm is only because the file is brand new' },
+                { name: 'tax_form_2025.pdf', from: 'Director\'s accountant (USB)', verdict: 'suspicious', bad: false, note: 'a real PDF the Director expected — the alarm is only because the file is brand new' },
                 { name: 'holiday.jpg', from: 'USB stick', verdict: 'clean' },
                 { name: 'notes.txt', from: 'USB stick', verdict: 'clean' }
             ] }
@@ -69,9 +69,9 @@ class VirusScanMission extends _MissionBaseHM {
         this.progress = 0;
         this.delivered = 0;
         this.seen = {};
-        this.task = 'Scan the first packet before it reaches the owner';
+        this.task = 'Scan the first packet before it reaches the Director';
         this.teach(
-            'EVENT · The attack is over and the owner wants their files back. Before anything reaches them, every packet goes through a VIRUS SCAN.',
+            'EVENT · The attack is over and the Director wants their files back. Before anything reaches them, every packet goes through a VIRUS SCAN.',
             'An antivirus compares each file with SIGNATURES of known malware, and watches for odd BEHAVIOUR that new malware shows (heuristics).'
         );
     }
@@ -112,14 +112,14 @@ class VirusScanMission extends _MissionBaseHM {
                 : 'Deleted: macro documents from strangers are a classic way in.');
         } else {
             this.tell(keep ? 'Not that one: a macro document from an unknown sender can run code. Delete it.'
-                : 'Wait — it is a real PDF the owner expected from their accountant. A brand-new file can trigger a false alarm. Keep it.', false, 4.5);
+                : 'Wait — it is a real PDF the Director expected from their accountant. A brand-new file can trigger a false alarm. Keep it.', false, 4.5);
         }
     }
 
     _send() {
         const clean = this.files.filter(f => f.verdict === 'clean' || f.done === 'kept').length;
         this.delivered += clean;
-        this.tell(hmT('{n} clean files delivered to the owner.', { n: clean }));
+        this.tell(hmT('{n} clean files delivered to the Director.', { n: clean }));
         this.packet++;
         if (this.packet >= this.packets.length) {
             this.phase = 'done';
@@ -152,7 +152,7 @@ class VirusScanMission extends _MissionBaseHM {
                 }
             });
             if (this.files.every(f => f.verdict === 'clean' || f.done)) {
-                out.push({ id: 'send', x: 692, y: 440, w: 226, h: 72, label: 'SEND CLEAN FILES', sub: 'to the owner', tone: 'safe', onTap: () => this._send() });
+                out.push({ id: 'send', x: 692, y: 440, w: 226, h: 72, label: 'SEND CLEAN FILES', sub: 'to the Director', tone: 'safe', onTap: () => this._send() });
             }
         }
         return out;
@@ -192,7 +192,7 @@ class VirusScanMission extends _MissionBaseHM {
             hmText(ctx, hmT('SCANNING… {p}%', { p: Math.round(this.progress * 100) }), 805, 492, 16, '#5eead4', 700, 'center');
         }
         // The owner's folder
-        hmPanel(ctx, 680, 110, 250, 420, 'OWNER\'S FOLDER');
+        hmPanel(ctx, 680, 110, 250, 420, 'DIRECTOR\'S FOLDER');
         hmText(ctx, String(this.delivered), 805, 230, 64, '#2dd4bf', 800, 'center');
         hmText(ctx, 'clean files delivered', 805, 280, 16, '#94a3b8', 600, 'center');
         for (let k = 0; k < 3; k++) {
@@ -224,7 +224,7 @@ class PasswordMission extends _MissionBaseHM {
         this.oldTested = false;
         this.task = 'Test the old e-mail password';
         this.teach(
-            'EVENT · The attacker\'s leak list holds the owner\'s old passwords. Every account needs a NEW one before the handover.',
+            'EVENT · The attacker\'s leak list holds the Director\'s old passwords. Every account needs a NEW one before the handover.',
             'Let\'s see how strong the old e-mail password really was.'
         );
     }
@@ -360,7 +360,7 @@ class TwoFactorMission extends _MissionBaseHM {
             if (this.attackT >= 3.2) {
                 this.phase = 'push';
                 this.task = 'A sign-in request just appeared on the phone';
-                this.teach('Blocked: the attacker had the password but not the code. Now they try a trick — they keep sending sign-in requests to the phone, hoping the owner taps APPROVE by mistake.');
+                this.teach('Blocked: the attacker had the password but not the code. Now they try a trick — they keep sending sign-in requests to the phone, hoping the Director taps APPROVE by mistake.');
             }
         }
     }
@@ -372,7 +372,7 @@ class TwoFactorMission extends _MissionBaseHM {
                 this.phase = 'backup';
                 this.task = 'Store the backup codes';
                 this.tell('2FA is ON. The code changes every few seconds, so an old one is worthless.');
-                this.teach('BACKUP CODES let the owner in if the phone is lost. Each works once. Where should they be kept?');
+                this.teach('BACKUP CODES let the Director in if the phone is lost. Each works once. Where should they be kept?');
             } else {
                 this.tell('Wrong code — copy the six digits the phone shows right now.', false);
                 this.entry = '';
@@ -385,7 +385,7 @@ class TwoFactorMission extends _MissionBaseHM {
         if (this.phase === 'enable') out.push({ id: 'on', x: 60, y: 200, w: 300, h: 56, label: '2FA: OFF → TURN ON', tone: 'primary', onTap: () => {
             this.phase = 'code';
             this.task = 'Type the 6-digit code from the authenticator app';
-            this.teach('The owner scans the QR code with an AUTHENTICATOR app. From now on the app shows a fresh 6-digit code every few seconds. App codes are safer than SMS, which can be hijacked.');
+            this.teach('The Director scans the QR code with an AUTHENTICATOR app. From now on the app shows a fresh 6-digit code every few seconds. App codes are safer than SMS, which can be hijacked.');
         } });
         if (this.phase === 'code') {
             for (let d = 0; d < 10; d++) {
@@ -440,19 +440,19 @@ class TwoFactorMission extends _MissionBaseHM {
         }
         if (this.phase === 'backup') {
             hmText(ctx, 'Backup codes:  4821-9937   1176-0452   8830-6614 …', 60, 170, 18, '#cbd5e1', 700);
-            hmText(ctx, 'Where will the owner keep them?', 60, 214, 17, '#94a3b8', 600);
+            hmText(ctx, 'Where will the Director keep them?', 60, 214, 17, '#94a3b8', 600);
         }
         if (this.phase === 'attack' || this.phase === 'push') {
             const t = this.attackT;
             hmText(ctx, 'LOGIN FROM: unknown device · far away', 60, 170, 17, '#fca5a5', 700);
             hmText(ctx, hmT('Password: {state}', { state: hmT(t > 0.8 ? '•••••••••  ✓ correct' : 'typing…') }), 60, 214, 18, '#cbd5e1', 600);
-            if (t > 1.6) hmText(ctx, 'Code from the owner\'s phone: ??????', 60, 254, 18, '#cbd5e1', 600);
+            if (t > 1.6) hmText(ctx, 'Code from the Director\'s phone: ??????', 60, 254, 18, '#cbd5e1', 600);
             if (t > 2.4 || this.phase === 'push') hmText(ctx, '✗ ACCESS DENIED — no code, no entry', 60, 298, 20, '#22c55e', 700);
         }
         // The owner's phone
         const px = 700, py = 120, pw = 220, ph = 400;
         UITheme.panel(ctx, px, py, pw, ph, { chamfer: 18, fill: 'rgba(15,23,42,0.95)', stroke: 'rgba(148,163,184,0.6)' });
-        hmText(ctx, 'OWNER\'S PHONE', px + pw / 2, py + 24, 13, '#64748b', 700, 'center');
+        hmText(ctx, 'DIRECTOR\'S PHONE', px + pw / 2, py + 24, 13, '#64748b', 700, 'center');
         if (this.phase === 'code' || this.phase === 'backup' || this.phase === 'attack') {
             hmText(ctx, 'Authenticator', px + pw / 2, py + 90, 15, '#94a3b8', 700, 'center');
             hmText(ctx, this.phase === 'code' ? `${this.code.slice(0, 3)} ${this.code.slice(3)}` : '••• •••', px + pw / 2, py + 140, 34, '#2dd4bf', 800, 'center');
@@ -505,7 +505,7 @@ class PhishingMission extends _MissionBaseHM {
         this.index = 0;
         this.task = 'Check each e-mail: SAFE or PHISHING?';
         this.teach(
-            'EVENT · The owner\'s inbox is filling up again. Some messages are PHISHING: fakes that try to steal passwords or money. Check each one before the owner opens it.',
+            'EVENT · The Director\'s inbox is filling up again. Some messages are PHISHING: fakes that try to steal passwords or money. Check each one before the Director opens it.',
             'Look at four things: the REAL sender address, where a link REALLY goes (inspect it), pressure to act NOW, and anything unexpected you are asked to do or open.'
         );
     }
@@ -700,7 +700,7 @@ class BackupMission extends _MissionBaseHM {
             this.tell('Backup complete: 3 copies, 2 kinds of storage, 1 off-site.');
         } else {
             this.phase = 'handover';
-            this.task = 'Hand control back to the owner';
+            this.task = 'Hand control back to the Director';
             this.tell('Every file restored from the offline backup. The ransomware got nothing.');
         }
     }
@@ -736,9 +736,9 @@ class BackupMission extends _MissionBaseHM {
             opt('pay', 330, 'PAY THE RANSOM', 'danger', () => this.tell('Paying is no guarantee you get the files back, marks you as a payer, and funds the next attack. You have a better option.', false, 5));
             opt('restore', 394, 'WIPE THE LAPTOP AND RESTORE FROM THE OFFLINE BACKUP', 'safe', () => { this.phase = 'restore'; this.progress = 0; this.task = 'Restoring…'; });
         }
-        if (this.phase === 'handover') opt('hand', 420, 'HAND CONTROL BACK TO THE OWNER', 'primary', () => {
+        if (this.phase === 'handover') opt('hand', 420, 'HAND CONTROL BACK TO THE DIRECTOR', 'primary', () => {
             this.phase = 'done';
-            this.teach('CONTROL RETURNED · The system is clean, scanned, protected by new passwords and 2FA, up to date and backed up. The owner knows how to keep it that way.');
+            this.teach('CONTROL RETURNED · The system is clean, scanned, protected by new passwords and 2FA, up to date and backed up. The Director knows how to keep it that way.');
             this.finish([
                 '3-2-1: three copies, on two kinds of storage, one of them off-site.',
                 'Keep one backup unplugged or offline, so ransomware cannot reach it — then never pay.',

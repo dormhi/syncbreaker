@@ -238,7 +238,7 @@ const CAMPAIGN = {
         {
             id: 10,
             key: 'RETURN_CONTROL', done: 'control returned',
-            story: 'Hand the system back to its owner — and teach them to keep it safe',
+            story: 'Hand the system back to the Director — and teach them to keep it safe',
             game: 'handover',
             themeId: 10,
             available: true,

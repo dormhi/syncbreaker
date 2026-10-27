@@ -2975,7 +2975,7 @@ suite('Endless welcome menu + campaign-complete screen', () => {
     enter(S.CONGRATS);
     t = textsOf(S.CONGRATS);
     ok('congrats tells the 10-act story', t.includes('CONTROL RETURNED') && t.some(x => /ALL 10 ACTS COMPLETE/.test(x)) &&
-        t.some(x => /handed the system back to its owner/.test(x)));
+        t.some(x => /handed the system back to the Director/.test(x)));
     ok('every status cleared', ['PERIMETER', 'INTERNAL', 'CORE', 'HANDOVER'].every(k => t.includes('✓ ' + k)));
     ok('points to the Endless ring', t.includes('ENDLESS MODE UNLOCKED') && t.some(x => /∞ ring/.test(x)));
     ok('stars and best score totals', t.some(x => /★ \d+\/\d+/.test(x) && /TOTAL BEST SCORE/.test(x)));
@@ -4514,7 +4514,7 @@ suite('Languages (I18n) — phase 2: menu, HUB, act screen, pause, results', () 
     };
     const menu = show(S.MENU);
     ok('menu: title line, status report and intro story in Turkish',
-        menu.includes('DURUM RAPORU') && menu.includes('Sistemin siber saldırı altında') && !menu.includes('STATUS REPORT'));
+        menu.includes('DURUM RAPORU') && menu.includes('Yöneticinin sistemi siber saldırı altında') && menu.includes('GÖREVİN, OPERATOR') && !menu.includes('STATUS REPORT'));
     const hub = show(S.HUB);
     ok('HUB: header and act card in Turkish', hub.includes('OPERASYON HARİTASI') && hub.includes('AÇ ▸') && hub.includes('ENERJİ'));
     ok('HUB: act and game names stay English', hub.includes('REMOVE_MALWARE') && hub.includes('ACT 1 · TIMING BAR'));

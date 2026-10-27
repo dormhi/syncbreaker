@@ -1477,7 +1477,7 @@ class GameManager {
             'You purged the malware, rebuilt the firewall and sealed the ports,',
             'traced the attacker through the logs and cut their access,',
             'defused the payload, restored the core and passed the final audit.',
-            'Then you handed the system back to its owner — and taught them to keep it safe.'
+            'Then you handed the system back to the Director — and taught them to keep it safe.'
         ];
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '400 16px Rajdhani';
@@ -2560,13 +2560,13 @@ class GameManager {
         const cleared = acts.reduce((n, a) => n + P.stagesDone(a.id), 0);
         if (cleared === 0) {
             return [
-                { text: '[WARNING] Your system is under cyber attack!', color: '#ef4444', bold: true },
+                { text: '[WARNING] The Director\'s system is under cyber attack!', color: '#ef4444', bold: true },
                 blank,
-                { text: 'An unknown attacker has infiltrated your network.', color: '#e2e8f0' },
+                { text: 'An unknown attacker has infiltrated the Director\'s network.', color: '#e2e8f0' },
                 { text: 'Malicious code has been injected into critical system files.', color: '#e2e8f0' },
                 { text: 'The attacker is still active and spreading.', color: '#f59e0b' },
                 blank,
-                { text: '> YOUR MISSION:', color: '#3b82f6', bold: true },
+                { text: '> YOUR MISSION, OPERATOR:', color: '#3b82f6', bold: true },
                 { text: 'Clear every stage of an act, then breach the gate to the next one.', color: '#e2e8f0' },
                 { text: UITheme.t('{n} acts stand between the attacker and full control of the system.', { n: acts.length }), color: '#e2e8f0' },
                 { text: 'If an operation fails, the code breaker can run the recovery protocol.', color: '#e2e8f0' },
@@ -2580,7 +2580,7 @@ class GameManager {
             PERIMETER: { text: '[WARNING] The attacker is still inside the PERIMETER.', color: '#ef4444' },
             INTERNAL: { text: '[ALERT] Perimeter secured. The attacker fell back into the INTERNAL network.', color: '#f59e0b' },
             CORE: { text: '[ALERT] The attacker is cornered in the CORE.', color: '#f59e0b' },
-            HANDOVER: { text: '[SECURE] The system is clean. Time to hand it back to its owner.', color: '#22c55e' }
+            HANDOVER: { text: '[SECURE] The system is clean. Time to hand it back to the Director.', color: '#22c55e' }
         }[layer];
 
         // Secured so far: the most recent cleared acts (older ones elided).
@@ -4851,11 +4851,11 @@ GameManager.GUIDE_PAGES = [
             { head: 'ORBITAL SHIELD', text: 'A port blinks, then a packet flies at it. Snap the shield to that port to block it. Pink packets hop to a neighbouring port.' },
             { head: 'SIGNAL LOCK', text: 'Hold to raise your signal, release to lower it. Keep it on the target until SYNC fills to lock a key, before time runs out.' },
             { head: 'ROUTE TRACE', text: 'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.' },
-            { head: 'NETWORK CUT', text: 'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue owner lines cost a life; thick cables need two cuts.' },
+            { head: 'NETWORK CUT', text: 'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue Director lines cost a life; thick cables need two cuts.' },
             { head: 'LOGIC BOMB', text: 'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.' },
             { head: 'DEFRAG', text: 'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.' },
             { head: 'CHECKSUM GRID', text: 'Goal: turn every number grey. The numbers are the blocks of filled cells in that row or column, in order ("3 1" = 3 filled, a gap, then 1); a number greys out when its line matches. Mark cells you know are empty with ✕. No timer, no lives. AUDIT shows mistakes, but each audit that finds one costs a star.' },
-            { head: 'HANDOVER (ACT 10)', text: 'Six short missions teach real security habits while the clean system goes back to its owner: virus scans, passwords, two-step verification, phishing, updates and backups. No timer, nothing to lose, 3 stars each.' },
+            { head: 'HANDOVER (ACT 10)', text: 'Six short missions teach real security habits while the clean system goes back to the Director: virus scans, passwords, two-step verification, phishing, updates and backups. No timer, nothing to lose, 3 stars each.' },
             { head: 'PACKET PURGE', text: 'Destroy the red infected packets before they reach the core. Leave the blue ones alone.' }
         ]
     },
