@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
-> Durum (2026-10-25): **10 act'in hepsi oynanabilir ve yayında** (son yayın: commit 8effa04). Act 7–10'un kademeleri ve yıldız kuralları taslak, oyuncu görüşlerine göre ayarlanacak.
-> Açık işler: Act 7–9 ayarı (Act 9'un anlaşılırlığı için oyuncu görüşü bekleniyor), bütün oyunları içeren yeni Endless (bölüm 8b), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'da yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
+> Durum (2026-10-27): **10 act'in hepsi oynanabilir ve yayında, iki dilde. Bütün act'ler beta testte** (bölüm 8c): kullanıcının arkadaşları oynuyor, kademeler ve yıldız kuralları gelen görüşlere göre ayarlanacak. Act 7–10'un kademeleri ve yıldız kuralları hâlâ taslak.
+> Açık işler: **yeni Endless** (bölüm 8b, planlandı, faz E1'den başlanacak), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -705,9 +705,54 @@ Oyun şu an **yatay** bir canvas'ta çalışıyor (960×640, 3:2). Telefon dik t
   2. Oyunlar (her biri ayrı ayrı)
   3. Detaylar ayrıca planlanacak.
 
-## 8b. Endless Mode değişecek (henüz planlanmadı)
+## 8b. Endless Mode değişecek (planlanıyor, 2026-10-27)
 
-Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:** hedef, kampanyadaki **bütün oyunları destekleyen** bir sonsuz mod. Detaylar daha sonra ayrıca planlanacak.
+Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:** kampanyadaki oyunların her birinin sonsuz hali.
+
+### Yeni Endless planı (2026-10-27, kullanıcı)
+
+**Kesin olanlar (kullanıcı):**
+- **9 oyunun sonsuz hali** (Act 1–9). Act 10'un görevleri öğretici kalır, sonsuza girmez.
+- Sonsuz menüsünde (Endless lobisi) oyuncu **oynamak istediği oyunu seçer** ve oyun bitene kadar oynar.
+- **Süreli oyunlar:** süre bitene kadar. Her başarılı turdan sonra yeni tura **yeni süreyle** geçilir.
+- **Can oyunları:** toplu ve sağlam bir **can barı**; her hata barı belirli bir yüzde (x) azaltır. Bar biterse oyun biter.
+- **Checksum Grid (süresiz):** **süre havuzu.** Ortak bir süre akar, çözülen her ızgara boyuna göre süre ekler; ızgaralar büyür, süre biterse oyun biter.
+- **Leaderboard: her oyunun kendi listesi** (oyun başına ilk 10). Sunucuda SQL değişikliği gerekir; `supabase/` altında yazılır, yerel Postgres'te denenir, kullanıcı çalıştırır.
+- **Kilit:** Endless bugünkü gibi **Act 10 bitince** bütün oyunlarıyla birlikte açılır.
+- İki dilde (İngilizce + Türkçe), telefonda ve masaüstünde.
+
+**Oyun oyun öneri (taslak; sayılar bot taramasıyla belirlenecek, kullanıcı onaylayacak):**
+
+| Oyun | Tür | Bir tur | Hata | Zorluk turla artar |
+|---|---|---|---|---|
+| 1 Timing Bar | can barı | bir dalga (bugünkü sonsuz) | ıska | bar hızı, küçülen bölge |
+| 2 Stack Overflow | can barı | hedef yüksekliğe bir kule | düşen blok | kule yüksekliği, vinç hızı |
+| 3 Orbital Shield | can barı | N paket engellemek | geçen paket | port sayısı, hız, burst, hedef değiştiren paket |
+| 4 Signal Lock | süreli | bir anahtar kilitlemek | — | tolerans, kayma, sıçrama |
+| 5 Route Trace | süreli | bir rota | — | ızgara boyu, kilitli karo, kendiliğinden dönen karo |
+| 6 Network Cut | can barı | bir ağ | sahibin hattını kesmek, makasın bitmesi | sütun, sahip hattı, zırhlı kablo, yedek hat |
+| 7 Logic Bomb | süreli | bir payload | strike (kampanyadaki gibi süreyi hızlandırır; 3 strike patlatır) | modül ve kural sayısı, yeni modüller |
+| 8 Defrag | süreli | bir disk | — | ızgara, parça, bozuk sektör, harita azalır, sonra snapshot |
+| 9 Checksum Grid | süre havuzu | bir ızgara (çözülünce süre ekler) | hata bulan AUDIT süreden düşer | ızgara boyu, çözücü turu |
+
+- Süreli oyunlarda turdan kalan süre skora bonus olarak eklenir.
+- Her tur oyunun kampanya kademelerinden başlayıp en zorun ötesine doğru yavaşça yükselir.
+
+**Ortak parçalar:** lobide 9 oyun kartı (her birinde en iyi skor), oyun başına leaderboard, tur sayacı, can barı ve tur süresi göstergesi, sonuç ekranı (tur, skor, rekor), isteyerek çıkış için ayrı "Oyun bitirildi" durumu (aşağıdaki not).
+
+**Sonra karar verilecekler:** can barında hata başına yüzde (taslak %20–25) ve başarılı turda biraz dolup dolmayacağı; Code Breaker ile kurtarma kuralı (bugün enerji yettikçe sınırsız; süreli oyunda +20 sn, can oyununda +can); her oyunun zorluk artışı ve tur süreleri (bot taramasıyla); bugünkü Timing Bar sonsuz skorlarının yeni listeye taşınması (son sürümdeki veri silmeyle zaten sıfırlanacak, bölüm 5b).
+
+**Fazlar (öneri):**
+| Faz | Kapsam |
+|---|---|
+| E1 | Altyapı: lobide oyun seçimi, oyun başına en iyi skor, ortak sonsuz barındırıcı (tur akışı, can barı, tur süresi, sonuç ekranı, "Oyun bitirildi"), oyun başına leaderboard (SQL + istemci). Timing Bar yeni yapıya taşınır. |
+| E2 | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
+| E3 | Süreli oyunlar: Signal Lock, Route Trace |
+| E4 | Süreli oyunlar: Logic Bomb, Defrag |
+| E5 | Checksum Grid (süre havuzu) |
+| Son | Bütün oyunlarda bot taraması ve ayar, sonra son sürüm ve veri silme (bölüm 5b) |
+
+### Eski notlar
 
 Şimdilik kesin olan:
 - Endless son act bitince açılır (şu an Act 10). Leaderboard sistemi (isim + şifre) aynı kalıyor.
@@ -727,6 +772,13 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 - **Tebrik penceresi (kampanya bitince bir kez):** Başlık "CONTROL RETURNED". 10 act'in hikayesi kısaca anlatılıyor ve PERIMETER / INTERNAL / CORE / HANDOVER statülerinin hepsi ✓ olarak gösteriliyor. Altında yetki seviyesi (L10 GUARDIAN), altın bir "ENDLESS MODE UNLOCKED" bandı (∞ halkasına ve içindeki leaderboard'a yönlendiriyor) ve toplam yıldız / en iyi skor var.
 - Yeni oyunlar tasarlanırken sonsuz bir modda da çalışabilecekleri göz önünde tutulmalı. Yani zorluğun sürekli artırılabilir olması ve skor üretebilmeleri gerekiyor.
 - **Yeni Endless'ta düzeltilecek (2026-10-26, kullanıcı):** oyuncu Endless'tan isteyerek çıkınca (⏸ → ÇIK) sonuç ekranı "Recovery protocol failed" / "Kurtarma protokolü başarısız" yazıyor. Oysa kurtarma hiç denenmedi; çıkış `noRevive: true` ile geldiği için bu satır gösteriliyor. Yeni sonsuz modda isteyerek çıkış ayrı bir durum olmalı (ör. "Oyun bitirildi" / "Run ended"), kurtarma satırı sadece kurtarma gerçekten başarısız olunca çıkmalı. İki dilde.
+
+## 8c. Beta test: bütün act'ler (2026-10-27, kullanıcı)
+
+- Act 7–9'un ayarı ayrı bir iş değil, **bütün act'lerin beta testi** oldu. Kullanıcının arkadaşları oyunu canlı sitede oynuyor.
+- Toplanacaklar: her act'te nerede takıldılar, hangi aşama fazla zor ya da kolay, dersler anlaşıldı mı (özellikle Act 7 Logic Bomb, Act 8 Defrag, Act 9 Checksum Grid), Türkçe metinlerde tuhaf kaçan bir yer var mı, telefonda dokunmatik sorunları.
+- Görüşler gelince: kademe sayıları ve yıldız eşikleri kullanıcının onayı ve bir bot taramasıyla değiştirilir; Act 9 için gerekirse bölüm 3'teki iki seçenek (ilk aşamaları kolaylaştırmak ya da Infection Sweep) konuşulur.
+- Beta sürerken yeni Endless yerelde geliştirilir; yayın (`v2` push) kullanıcının kararıyla.
 
 ## 9. Kararlar
 
