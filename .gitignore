@@ -3,3 +3,6 @@
 !.env.example
 .DS_Store
 .claude/
+
+# Docs and notes stay local (2026-10-27)
+*.md

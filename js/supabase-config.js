@@ -1,7 +1,7 @@
 /*
  * Copy the Project URL and publishable key from Supabase's Connect dialog.
  * Publishable keys are intentionally safe to expose in browser applications;
- * database access is enforced by the RLS policies in supabase/leaderboard.sql.
+ * database access is enforced by the RLS policies in supabase/schema.sql.
  */
 window.SYNCBREAKER_SUPABASE = {
 NEXT_PUBLIC_SUPABASE_URL=https://szanoeclqztolgijlgef.supabase.co

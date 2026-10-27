@@ -1,18 +1,49 @@
--- SyncBreaker: operator name + password (play the same name from any browser)
--- Run once in the Supabase SQL Editor AFTER supabase/leaderboard.sql.
--- Safe to re-run.
+-- SyncBreaker: the whole database in one file (backup, 2026-10-27)
+-- Rebuilds every table, view, function and permission the current game
+-- uses, on a new Supabase project or after a loss. Safe to re-run; it
+-- deletes nothing. Run it in the SQL Editor after enabling Anonymous
+-- Sign-Ins (Authentication > Providers). Use a publishable key in the
+-- browser, never a secret / service-role key.
 --
 -- Model
---   * Every browser is still an anonymous Supabase user (no e-mail).
---   * An operator profile (name + scores) can be linked to many browsers
---     through operator_links. The browser that created the profile owns it
---     implicitly (profiles.id = its auth uid).
---   * The password is stored only as a bcrypt hash in operator_secrets,
---     which no client role can read. All access goes through the
---     SECURITY DEFINER functions below.
---   * Wrong passwords are rate limited per operator (5 per 15 minutes).
+--   * Every browser is an anonymous Supabase user (no e-mail).
+--   * An operator (unique name + password) is required to play. It can be
+--     linked to many browsers (operator_links); the browser that created
+--     it owns it (profiles.id = its auth uid).
+--   * Passwords are bcrypt hashes in operator_secrets, which no client role
+--     can read; wrong passwords are rate limited (5 per 15 minutes).
+--   * One Endless leaderboard per game (endless_game_scores).
+--   * The operator's progress is one JSON blob (operator_progress); the
+--     client merges it with the browser's copy (js/ProgressSync.js).
+-- All writes go through the SECURITY DEFINER functions below. The game
+-- client stays the authority for gameplay: this is basic validation, not
+-- full anti-cheat protection.
+--
+-- Left out on purpose (older clients only, no longer used): the single
+-- Timing Bar list endless_best_scores, leaderboard_entries,
+-- submit_endless_result, get_my_leaderboard_rank, create_leaderboard_profile.
 
 create extension if not exists pgcrypto with schema extensions;
+
+-- ── Operators ──
+
+create table if not exists public.profiles (
+    id uuid primary key references auth.users(id) on delete cascade,
+    display_name varchar(16) not null,
+    created_at timestamptz not null default now(),
+    constraint profiles_display_name_length check (char_length(display_name) between 3 and 16),
+    constraint profiles_display_name_characters check (display_name ~ '^[A-Za-z0-9_ -]+$')
+);
+
+create unique index if not exists profiles_display_name_lower_key
+    on public.profiles (lower(display_name));
+
+alter table public.profiles enable row level security;
+
+-- The leaderboard intentionally exposes only public operator names and scores.
+drop policy if exists "authenticated users can read public profiles" on public.profiles;
+create policy "authenticated users can read public profiles"
+    on public.profiles for select to authenticated using (true);
 
 create table if not exists public.operator_secrets (
     profile_id uuid primary key references public.profiles(id) on delete cascade,
@@ -192,11 +223,43 @@ begin
 end;
 $$;
 
--- Scores and rank now follow the operator, not the browser.
-create or replace function public.submit_endless_result(
+-- ── Endless: one leaderboard per game ──
+
+create table if not exists public.endless_game_scores (
+    player_id uuid not null references public.profiles(id) on delete cascade,
+    game text not null,
+    best_score bigint not null check (best_score > 0 and best_score <= 1000000000000),
+    best_round integer not null check (best_round >= 1 and best_round <= 1000000),
+    achieved_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    primary key (player_id, game),
+    constraint endless_game_scores_game check (
+        game in ('timingbar', 'stack', 'orbital', 'signal', 'route', 'cut', 'bomb', 'defrag', 'checksum')
+    )
+);
+
+create index if not exists endless_game_scores_ranking
+    on public.endless_game_scores (game, best_score desc, achieved_at);
+
+alter table public.endless_game_scores enable row level security;
+
+-- Public operator names and scores only, like the old list.
+drop policy if exists "authenticated users can read endless game scores" on public.endless_game_scores;
+create policy "authenticated users can read endless game scores"
+    on public.endless_game_scores for select to authenticated using (true);
+
+create or replace view public.endless_game_entries
+with (security_invoker = true) as
+select p.display_name, s.game, s.best_score, s.best_round, s.achieved_at
+from public.endless_game_scores s
+join public.profiles p on p.id = s.player_id;
+
+-- A finished run of one game. Keeps the operator's best per game.
+-- The bound below catches malformed values; it is not a full anti-cheat system.
+create or replace function public.submit_endless_game_result(
+    p_game text,
     p_score bigint,
-    p_wave integer,
-    p_hit_count integer
+    p_round integer
 )
 returns table (accepted boolean, best_score bigint)
 language plpgsql
@@ -205,44 +268,25 @@ set search_path = public, pg_temp
 as $$
 declare
     v_player uuid := public.current_operator_id();
-    v_min_score numeric := 0;
-    v_max_score numeric := 0;
-    v_expected_wave integer;
     v_current_score bigint;
-    v_full_groups numeric;
-    v_remainder numeric;
 begin
     if auth.uid() is null or v_player is null then
         raise exception 'Profile required';
     end if;
-    if p_score <= 0 or p_score > 1000000000000 or p_hit_count < 1 or p_hit_count > 5000000 then
+    if p_game is null or p_game not in ('timingbar', 'stack', 'orbital', 'signal', 'route', 'cut', 'bomb', 'defrag', 'checksum') then
+        raise exception 'Unknown game';
+    end if;
+    if p_score is null or p_round is null
+        or p_score <= 0 or p_score > 1000000000000 or p_round < 1 or p_round > 1000000 then
         raise exception 'Invalid score data';
     end if;
-
-    v_expected_wave := (p_hit_count / 5) + 1;
-    if p_wave <> v_expected_wave then
-        raise exception 'Wave does not match hit count';
-    end if;
-
-    v_full_groups := p_hit_count / 5;
-    v_remainder := mod(p_hit_count, 5);
-    v_min_score := 50 * (
-        5 * v_full_groups * (v_full_groups + 1) / 2
-        + v_remainder * (v_full_groups + 1)
-    );
-    v_max_score := 100 * (
-        25 * v_full_groups * (v_full_groups - 1) * (2 * v_full_groups - 1) / 6
-        + 20 * v_full_groups * (v_full_groups - 1)
-        + 15 * v_full_groups
-        + (v_full_groups + 1) * (5 * v_full_groups * v_remainder + v_remainder * (v_remainder + 1) / 2)
-    );
-    if p_score < v_min_score or p_score > v_max_score then
+    if p_score > p_round::numeric * 1000000 then
         raise exception 'Score is outside the valid result range';
     end if;
 
     select s.best_score into v_current_score
-    from public.endless_best_scores s
-    where s.player_id = v_player
+    from public.endless_game_scores s
+    where s.player_id = v_player and s.game = p_game
     for update;
 
     if v_current_score is not null and p_score <= v_current_score then
@@ -250,12 +294,11 @@ begin
         return;
     end if;
 
-    insert into public.endless_best_scores (player_id, best_score, best_wave, hit_count, achieved_at, updated_at)
-    values (v_player, p_score, p_wave, p_hit_count, now(), now())
-    on conflict (player_id) do update set
+    insert into public.endless_game_scores (player_id, game, best_score, best_round, achieved_at, updated_at)
+    values (v_player, p_game, p_score, p_round, now(), now())
+    on conflict (player_id, game) do update set
         best_score = excluded.best_score,
-        best_wave = excluded.best_wave,
-        hit_count = excluded.hit_count,
+        best_round = excluded.best_round,
         achieved_at = excluded.achieved_at,
         updated_at = excluded.updated_at;
 
@@ -263,77 +306,108 @@ begin
 end;
 $$;
 
-create or replace function public.get_my_leaderboard_rank()
-returns table (rank bigint, display_name varchar, best_score bigint, best_wave integer)
+-- The operator's place in one game's list (higher score first, then earlier).
+create or replace function public.get_my_endless_game_rank(p_game text)
+returns table (rank bigint, display_name varchar, best_score bigint, best_round integer)
 language sql
+stable
 security definer
 set search_path = public, pg_temp
 as $$
     with mine as (
-        select s.player_id, s.best_score, s.best_wave, s.achieved_at, p.display_name
-        from public.endless_best_scores s
+        select s.player_id, s.best_score, s.best_round, s.achieved_at, p.display_name
+        from public.endless_game_scores s
         join public.profiles p on p.id = s.player_id
-        where s.player_id = public.current_operator_id()
+        where s.player_id = public.current_operator_id() and s.game = p_game
     )
     select
         1 + count(other.player_id)::bigint as rank,
         mine.display_name,
         mine.best_score,
-        mine.best_wave
+        mine.best_round
     from mine
-    left join public.endless_best_scores other
-        on other.best_score > mine.best_score
-        or (other.best_score = mine.best_score and other.achieved_at < mine.achieved_at)
-    group by mine.display_name, mine.best_score, mine.best_wave;
+    left join public.endless_game_scores other
+        on other.game = p_game
+        and (other.best_score > mine.best_score
+            or (other.best_score = mine.best_score and other.achieved_at < mine.achieved_at))
+    group by mine.display_name, mine.best_score, mine.best_round;
 $$;
 
--- The old password-less creator stays for clients that are mid-update, but it
--- refuses a browser that already plays as a linked operator.
-create or replace function public.create_leaderboard_profile(p_display_name text)
-returns table (id uuid, display_name varchar)
+
+-- ── The operator's progress ──
+
+create table if not exists public.operator_progress (
+    profile_id uuid primary key references public.profiles(id) on delete cascade,
+    data jsonb not null,
+    updated_at timestamptz not null default now(),
+    constraint operator_progress_size check (octet_length(data::text) <= 65536),
+    constraint operator_progress_object check (jsonb_typeof(data) = 'object')
+);
+
+alter table public.operator_progress enable row level security;
+-- No policies on purpose: reachable only through the functions below.
+revoke all on table public.operator_progress from anon, authenticated;
+
+-- The saved progress of the operator this browser plays as (no row: none yet).
+create or replace function public.get_my_progress()
+returns table (data jsonb, updated_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+    select p.data, p.updated_at
+    from public.operator_progress p
+    where p.profile_id = public.current_operator_id();
+$$;
+
+-- Replace the operator's saved progress (the client sends the merged copy).
+create or replace function public.save_my_progress(p_data jsonb)
+returns timestamptz
 language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
 declare
-    v_name text := btrim(p_display_name);
+    v_profile uuid := public.current_operator_id();
+    v_now timestamptz := now();
 begin
-    if auth.uid() is null then
-        raise exception 'Authentication required';
+    if v_profile is null then
+        raise exception 'Profile required';
     end if;
-    if exists (select 1 from public.operator_links l where l.auth_uid = auth.uid()) then
-        raise exception 'This browser already has an operator';
+    if p_data is null or jsonb_typeof(p_data) <> 'object' or octet_length(p_data::text) > 65536 then
+        raise exception 'Invalid progress';
     end if;
-    if char_length(v_name) not between 3 and 16 or v_name !~ '^[A-Za-z0-9_ -]+$' then
-        raise exception 'Invalid display name';
-    end if;
-
-    insert into public.profiles (id, display_name)
-    values (auth.uid(), v_name)
-    on conflict on constraint profiles_pkey do nothing;
-
-    return query
-    select p.id, p.display_name
-    from public.profiles p
-    where p.id = auth.uid();
+    insert into public.operator_progress (profile_id, data, updated_at)
+    values (v_profile, p_data, v_now)
+    on conflict (profile_id) do update set data = excluded.data, updated_at = excluded.updated_at;
+    return v_now;
 end;
 $$;
 
+-- ── Permissions ──
 -- New functions are executable by PUBLIC by default; lock them down first.
+revoke all on table public.profiles from anon, authenticated;
+grant select on table public.profiles to authenticated;
+revoke all on table public.endless_game_scores from anon, authenticated;
+grant select on table public.endless_game_scores to authenticated;
+grant select on public.endless_game_entries to authenticated;
 revoke all on function public.current_operator_id() from public, anon;
 revoke all on function public._check_operator_password(text) from public, anon, authenticated;
 revoke all on function public.get_my_operator() from public, anon;
 revoke all on function public.create_operator(text, text) from public, anon;
 revoke all on function public.set_operator_password(text, text) from public, anon;
 revoke all on function public.sign_in_operator(text, text) from public, anon;
-revoke all on function public.submit_endless_result(bigint, integer, integer) from public, anon;
-revoke all on function public.get_my_leaderboard_rank() from public, anon;
-revoke all on function public.create_leaderboard_profile(text) from public, anon;
+revoke all on function public.submit_endless_game_result(text, bigint, integer) from public, anon;
+revoke all on function public.get_my_endless_game_rank(text) from public, anon;
+revoke all on function public.get_my_progress() from public, anon;
+revoke all on function public.save_my_progress(jsonb) from public, anon;
 grant execute on function public.current_operator_id() to authenticated;
 grant execute on function public.get_my_operator() to authenticated;
 grant execute on function public.create_operator(text, text) to authenticated;
 grant execute on function public.set_operator_password(text, text) to authenticated;
 grant execute on function public.sign_in_operator(text, text) to authenticated;
-grant execute on function public.submit_endless_result(bigint, integer, integer) to authenticated;
-grant execute on function public.get_my_leaderboard_rank() to authenticated;
-grant execute on function public.create_leaderboard_profile(text) to authenticated;
+grant execute on function public.submit_endless_game_result(text, bigint, integer) to authenticated;
+grant execute on function public.get_my_endless_game_rank(text) to authenticated;
+grant execute on function public.get_my_progress() to authenticated;
+grant execute on function public.save_my_progress(jsonb) to authenticated;
