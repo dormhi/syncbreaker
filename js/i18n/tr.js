@@ -1005,6 +1005,36 @@ if (typeof I18n !== 'undefined') {
         'Create an operator or sign in': 'Operator oluştur ya da giriş yap'
     });
 
+    // Checksum Grid: HINT and the step-by-step lesson (beta feedback, 2026-10-27)
+    I18n.add('tr', {
+        '💡 HINT': '💡 İPUCU',
+        'Row {n}': 'Satır {n}',
+        'Column {n}': 'Sütun {n}',
+        'AUDIT ERRORS {n}  ·  an audit or a hint −{s} s': 'AUDIT HATASI {n}  ·  audit ya da ipucu −{s} sn',
+        'Something does not add up: a cell on the map is wrong. UNDO your last moves, or use AUDIT to find it.': 'Bir şey tutmuyor: haritadaki bir hücre yanlış. Son hamlelerini GERİ AL ya da yerini AUDIT ile bul.',
+        '{line} says 0: none of its cells is filled. Mark them all ✕.': '{line}, 0 diyor: hiçbir hücresi dolu değil. Hepsini ✕ ile işaretle.',
+        '{line} already has all its blocks ({clue}). Every other cell in it is empty: mark them ✕.': '{line} bütün bloklarına zaten sahip ({clue}). Kalan her hücresi boş: onları ✕ ile işaretle.',
+        '{line} says {clue}. The blocks plus one empty cell between each need {len} cells — the whole line. There is only one way: fill and ✕ exactly as lit.': '{line}, {clue} diyor. Bloklar ve aralarındaki birer boş hücre {len} hücre tutuyor — yani hepsini. Tek bir yolu var: yanan hücreleri gösterildiği gibi doldur ve ✕ koy.',
+        '{line} has one block of {clue} in {len} cells. Wherever it starts, it always covers the lit middle cells: fill them.': '{line}: {len} hücrede tek bir blok var, uzunluğu {clue}. Nereden başlarsa başlasın, yanan ortadaki hücreleri hep kaplar: onları doldur.',
+        '{line} says {clue}. Try every way those blocks fit with the cells you already know: the lit cells come out the same every time.': '{line}, {clue} diyor. Bu blokların bildiğin hücrelerle sığabileceği her yolu dene: yanan hücreler her seferinde aynı çıkıyor.',
+        '{line} says {clue}. Push its blocks as far left as they go, then as far right: the lit cells are filled both times, so they are filled whatever happens.': '{line}, {clue} diyor. Bloklarını gidebildikleri kadar sola, sonra da sağa it: yanan hücreler iki seferde de dolu, yani her durumda dolu.',
+        '{line} says {clue} and has only {len} cells: every one of them is filled.': '{line}, {clue} diyor ve sadece {len} hücresi var: hepsi dolu.',
+        'Not that cell — follow the lit row or column.': 'O hücre değil — yanan satırı ya da sütunu takip et.',
+        'Lesson complete! Now a real map: no timer, no lives. Work line by line the same way — and press HINT whenever you are stuck.': 'Ders bitti! Şimdi gerçek bir harita: süre yok, can yok. Aynı şekilde satır satır ilerle — takıldığında İPUCU\'ya bas.',
+        'Rebuild the clean memory map. Each number is a CHECKSUM: the sizes of the filled blocks in that row (left) or column (top), in order. This small map shows you how, one step at a time.': 'Temiz bellek haritasını yeniden kur. Her sayı bir CHECKSUM: o satırdaki (solda) ya da sütundaki (üstte) dolu blokların boyları, sırasıyla. Bu küçük harita sana nasıl yapıldığını adım adım gösterecek.',
+        '"1 1 1" means: a block of 1, then a block of 1, then a block of 1. Between two blocks there is ALWAYS at least one empty cell.': '"1 1 1" şu demek: 1 hücrelik bir blok, sonra 1 hücrelik bir blok, sonra yine 1 hücrelik bir blok. İki blok arasında HER ZAMAN en az bir boş hücre vardır.',
+        'Row 2 says 5, and it has only 5 cells: all of them are filled. Pick FILL and drag across the row.': 'Satır 2, 5 diyor ve sadece 5 hücresi var: hepsi dolu. DOLDUR\'u seç ve satırın üzerinden sürükle.',
+        'Row 2 says 5, and it has only 5 cells: all of them are filled. Pick FILL and drag your finger across the row.': 'Satır 2, 5 diyor ve sadece 5 hücresi var: hepsi dolu. DOLDUR\'u seç ve parmağını satırın üzerinde kaydır.',
+        'Row 4 says 5 too: fill it the same way.': 'Satır 4 de 5 diyor: onu da aynı şekilde doldur.',
+        'Column 3 says 5: fill it from top to bottom.': 'Sütun 3, 5 diyor: yukarıdan aşağıya doldur.',
+        'See? The numbers of finished rows and columns turned GREY. That is the goal: turn EVERY number grey.': 'Gördün mü? Biten satır ve sütunların sayıları GRİ oldu. Amaç bu: BÜTÜN sayıları griye çevir.',
+        'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends, then mark the gaps ✕ (pick ✕, or right click).': 'Satır 3, 1 1 1 diyor: üç blok ve aralarındaki iki boşluk 1+1+1+2 = 5 hücre tutuyor — satırın tamamı. Yani tek yolu ■ ✕ ■ ✕ ■. İki ucu doldur, sonra boşlukları ✕ ile işaretle (✕\'i seç ya da sağ tıkla).',
+        'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends, then pick ✕ and mark the gaps.': 'Satır 3, 1 1 1 diyor: üç blok ve aralarındaki iki boşluk 1+1+1+2 = 5 hücre tutuyor — satırın tamamı. Yani tek yolu ■ ✕ ■ ✕ ■. İki ucu doldur, sonra ✕\'i seçip boşlukları işaretle.',
+        'Columns 1 and 5 say 3 and already have their 3: they are done (grey). Their other cells must be empty — mark the top and bottom cell of both with ✕.': 'Sütun 1 ve 5, 3 diyor ve 3 hücreleri zaten dolu: bitti (gri). Diğer hücreleri boş olmalı — ikisinin de en üst ve en alt hücresini ✕ ile işaretle.',
+        'Stuck on a real map? HINT lights a row or column you can solve and tells you why. AUDIT shows wrong cells, but every audit that finds a mistake costs a star. UNDO takes back a move.': 'Gerçek bir haritada takıldın mı? İPUCU çözebileceğin bir satırı ya da sütunu yakar ve nedenini söyler. AUDIT yanlış hücreleri gösterir, ama hata bulan her audit bir yıldıza mal olur. GERİ AL bir hamleyi geri alır.',
+        'Last one. Row 1 says 3, and both of its ends are ✕ now: the 3 fits only in the middle. Fill it — and every number turns grey.': 'Son adım. Satır 1, 3 diyor ve iki ucu artık ✕: 3 sadece ortaya sığar. Doldur — bütün sayılar griye döner.'
+    });
+
     // Volume panel (beta feedback, 2026-10-27)
     I18n.add('tr', {
         'SOUND': 'SES',

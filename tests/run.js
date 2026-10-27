@@ -4175,7 +4175,7 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     ok('rules box: a tap shows the next one, no cell changes', rm.rules.index === 2 && rm.cells.every(v => v === 0));
     const ctl = mod.TipBar.RULES.checksum.find(t => typeof t === 'object');
     ok('rules box: touch wording on phones', /Tap fills/.test(ctl.touch) && /right click/.test(ctl.desktop));
-    ok('lesson spells out how to win', (() => { const c = new CG(Object.assign({ rng: makeRng(13) }, tiers[0])); c.useCoach({ seen: () => false, mark: () => {} }, true); c.init({}); return [c.coach.step].concat(c.coach.queue).some(st => /HOW TO WIN/.test(st.text)); })());
+    ok('lesson spells out how to win', (() => { const c = new CG(Object.assign({ rng: makeRng(13) }, tiers[0])); c.useCoach({ seen: () => false, mark: () => {} }, true); c.init({}); return [c.coach.step].concat(c.coach.queue).some(st => /EVERY number grey/.test(st.text)); })());
 
     // Keyboard
     const km = make(tiers[0], 8);
@@ -4186,21 +4186,67 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     km.handleKey('KeyZ');
     ok('Z undoes', km.cells[1 * km.cols + 1] === 1);
 
-    // Lesson
+    // Lesson: a hand-made 5 × 5 map solved step by step, then the stage's real map.
     const st = (() => { const seen = {}; return { seen: k => !!seen[k], mark: k => { seen[k] = true; }, raw: seen }; })();
     const lm = new CG(Object.assign({ rng: makeRng(9) }, tiers[0]));
     lm.useCoach(st, true);
     lm.init({ width: 960, height: 640 });
-    ok('lesson: opens on the checksums, the board waits', lm.coach && lm.coach.blocks && (lm.handlePointer(at(0, 0).x, at(0, 0).y, 'down'), lm.cells[0] === 0));
-    for (let k = 0; k < 5 && lm.coach.blocks; k++) lm.handleKey('Space');
-    ok('lesson: then asks for a fill', lm.coach.step.kind === 'fill');
-    const p00 = at(0, 0);
-    lm.handlePointer(p00.x, p00.y, 'down'); lm.handlePointer(p00.x, p00.y, 'up');
-    ok('lesson: then for a ✕', lm.coach.step.kind === 'mark');
-    lm.handleAltPointer(at(1, 1).x, at(1, 1).y);
-    ok('lesson: then grey checksums, UNDO and AUDIT', lm.coach.step.kind === 'info' && lm.coach.step.rects === 'tools');
-    lm.handleKey('Enter'); lm.handleKey('Enter');
-    ok('lesson: marked once done', st.raw.tutorial && !lm.coach.active);
+    const LL = () => lm.layout();
+    const atL = (r, c) => ({ x: LL().x + (c + 0.5) * LL().cell, y: LL().y + (r + 0.5) * LL().cell });
+    const tapL = (r, c, mark) => { lm.mode = mark ? 'mark' : 'fill'; const p = atL(r, c); lm.handlePointer(p.x, p.y, 'down'); lm.handlePointer(p.x, p.y, 'up'); };
+    ok('lesson: a 5 × 5 map first, the board waits for the intro', lm.rows === 5 && lm.lesson && lm.coach.blocks &&
+        (lm.handlePointer(atL(0, 1).x, atL(0, 1).y, 'down'), lm.handlePointer(0, 0, 'up'), lm.cells.every(v => v === 0)));
+    while (lm.coach.blocks) lm.handleKey('Space');
+    ok('lesson: the first task lights row 2', lm.coach.step.kind === 'g1' && lm.coach.step.rects.lines[0].join() === 'row,1');
+    tapL(0, 0);
+    ok('lesson: a move against the map is taken back', lm.cells[0] === 0 && /Not that cell/.test(lm.message.text));
+    for (let c = 0; c < 5; c++) tapL(1, c);
+    ok('lesson: filling row 2 passes the step', lm.coach.step.kind === 'g2');
+    // Play the rest the way the steps ask.
+    for (let c = 0; c < 5; c++) tapL(3, c);
+    [0, 2, 4].forEach(r => tapL(r, 2));
+    while (lm.coach.blocks) lm.handleKey('Space');
+    ok('lesson: then the 1 1 1 row', lm.coach.step.kind === 'g4');
+    tapL(2, 0); tapL(2, 4); tapL(2, 1, true); tapL(2, 3, true);
+    tapL(0, 0, true); tapL(4, 0, true); tapL(0, 4, true); tapL(4, 4, true);
+    while (lm.coach.blocks) lm.handleKey('Space');
+    ok('lesson: HINT, AUDIT and UNDO are explained before the last step', lm.coach.step.kind === 'g6');
+    tapL(0, 1); tapL(0, 3);   // the middle one is already filled (column 3)
+    ok('lesson: solving the map marks it seen and starts the real map', st.raw.tutorial && !lm.lesson && lm.rows === tiers[0].rows &&
+        lm.result === null && lm.cells.every(v => v === 0) && lm.coach.blocks);
+    lm.handleKey('Space');
+    ok('lesson: then the real map is free to play', !lm.coach.active);
+    const again = new CG(Object.assign({ rng: makeRng(9) }, tiers[0]));
+    again.useCoach(st, true);
+    again.init({});
+    ok('lesson: shown once', !again.lesson && again.rows === tiers[0].rows);
+
+    // HINT: a line that follows from what is known, its cells and why.
+    const hm = make(tiers[0], 21);
+    ok('hint: the button sits next to UNDO', (() => { const B = hm.buttons(); return B.hint.y === B.undo.y && B.hint.x > B.undo.x; })());
+    const hb = hm.buttons().hint;
+    hm.handlePointer(hb.x + 5, hb.y + 5, 'down');
+    ok('hint: lights a line and decides cells from an empty map', !!hm.hint && hm.hint.lines.length === 1 && hm.hint.cells.length > 0 && hm.hints === 1);
+    ok('hint: every cell it decides is right', hm.hint.cells.every(({ i, v }) => hm.solution[i] === v));
+    ok('hint: says why, in words', typeof hm.hint.text === 'string' && /\{line\}/.test(hm.hint.text) && /^(Row|Column) \d+$/.test(hm.hint.vars.line));
+    // Following hints alone solves the map.
+    let guard = 0;
+    while (hm.result === null && guard++ < 400) {
+        if (!hm.giveHint() || !hm.hint.cells.length) break;
+        for (const { i, v } of hm.hint.cells) hm.cells[i] = v ? 1 : 2;
+        hm._checkDone();
+    }
+    ok('hint: following the hints solves the map', hm.result === 'success');
+    ok('hint: free in the campaign (stars count audits only)', hm.auditErrors === 0 && hm.starStats().auditErrors === 0);
+    const wm = make(tiers[0], 22);
+    wm.cells[wm.solution.indexOf(0)] = 1;
+    wm.giveHint();
+    ok('hint: with a wrong cell it says so, without giving it away', wm.hint.cells.length === 0 && /wrong/.test(wm.hint.text));
+    const why = (clue, line) => CG.hintReason({ kind: 'row', k: 0, clue, line }).text;
+    ok('hint reasons: 0, complete, exact fit, overlap, logic', /says 0/.test(why([], [-1, -1, -1])) && /already has all/.test(why([2], [1, 1, -1, -1])) &&
+        /the whole line/.test(why([2, 2], [-1, -1, -1, -1, -1])) && /every one of them/.test(why([5], [-1, -1, -1, -1, -1])) && /middle/.test(why([4], [-1, -1, -1, -1, -1, -1])) && /as far left/.test(why([3, 2], [-1, -1, -1, -1, -1, -1, -1])) &&
+        /Try every way/.test(why([2, 1], [-1, 1, -1, -1, -1, -1])));
+    hm.render(makeFakeCtx(makeFakeCanvas()), 960, 640);
 
     // Render: empty, mid-game with an audit, solved, lesson.
     const ctx = makeFakeCtx(makeFakeCanvas());
@@ -5241,7 +5287,7 @@ suite('New Endless (E5): Checksum Grid on one time pool', () => {
     ok('the pool runs down', Math.abs(run.timeLeft - (game.round(1).addTime - 1)) < 0.05);
     drawn.length = 0;
     gm.state._handlers[S.MINIGAME].render(ctx, 0);
-    ok('the host shows the pool and the audit cost', drawn.includes('TIME POOL') && drawn.includes('2:29') && drawn.some(t => t.indexOf('each costs 15 s') >= 0));
+    ok('the host shows the pool and the audit cost', drawn.includes('TIME POOL') && drawn.includes('2:29') && drawn.some(t => t.indexOf('an audit or a hint −15 s') >= 0));
     const before = run.timeLeft;
     m.cells[m.solution.indexOf(0)] = 1;   // a wrong fill
     m.audit();

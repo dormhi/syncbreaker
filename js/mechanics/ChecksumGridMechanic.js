@@ -19,6 +19,11 @@
    the row or column of the first move. Desktop right click is always ✕.
    UNDO takes back the last stroke. AUDIT lights wrong cells red; an
    audit that finds a mistake counts as an audit error (stars).
+   HINT (beta feedback 2026-10-27: players did not get how to play) lights
+   a row or column that can be solved from what is known, the cells it
+   decides, and why ("5 of 5 cells", "a block of 4 in 6 covers the
+   middle" …). Free in the campaign; in Endless it costs time like an
+   audit (the host counts `hints`).
    Keyboard: arrows, SPACE fill, X mark, Z / Backspace undo, Enter audit.
 
    RULES box (right panel): rotating reminders of how the game works
@@ -26,9 +31,11 @@
 
    wantsDrag: the host sends 'down' / 'move' / 'up' / 'cancel'.
 
-   Lesson (Coach, useCoach): the first stage explains the checksums, then
-   asks for one fill and one ✕, then grey checksums, UNDO and AUDIT.
-   Shown once (sb_coach_checksum).
+   Lesson (Coach, useCoach): the first time stage 1 is played, a
+   hand-made 5 × 5 map comes first and is solved step by step: each step
+   lights one row or column, says why its cells are decided and waits
+   until the player has done it (a move against the map is taken back).
+   Then the stage's real map starts. Shown once (sb_coach_checksum).
    ========================================= */
 
 const _MechanicBaseCG = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
@@ -77,25 +84,55 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         this.cursor = { r: 0, c: 0 };
         this.kbd = false;
         this.reveal = 0;
+        this.hint = null;             // { lines, cells: [{ i, v }], text, vars } — the HINT shown
+        this.hints = 0;
         this.rules = null;
         if (typeof TipBar !== 'undefined' && TipBar.RULES) {
             this.rules = new TipBar();
             this.rules.hold = 9;
             this.rules.setTips('checksum', TipBar.RULES.checksum);
         }
-        this._newPuzzle();
         this.coach = null;
-        if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
-            this.coach = new Coach(this.coachStore).push(
-                { kind: 'info', rects: 'clues', text: 'Rebuild the clean memory map. The numbers are CHECKSUMS: they list the blocks of filled cells in each row (left) and each column (top), in order.' },
-                { kind: 'info', rects: 'clues', text: '"3 1" means: a block of 3 filled cells, at least one empty cell, then a block of 1. Read rows and columns together — you never need to guess.' },
-                { kind: 'info', rects: 'goal', text: 'HOW TO WIN: a number turns GREY when its row or column matches it. Turn EVERY number grey and the audit passes. This bar shows how far you are.' },
-                { kind: 'fill', rects: 'fill', text: { desktop: 'Pick FILL and click a cell you are SURE is filled. Drag to fill several in a row.', touch: 'Pick FILL and tap a cell you are SURE is filled. Drag to fill several in a row.' } },
-                { kind: 'mark', rects: 'mark', text: { desktop: 'Mark a cell you KNOW is empty with ✕: pick ✕ and click it, or just right click.', touch: 'Mark a cell you KNOW is empty: pick ✕ and tap it.' } },
-                { kind: 'info', rects: 'tools', text: 'UNDO takes back a move. Stuck? AUDIT shows wrong cells — but every audit that finds a mistake costs a star.' },
-                { kind: 'info', key: 'tutorial', rects: 'goal', text: 'No timer, no lives: take all the time you need. Turn every number grey to pass the audit.' }
-            );
+        this.lesson = !!(this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined');
+        if (this.lesson) {
+            this._lessonMap();
+            this.coach = new Coach(this.coachStore).push(...ChecksumGridMechanic.LESSON);
+        } else {
+            this._newPuzzle();
         }
+    }
+
+    /** The lesson's hand-made 5 × 5 map (a shield); the stage's size waits. */
+    _lessonMap() {
+        this._stageSize = { rows: this.rows, cols: this.cols };
+        this.rows = 5;
+        this.cols = 5;
+        this.solution = ChecksumGridMechanic.LESSON_MAP.join('').split('').map(ch => (ch === '#' ? 1 : 0));
+        const { R, C } = this._clues(this.solution);
+        this.rowClues = R;
+        this.colClues = C;
+        this.sweeps = 0;
+        this.cells = new Array(25).fill(CG_EMPTY);
+    }
+
+    /** The lesson map is done: the stage's real map starts. */
+    _endLesson() {
+        this.lesson = false;
+        this.rows = this._stageSize.rows;
+        this.cols = this._stageSize.cols;
+        this.undo = [];
+        this.hint = null;
+        this.cursor = { r: 0, c: 0 };
+        this._newPuzzle();
+        if (this.coach) this.coach.push({ kind: 'info', rects: 'goal', text: 'Lesson complete! Now a real map: no timer, no lives. Work line by line the same way — and press HINT whenever you are stuck.' });
+    }
+
+    /** A lesson step waiting for moves on the map: passed once its cells are right. */
+    _lessonCheck() {
+        const step = this.coach && this.coach.step;
+        if (!step || !step.goal) return;
+        const done = step.goal.every(([r, c, v]) => this.cells[r * this.cols + c] === (v ? CG_FILL : CG_MARK));
+        if (done) this.coach.event(step.kind);
     }
 
     // ── Puzzle ──
@@ -279,8 +316,6 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         if (was === state) return;
         if (this.stroke) this.stroke.changes.push({ i, was });
         this.cells[i] = state;
-        if (state === CG_FILL && this.coach) this.coach.event('fill');
-        if (state === CG_MARK && this.coach) this.coach.event('mark');
     }
 
     /** Start a stroke on a cell: the action follows the mode and what the cell holds. */
@@ -316,11 +351,26 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const s = this.stroke;
         this.stroke = null;
         if (!s) return;
+        // Lesson: a move against the map is taken back with a nudge.
+        if (this.lesson && s.changes.some(ch => this._wrong(ch.i))) {
+            for (let k = s.changes.length - 1; k >= 0; k--) this.cells[s.changes[k].i] = s.changes[k].was;
+            this.message = { text: 'Not that cell — follow the lit row or column.', color: '#fbbf24', t: 2.5 };
+            if (typeof Sound !== 'undefined' && Sound.playMiss) Sound.playMiss();
+            return;
+        }
         if (s.changes.length) {
             this.undo.push(s.changes);
+            this.hint = null;
             if (typeof Sound !== 'undefined' && Sound.playClick) Sound.playClick();
         }
+        if (this.lesson) this._lessonCheck();
         this._checkDone();
+    }
+
+    /** Does cell i hold something the solution disagrees with? */
+    _wrong(i) {
+        const v = this.cells[i];
+        return (v === CG_FILL && !this.solution[i]) || (v === CG_MARK && this.solution[i]);
     }
 
     undoLast() {
@@ -328,7 +378,74 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const changes = this.undo.pop();
         if (!changes) return false;
         for (let k = changes.length - 1; k >= 0; k--) this.cells[changes[k].i] = changes[k].was;
+        this.hint = null;
         return true;
+    }
+
+    // ── Hint ──
+
+    /**
+     * HINT: a row or column whose cells follow from what is already on the
+     * map, the cells it decides and why. With a wrong cell on the map it
+     * only says so (AUDIT finds it). Fills come first: they are what wins.
+     */
+    giveHint() {
+        if (this.busy) return false;
+        this.hints++;
+        if (this.cells.some((v, i) => this._wrong(i))) {
+            this.hint = { lines: [], cells: [], text: 'Something does not add up: a cell on the map is wrong. UNDO your last moves, or use AUDIT to find it.' };
+            return true;
+        }
+        const know = this.cells.map(v => (v === CG_FILL ? 1 : v === CG_MARK ? 0 : -1));
+        let best = null;
+        const consider = (kind, k, idx) => {
+            const clue = kind === 'row' ? this.rowClues[k] : this.colClues[k];
+            const line = idx.map(i => know[i]);
+            const out = ChecksumGridMechanic.solveLine(clue, line);
+            if (!out) return;
+            const cells = [];
+            out.forEach((v, x) => { if (line[x] === -1 && v >= 0) cells.push({ i: idx[x], v }); });
+            if (!cells.length) return;
+            const fills = cells.filter(c => c.v === 1).length;
+            const score = fills * 100 + cells.length;
+            if (!best || score > best.score) best = { kind, k, idx, clue, line, cells, score };
+        };
+        for (let r = 0; r < this.rows; r++) consider('row', r, Array.from({ length: this.cols }, (_, c) => r * this.cols + c));
+        for (let c = 0; c < this.cols; c++) consider('col', c, Array.from({ length: this.rows }, (_, r) => r * this.cols + c));
+        if (!best) return false;
+        this.hint = Object.assign({ lines: [[best.kind, best.k]], cells: best.cells }, ChecksumGridMechanic.hintReason(best));
+        return true;
+    }
+
+    /** "Row 3" / "Column 3", in the player's language. */
+    static lineName(kind, k) {
+        return UITheme.t(kind === 'row' ? 'Row {n}' : 'Column {n}', { n: k + 1 });
+    }
+
+    /** Why a line's cells are decided: { text, vars } for the HINT box. */
+    static hintReason(h) {
+        const L = h.line.length, clue = h.clue;
+        const vars = { line: ChecksumGridMechanic.lineName(h.kind, h.k), clue: clue.length ? clue.join(' ') : '0', len: L };
+        const need = clue.reduce((a, b) => a + b, 0) + Math.max(0, clue.length - 1);
+        const got = ChecksumGridMechanic.runs(h.line.map(v => (v === 1 ? 1 : 0)));
+        const known = h.line.some(v => v >= 0);
+        if (!clue.length) return { text: '{line} says 0: none of its cells is filled. Mark them all ✕.', vars };
+        if (got.length === clue.length && got.every((v, x) => v === clue[x])) {
+            return { text: '{line} already has all its blocks ({clue}). Every other cell in it is empty: mark them ✕.', vars };
+        }
+        if (clue.length === 1 && clue[0] === L) {
+            return { text: '{line} says {clue} and has only {len} cells: every one of them is filled.', vars };
+        }
+        if (need === L) {
+            return { text: '{line} says {clue}. The blocks plus one empty cell between each need {len} cells — the whole line. There is only one way: fill and ✕ exactly as lit.', vars: Object.assign(vars, { len: need }) };
+        }
+        if (clue.length === 1 && !known) {
+            return { text: '{line} has one block of {clue} in {len} cells. Wherever it starts, it always covers the lit middle cells: fill them.', vars };
+        }
+        if (!known) {
+            return { text: '{line} says {clue}. Push its blocks as far left as they go, then as far right: the lit cells are filled both times, so they are filled whatever happens.', vars };
+        }
+        return { text: '{line} says {clue}. Try every way those blocks fit with the cells you already know: the lit cells come out the same every time.', vars };
     }
 
     /** Light wrong cells; an audit that finds any counts as an audit error. */
@@ -355,6 +472,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
     _checkDone() {
         if (this.result !== null) return;
         if (this.linesOk < this.rows + this.cols) return;
+        if (this.lesson) { this._endLesson(); return; }
         this.result = 'success';
         this.score = this.computeScore();
         this.reveal = 0.001;
@@ -398,7 +516,8 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         return {
             fill: { x, y: 96, w: w / 2 - 6, h: 60 },
             mark: { x: x + w / 2 + 6, y: 96, w: w / 2 - 6, h: 60 },
-            undo: { x, y: 170, w, h: 52 },
+            undo: { x, y: 170, w: w / 2 - 6, h: 52 },
+            hint: { x: x + w / 2 + 6, y: 170, w: w / 2 - 6, h: 52 },
             audit: { x, y: 236, w, h: 60 },
             goal: { x, y: 308, w, h: 76 },
             rules: { x, y: 470, w, h: 134 }
@@ -434,6 +553,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         if (inside(B.fill)) { this.mode = 'fill'; return true; }
         if (inside(B.mark)) { this.mode = 'mark'; return true; }
         if (inside(B.undo)) { this.undoLast(); return true; }
+        if (inside(B.hint)) { this.giveHint(); return true; }
         if (inside(B.audit)) { this.audit(); return true; }
         if (inside(B.rules)) { this.nextRule(); return true; }
         const at = this.cellAt(x, y);
@@ -556,6 +676,28 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
             ctx.lineWidth = k % 5 === 0 ? 1.6 : 1;
             ctx.beginPath(); ctx.moveTo(L.x, L.y + k * L.cell); ctx.lineTo(L.x + L.w, L.y + k * L.cell); ctx.stroke();
         }
+        // HINT: the line in amber, its decided cells outlined (✕ ghosts for empties).
+        if (this.hint && !done) {
+            const pulse = 0.55 + 0.45 * Math.sin(this.time * 6);
+            ctx.fillStyle = 'rgba(250,204,21,0.10)';
+            for (const [t, k] of this.hint.lines) {
+                if (t === 'row') ctx.fillRect(L.x - L.clueW, L.y + k * L.cell, L.w + L.clueW, L.cell);
+                else ctx.fillRect(L.x + k * L.cell, L.y - L.clueH, L.cell, L.h + L.clueH);
+            }
+            ctx.strokeStyle = `rgba(250,204,21,${pulse})`;
+            ctx.lineWidth = 2.5;
+            for (const { i, v } of this.hint.cells) {
+                const x = L.x + (i % this.cols) * L.cell, y = L.y + Math.floor(i / this.cols) * L.cell, s = L.cell;
+                if (v === 1) ctx.strokeRect(x + 3, y + 3, s - 6, s - 6);
+                else {
+                    const m = s * 0.32;
+                    ctx.beginPath();
+                    ctx.moveTo(x + m, y + m); ctx.lineTo(x + s - m, y + s - m);
+                    ctx.moveTo(x + s - m, y + m); ctx.lineTo(x + m, y + s - m);
+                    ctx.stroke();
+                }
+            }
+        }
         if (this.kbd && !done) {
             ctx.strokeStyle = '#facc15';
             ctx.lineWidth = 2.5;
@@ -571,15 +713,21 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const button = (b, label, on, color) => {
             UITheme.panel(ctx, b.x, b.y, b.w, b.h, { chamfer: 8, fill: on ? 'rgba(56,189,248,0.2)' : 'rgba(15,23,42,0.9)', stroke: on ? color : 'rgba(100,116,139,0.6)', lineWidth: on ? 2 : 1.2 });
             ctx.fillStyle = on ? '#f8fafc' : '#cbd5e1';
-            ctx.font = '700 17px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            // Half-width buttons (UNDO, HINT): shrink a long label to fit.
+            for (let fs = 17; fs >= 11; fs--) {
+                ctx.font = `700 ${fs}px Orbitron, OrbitronTR`;
+                const m = ctx.measureText(label).width;
+                if (!(typeof m === 'number') || m <= b.w - 14) break;
+            }
             ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2 + 1);
         };
         ctx.save();
         button(B.fill, UITheme.t('■ FILL'), this.mode === 'fill', '#38bdf8');
         button(B.mark, '✕', this.mode === 'mark', '#94a3b8');
         button(B.undo, UITheme.t('↶ UNDO'), false, '#94a3b8');
+        button(B.hint, UITheme.t('💡 HINT'), !!this.hint, '#facc15');
         button(B.audit, 'AUDIT', false, '#f59e0b');
         // GOAL: the win rule and how far along it is
         const G = B.goal, total = this.rows + this.cols, ok = this.linesOk;
@@ -606,9 +754,11 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const x = G.x, y = G.y + G.h + 18;
         ctx.fillStyle = this.auditErrors ? '#fca5a5' : '#94a3b8';
         ctx.font = '700 14px Rajdhani';
-        ctx.fillText(this.endless
-            ? UITheme.t('AUDIT ERRORS {n}  ·  each costs {s} s', { n: this.auditErrors, s: this.auditPenalty })
-            : UITheme.t('AUDIT ERRORS {n}  ·  no timer, no lives', { n: this.auditErrors }), x, y);
+        const errors = this.endless
+            ? UITheme.t('AUDIT ERRORS {n}  ·  an audit or a hint −{s} s', { n: this.auditErrors, s: this.auditPenalty })
+            : UITheme.t('AUDIT ERRORS {n}  ·  no timer, no lives', { n: this.auditErrors });
+        UITheme.fitFont(ctx, errors, G.w, 'body', 700);
+        ctx.fillText(errors, x, y);
         this._renderRules(ctx, B.rules);
         if (this.message) {
             ctx.fillStyle = this.message.color;
@@ -627,6 +777,7 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
 
     /** Rotating rule reminder in a framed box; a tap moves to the next one. */
     _renderRules(ctx, b) {
+        if (this.hint && this.result === null) { this._renderHint(ctx, b); return; }
         const t = this.rules;
         if (!t || this.result !== null) return;
         const mode = typeof Coach !== 'undefined' ? Coach.inputMode() : 'desktop';
@@ -655,6 +806,37 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         ctx.globalAlpha = 1;
     }
 
+    /** The HINT box (in place of RULES while a hint is up): why the lit cells are decided. */
+    _renderHint(ctx, b) {
+        const h = this.hint;
+        UITheme.panel(ctx, b.x, b.y, b.w, b.h, { chamfer: 8, fill: 'rgba(30,24,6,0.9)', stroke: 'rgba(250,204,21,0.6)' });
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#facc15';
+        ctx.font = '700 13px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('💡 HINT'), b.x + 12, b.y + 16);
+        ctx.fillStyle = '#fde68a';
+        // The line's name is translated while drawn, like every other text.
+        const vars = h.lines.length ? Object.assign({}, h.vars, { line: ChecksumGridMechanic.lineName(h.lines[0][0], h.lines[0][1]) }) : h.vars;
+        const text = UITheme.t(h.text, vars);
+        // Long explanations get a smaller size so they stay inside the box.
+        for (const [fs, lh] of [[16, 19], [15, 17], [14, 16], [13, 15]]) {
+            ctx.font = `600 ${fs}px Rajdhani`;
+            const lines = [];
+            let line = '';
+            for (const w of text.split(' ')) {
+                const s = line ? line + ' ' + w : w;
+                const m = ctx.measureText(s).width;
+                if ((typeof m === 'number' ? m : s.length * 7) > b.w - 24 && line) { lines.push(line); line = w; } else line = s;
+            }
+            lines.push(line);
+            if (34 + lines.length * lh <= b.h || fs === 13) {
+                lines.forEach((l, k) => ctx.fillText(l, b.x + 12, b.y + 40 + k * lh));
+                break;
+            }
+        }
+    }
+
     _coachRects(kind) {
         const L = this.layout(), B = this.buttons();
         const pad = (b) => ({ x: b.x, y: b.y, w: b.w, h: b.h });
@@ -664,12 +846,42 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         if (kind === 'clues') return [clueRow, clueCol];
         if (kind === 'fill') return [board, pad(B.fill)];
         if (kind === 'mark') return [board, pad(B.mark)];
-        if (kind === 'tools') return [pad(B.undo), pad(B.audit)];
+        if (kind === 'tools') return [pad(B.undo), pad(B.hint), pad(B.audit)];
+        // A lesson step: { lines: [['row' | 'col', k], …] } — the lines and their checksums.
+        if (kind && kind.lines) {
+            return kind.lines.map(([t, k]) => (t === 'row'
+                ? { x: L.x - L.clueW, y: L.y + k * L.cell, w: L.w + L.clueW, h: L.cell }
+                : { x: L.x + k * L.cell, y: L.y - L.clueH, w: L.cell, h: L.h + L.clueH }));
+        }
         if (kind === 'goal') return [pad(B.goal), clueRow, clueCol];
         return [];
     }
 }
 
 ChecksumGridMechanic.SOUND = { soundFreq: 620, soundType: 'triangle' };
+
+// The lesson's map: a shield, solved one line at a time (rows / columns 1-based in the text).
+ChecksumGridMechanic.LESSON_MAP = ['.###.', '#####', '#.#.#', '#####', '..#..'];
+
+// Each map step lights its lines and waits until its `goal` cells hold
+// [row, col, 1 = filled | 0 = ✕]; the last one marks the lesson seen.
+ChecksumGridMechanic.LESSON = [
+    { kind: 'info', rects: 'clues', text: 'Rebuild the clean memory map. Each number is a CHECKSUM: the sizes of the filled blocks in that row (left) or column (top), in order. This small map shows you how, one step at a time.' },
+    { kind: 'info', rects: 'clues', text: '"1 1 1" means: a block of 1, then a block of 1, then a block of 1. Between two blocks there is ALWAYS at least one empty cell.' },
+    { kind: 'g1', rects: { lines: [['row', 1]] }, goal: [[1, 0, 1], [1, 1, 1], [1, 2, 1], [1, 3, 1], [1, 4, 1]],
+        text: { desktop: 'Row 2 says 5, and it has only 5 cells: all of them are filled. Pick FILL and drag across the row.', touch: 'Row 2 says 5, and it has only 5 cells: all of them are filled. Pick FILL and drag your finger across the row.' } },
+    { kind: 'g2', rects: { lines: [['row', 3]] }, goal: [[3, 0, 1], [3, 1, 1], [3, 2, 1], [3, 3, 1], [3, 4, 1]],
+        text: 'Row 4 says 5 too: fill it the same way.' },
+    { kind: 'g3', rects: { lines: [['col', 2]] }, goal: [[0, 2, 1], [2, 2, 1], [4, 2, 1]],
+        text: 'Column 3 says 5: fill it from top to bottom.' },
+    { kind: 'info', rects: 'goal', text: 'See? The numbers of finished rows and columns turned GREY. That is the goal: turn EVERY number grey.' },
+    { kind: 'g4', rects: { lines: [['row', 2]] }, goal: [[2, 0, 1], [2, 4, 1], [2, 1, 0], [2, 3, 0]],
+        text: { desktop: 'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends, then mark the gaps ✕ (pick ✕, or right click).', touch: 'Row 3 says 1 1 1: three blocks and the two gaps between them need 1+1+1+2 = 5 cells — the whole row. So it must be ■ ✕ ■ ✕ ■. Fill the two ends, then pick ✕ and mark the gaps.' } },
+    { kind: 'g5', rects: { lines: [['col', 0], ['col', 4]] }, goal: [[0, 0, 0], [4, 0, 0], [0, 4, 0], [4, 4, 0]],
+        text: 'Columns 1 and 5 say 3 and already have their 3: they are done (grey). Their other cells must be empty — mark the top and bottom cell of both with ✕.' },
+    { kind: 'info', rects: 'tools', text: 'Stuck on a real map? HINT lights a row or column you can solve and tells you why. AUDIT shows wrong cells, but every audit that finds a mistake costs a star. UNDO takes back a move.' },
+    { kind: 'g6', key: 'tutorial', rects: { lines: [['row', 0]] }, goal: [[0, 1, 1], [0, 2, 1], [0, 3, 1]],
+        text: 'Last one. Row 1 says 3, and both of its ends are ✕ now: the 3 fits only in the middle. Fill it — and every number turns grey.' }
+];
 
 if (typeof module !== 'undefined' && module.exports) module.exports = ChecksumGridMechanic;

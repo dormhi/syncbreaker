@@ -644,7 +644,7 @@ class GameManager {
                     }, c));
                 }
                 this._mgLives = this._activeMinigame ? this._activeMinigame.lives : 0;
-                this._mgAudits = this._activeMinigame ? this._activeMinigame.auditErrors || 0 : 0;
+                this._mgAudits = this._activeMinigame ? (this._activeMinigame.auditErrors || 0) + (this._activeMinigame.hints || 0) : 0;
             },
             update: (dt) => {
                 const m = this._activeMinigame;
@@ -2342,11 +2342,12 @@ class GameManager {
             m.update(dt);
             run.syncTime(m.timeLeft);
         } else if (run.kind === 'pool') {
-            // The pool waits while a solved grid is shown; a wrong audit costs time.
+            // The pool waits while a solved grid is shown; a wrong audit or a hint costs time.
             if (m.result === null) run.update(dt);
             m.update(dt);
-            if ((m.auditErrors || 0) > this._mgAudits) run.spendTime((m.auditErrors - this._mgAudits) * (m.auditPenalty || 0));
-            this._mgAudits = m.auditErrors || 0;
+            const costs = (m.auditErrors || 0) + (m.hints || 0);
+            if (costs > this._mgAudits) run.spendTime((costs - this._mgAudits) * (m.auditPenalty || 0));
+            this._mgAudits = costs;
             if (run.over) { this.state.change(S.ENDLESS_OVER, {}); return; }
         } else {
             run.update(dt);
