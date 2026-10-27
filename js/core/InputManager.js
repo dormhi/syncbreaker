@@ -197,7 +197,7 @@ class InputManager {
             // neither are keys on the page's own controls (language, dormhi.com).
             const t = e.target;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-            if (t && t.closest && t.closest('.sb-lang, .sb-lang-menu, .sb-brand')) return;
+            if (t && t.closest && t.closest('.sb-lang, .sb-lang-menu, .sb-brand, .sb-volume')) return;
             this.mode = 'desktop';
             const isGameKey = e.code === 'Space' ||
                 e.code === 'ArrowUp' || e.code === 'ArrowDown' ||

@@ -37,7 +37,7 @@ class ProgressSync {
         if (!storage) return false;
         try {
             if (storage.getItem('sb_epoch') === ProgressSync.EPOCH) return false;
-            const keep = new Set(['sb_lang', 'sb_muted']);
+            const keep = new Set(['sb_lang', 'sb_muted', 'sb_volume', 'sb_music']);
             ProgressSync.keys(storage)
                 .filter(k => (k.startsWith('sb_') || k.startsWith('sb-')) && !keep.has(k))
                 .forEach(k => storage.removeItem(k));

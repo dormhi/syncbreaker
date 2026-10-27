@@ -377,6 +377,96 @@ canvas {
     outline: none;
 }
 
+/* Volume (HUB speaker, pause panel): one small row, music · effects. */
+.sb-volume {
+    position: fixed;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.15em 0.6em 0.15em 0.2em;
+    background: #0f172a;
+    border: 1px solid rgba(71, 85, 105, 0.55);
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.sb-volume-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+}
+
+.sb-volume-mute.is-off { color: #64748b; }
+
+.sb-volume-mute {
+    display: flex;
+    width: 1.7em;
+    height: 1.7em;
+    padding: 0.25em;
+    color: #94a3b8;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.sb-volume-mute svg { width: 100%; height: 100%; }
+
+.sb-volume-mute:hover,
+.sb-volume-mute:focus-visible { color: #93c5fd; outline: none; }
+
+/* A thin track, filled up to the value, with a small round thumb. */
+.sb-volume-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 3.2em;
+    height: 1.4em;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.sb-volume-range::-webkit-slider-runnable-track {
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(to right, #3b82f6 var(--fill, 100%), rgba(71, 85, 105, 0.6) var(--fill, 100%));
+}
+
+.sb-volume-range::-moz-range-track {
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(to right, #3b82f6 var(--fill, 100%), rgba(71, 85, 105, 0.6) var(--fill, 100%));
+}
+
+.sb-volume-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.8em;
+    height: 0.8em;
+    margin-top: calc(1.5px - 0.4em);
+    border: 0;
+    border-radius: 50%;
+    background: #cbd5e1;
+}
+
+.sb-volume-range::-moz-range-thumb {
+    width: 0.8em;
+    height: 0.8em;
+    border: 0;
+    border-radius: 50%;
+    background: #cbd5e1;
+}
+
+.sb-volume-range:focus { outline: none; }
+.sb-volume-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4); }
+
+.sb-volume-val {
+    width: 2.2em;
+    font: 600 0.95em 'Rajdhani', sans-serif;
+    color: #94a3b8;
+    text-align: right;
+}
+
 .sb-lang-opt.on {
     color: #93c5fd;
 }

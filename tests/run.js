@@ -1197,6 +1197,17 @@ suite('Sound mute toggle + HUB button', () => {
 
     s.setMuted(false);
     gm._updateSoundButton();
+
+    // The speaker opens a small SOUND panel over the dimmed map (music + effects row, DONE).
+    const before = gm.ui.buttons;
+    btn.onClick();
+    ok('the speaker opens the SOUND panel', gm._quit && gm._quit.mode === 'sound' && gm.ui.buttons.some(b => b.id === 'sound-done'));
+    ok('…which hides the map\'s buttons while open', !gm.ui.buttons.some(b => b.id === 'sound'));
+    gm._pauseBack();
+    ok('Esc closes it and gives the map its buttons back', !gm._quit && gm.ui.buttons === before);
+    btn.onClick();
+    gm.ui.buttons.find(b => b.id === 'sound-done').onClick();
+    ok('DONE closes it too', !gm._quit);
 });
 
 // ─────────────────────────────────────────────
@@ -5339,6 +5350,35 @@ suite('Operator account: required to play, progress saved with it, one-time wipe
         ok('…then forgets the operator and its progress on this browser', !lb.knownOperator() && store.getItem('sb_campaign_v1') !== JSON.stringify(a.campaign) && !gm.progress.isStageCompleted(1, 0));
         ok('…and returns to the menu', gm.state.pendingState === S.MENU);
     }));
+});
+
+suite('Volume (beta feedback): music and sound effects, each with its own %', () => {
+    const mod = loadGameManager({ sb_volume: '0.4', sb_music: '0.7' });
+    const { Sound } = mod;
+    ok('both saved levels are read back', Sound.level('sfx') === 0.4 && Sound.level('music') === 0.7);
+    Sound.setLevel('sfx', 1.7);
+    ok('a level stays within 0–100 %', Sound.level('sfx') === 1 && mod.storage.getItem('sb_volume') === '1');
+    Sound.setLevel('music', 0.55);
+    ok('each channel keeps its own percentage', Sound.level('music') === 0.55 && mod.storage.getItem('sb_music') === '0.55' && Sound.level('sfx') === 1);
+    Sound.setLevel('music', 0);
+    ok('music at 0 % leaves the effects on', !Sound.isMuted());
+    Sound.setLevel('sfx', 0);
+    ok('both at 0 % mutes', Sound.isMuted());
+    Sound.setLevel('sfx', 0.3);
+    ok('turning one up unmutes', !Sound.isMuted() && Sound.level('sfx') === 0.3);
+    // Each channel has its own bus.
+    Sound.ctx = { currentTime: 0, destination: {}, createGain: () => { const g = { gain: { value: 0, setTargetAtTime: (v) => { g.gain.value = v; } }, connect: () => {} }; return g; } };
+    Sound.buses = {};
+    const sfx = Sound._bus('sfx'), music = Sound._bus('music');
+    ok('each bus plays at its level²', Math.abs(sfx.gain.value - 0.09) < 1e-9 && music.gain.value === 0 && Sound._bus('sfx') === sfx && sfx !== music);
+    Sound.setLevel('music', 0.5);
+    ok('…and follows its own slider only', Math.abs(music.gain.value - 0.25) < 1e-9 && Math.abs(sfx.gain.value - 0.09) < 1e-9);
+    const keep = mod.GameManager.resetData({ length: 3, key: (i) => ['sb_volume', 'sb_music', 'sb_energy'][i], removeItem: () => {} });
+    ok('RESET keeps both levels', keep.join() === 'sb_energy');
+    const wipe = mod.ProgressSync;
+    const st = { m: new Map([['sb_volume', '0.5'], ['sb_music', '0.2'], ['sb_energy', 'x']]), getItem(k) { return this.m.has(k) ? this.m.get(k) : null; }, setItem(k, v) { this.m.set(k, v); }, removeItem(k) { this.m.delete(k); }, get length() { return this.m.size; }, key(i) { return [...this.m.keys()][i]; } };
+    wipe.applyEpoch(st);
+    ok('the save wipe keeps both levels', st.getItem('sb_volume') === '0.5' && st.getItem('sb_music') === '0.2' && st.getItem('sb_energy') === null);
 });
 
 // ─────────────────────────────────────────────

@@ -7,6 +7,10 @@
 class SoundManager {
     constructor() {
         this.ctx = null;
+        // Two channels, each with the player's level: the ambient music and
+        // the sound effects (sb_music / sb_volume, 0..1).
+        this.levels = { music: this._loadLevel('sb_music'), sfx: this._loadLevel('sb_volume') };
+        this.buses = {};
         this.enabled = !this._loadMuted();
         this._ambientNodes = null;
         this._initOnInteraction();
@@ -20,7 +24,44 @@ class SoundManager {
         try { localStorage.setItem('sb_muted', this.enabled ? '0' : '1'); } catch (e) { }
     }
 
+    _loadLevel(key) {
+        let v = NaN;
+        try { v = parseFloat(localStorage.getItem(key)); } catch (e) { }
+        return isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
+    }
+
+    /** Muted: the speaker is off, or both channels are at 0 %. */
     isMuted() { return !this.enabled; }
+
+    level(kind) { return this.levels[kind]; }
+
+    /**
+     * Set a channel ('music' | 'sfx') to 0..1. Both at 0 mutes; turning one
+     * up from a muted state unmutes. Music at 0 stops the ambient bed.
+     */
+    setLevel(kind, v) {
+        const level = Math.max(0, Math.min(1, Math.round((Number(v) || 0) * 100) / 100));
+        this.levels[kind] = level;
+        try { localStorage.setItem(kind === 'music' ? 'sb_music' : 'sb_volume', String(level)); } catch (e) { }
+        const bus = this.buses[kind];
+        if (bus && this.ctx) bus.gain.setTargetAtTime(level * level, this.ctx.currentTime, 0.02);
+        const silent = this.levels.music === 0 && this.levels.sfx === 0;
+        if (silent && !this.isMuted()) this.setMuted(true);
+        else if (!silent && this.isMuted()) this.setMuted(false);
+        if (kind === 'music' && level === 0) this.stopAmbient();
+        return level;
+    }
+
+    /** A channel's bus, made on first use. Ears hear loudness roughly as gain². */
+    _bus(kind) {
+        if (!this.buses[kind]) {
+            const g = this.ctx.createGain();
+            g.gain.value = this.levels[kind] * this.levels[kind];
+            g.connect(this.ctx.destination);
+            this.buses[kind] = g;
+        }
+        return this.buses[kind];
+    }
 
     /** Mute/unmute all audio. Muting also silences the ambient bed. */
     setMuted(muted) {
@@ -65,7 +106,7 @@ class SoundManager {
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
 
         osc.connect(gain);
-        gain.connect(this.ctx.destination);
+        gain.connect(this._bus('sfx'));
         osc.start();
         osc.stop(this.ctx.currentTime + duration);
     }
@@ -130,7 +171,7 @@ class SoundManager {
     // Multiple layered oscillators + noise bursts + data stream beeps
 
     startAmbient() {
-        if (!this.ctx || !this.enabled || this._ambientNodes) return;
+        if (!this.ctx || !this.enabled || this._ambientNodes || this.levels.music === 0) return;
 
         const now = this.ctx.currentTime;
 
@@ -194,7 +235,7 @@ class SoundManager {
         tensionGain.connect(masterGain);
 
         lowpass.connect(masterGain);
-        masterGain.connect(this.ctx.destination);
+        masterGain.connect(this._bus('music'));
 
         drone1.start();
         drone2.start();

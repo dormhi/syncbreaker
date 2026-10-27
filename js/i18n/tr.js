@@ -1004,4 +1004,12 @@ if (typeof I18n !== 'undefined') {
         'Operator: {name}': 'Operator: {name}',
         'Create an operator or sign in': 'Operator oluştur ya da giriş yap'
     });
+
+    // Volume panel (beta feedback, 2026-10-27)
+    I18n.add('tr', {
+        'SOUND': 'SES',
+        '✓  DONE': '✓  TAMAM',
+        'Music': 'Müzik',
+        'Sound effects': 'Ses efektleri'
+    });
 }

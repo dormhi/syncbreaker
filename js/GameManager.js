@@ -95,6 +95,7 @@ class GameManager {
         if (this.state.currentState !== this._syncState) {
             this._syncState = this.state.currentState;
             if (this.leaderboard.hasProfile()) this.sync.sync();
+            this._closeVolume();
         }
 
         if (typeof performance !== 'undefined') {
@@ -1730,11 +1731,7 @@ class GameManager {
 
         // Sound toggle (top-left, away from the footer text)
         this.ui.addButton('sound', '', 36, 30, 44, 30,
-            () => {
-                Sound.toggleMute();
-                this._updateSoundButton();
-                if (!Sound.isMuted()) Sound.startAmbient();
-            },
+            () => this._openSoundPanel(),
             { color: '#475569', custom: 'sound' });
         this._updateSoundButton();
         this._addGuideButton();
@@ -1753,7 +1750,7 @@ class GameManager {
     static resetData(storage) {
         if (!storage) return [];
         // The operator stays signed in; the save epoch must not run again.
-        const keep = new Set(['sb_lang', 'sb_muted', 'sb_epoch', 'sb_operator']);
+        const keep = new Set(['sb_lang', 'sb_muted', 'sb_volume', 'sb_music', 'sb_epoch', 'sb_operator']);
         const keys = [];
         for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));
         const gone = keys.filter(k => k && k.startsWith('sb_') && !keep.has(k));
@@ -3075,15 +3072,18 @@ class GameManager {
     /** Esc / back: open the panel, step back from a warning, or resume. */
     _pauseBack() {
         if (!this._quit) { this._openPause(); return; }
-        if (this._quit.mode !== 'pause') this._setPauseMode('pause');
+        if (this._quit.mode === 'sound') this._closeLeavePrompt();
+        else if (this._quit.mode !== 'pause') this._setPauseMode('pause');
         else this._closeLeavePrompt();
     }
 
     _pausePanel() {
         const W = VIEW.W, H = VIEW.H;
+        if (this._quit && this._quit.mode === 'sound') return { x: W / 2 - 200, y: H / 2 - 95, w: 400, h: 190 };
         const pause = this._quit && this._quit.mode === 'pause';
         const rows = pause ? (this._quit.cfg.onRestart ? 3 : 2) : 0;
-        const h = pause ? 120 + rows * 56 : 190;
+        // +46: the volume row at the bottom.
+        const h = pause ? 166 + rows * 56 : 190;
         return { x: W / 2 - 220, y: H / 2 - h / 2, w: 440, h };
     }
 
@@ -3093,6 +3093,13 @@ class GameManager {
         const P = this._pausePanel();
         this.ui.buttons = [];
         this.ui.focusId = null;
+        if (q.mode === 'sound') {
+            this._showVolume({ cx: W / 2, cy: P.y + 94, maxW: P.w - 40 });
+            this.ui.addButton('sound-done', '✓  DONE', W / 2, P.y + P.h - 38, 180, 40,
+                () => this._closeLeavePrompt(), { color: '#3b82f6' });
+            this.ui.focus('sound-done');
+            return;
+        }
         if (q.mode === 'pause') {
             let y = P.y + 104;
             this.ui.addButton('pause-resume', '▶  RESUME', W / 2, y, 260, 44,
@@ -3105,9 +3112,12 @@ class GameManager {
             y += 56;
             this.ui.addButton('pause-leave', '←  LEAVE', W / 2, y, 260, 44,
                 () => this._setPauseMode('leave'), { color: '#ef4444' });
+            // Music and effects volume: a row at the bottom of the panel.
+            this._showVolume({ cx: W / 2, cy: P.y + P.h - 34, maxW: P.w - 40 });
             this.ui.focus('pause-resume');
             return;
         }
+        this._closeVolume();
         const by = P.y + P.h - 54;
         const isRestart = q.mode === 'restart';
         this.ui.addButton('quit-stay', isRestart ? 'CANCEL' : 'STAY', W / 2 - 100, by, 170, 44,
@@ -3124,6 +3134,7 @@ class GameManager {
     }
 
     _closeLeavePrompt() {
+        this._closeVolume();
         if (!this._quit) return;
         this.ui.buttons = this._quit.buttons;
         this.ui.focusId = null;
@@ -3133,7 +3144,7 @@ class GameManager {
     _renderQuitConfirm(ctx, W, H) {
         const q = this._quit;
         const P = this._pausePanel();
-        const accent = q.mode === 'pause' ? 'rgba(59,130,246,0.5)'
+        const accent = q.mode === 'pause' || q.mode === 'sound' ? 'rgba(59,130,246,0.5)'
             : q.mode === 'restart' ? 'rgba(245,158,11,0.55)' : 'rgba(239,68,68,0.5)';
         ctx.save();
         ctx.fillStyle = 'rgba(6,10,18,0.72)';
@@ -3147,7 +3158,10 @@ class GameManager {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
         let title, detail;
-        if (q.mode === 'pause') {
+        if (q.mode === 'sound') {
+            title = 'SOUND';
+            detail = '';
+        } else if (q.mode === 'pause') {
             title = 'PAUSED';
             detail = q.cfg.label || '';
         } else if (q.mode === 'restart') {
@@ -3179,6 +3193,7 @@ class GameManager {
         const S = this.state.STATES;
         const st = this.state.currentState;
         if (this.state.transitioning) return true;
+        if (this._quit && this._quit.mode === 'sound') { this._closeLeavePrompt(); return true; }
         if (this.profileForm && this.profileForm.isOpen && st !== S.PROFILE_SETUP) this.profileForm.close();
         switch (st) {
             case S.LEVEL: case S.MINIGAME: case S.LOCKPICK: case S.ENDLESS:
@@ -4285,11 +4300,124 @@ class GameManager {
         }
     }
 
-    /** Reflect the mute state on the HUB sound button. */
+    /** Reflect the mute state on the speaker buttons (HUB, pause panel). */
     _updateSoundButton() {
-        const btn = this.ui.buttons.find(b => b.id === 'sound');
-        if (!btn) return;
-        btn.muted = Sound.isMuted();
+        for (const btn of this.ui.buttons) if (btn.custom === 'sound') btn.muted = Sound.isMuted();
+    }
+
+    // ── Volume (music + sound effects: one small row) ──
+
+    /**
+     * The HUB speaker: a small SOUND panel in the middle of the dimmed map,
+     * like the pause panel (music and effects row, DONE). Esc, back or DONE
+     * close it.
+     */
+    _openSoundPanel() {
+        if (this._quit || this.state.transitioning) return;
+        this._quit = { cfg: {}, buttons: this.ui.buttons, mode: 'sound' };
+        this._buildPauseButtons();
+    }
+
+    /**
+     * Show the volume row inside a panel (pause, SOUND) at a canvas spot:
+     * `{ left | cx, cy, maxW }`. Real <input type="range"> sliders, so they
+     * drag with a finger and work with the keyboard.
+     */
+    _showVolume(spot) {
+        if (typeof document === 'undefined' || !document.createElement || !document.body) return;
+        if (!this._volumeEl) {
+            // Music and sound effects side by side: icon (on / off) · thin slider · percentage.
+            const box = document.createElement('div');
+            box.className = 'sb-volume';
+            box.setAttribute('role', 'group');
+            const icons = {
+                music: '<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5" fill="currentColor"/><circle cx="16.5" cy="15.5" r="2.5" fill="currentColor"/>',
+                sfx: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a8 8 0 0 1 0 11"/>'
+            };
+            const off = '<path d="M3.5 3.5l17 17"/>';
+            const rows = ['music', 'sfx'].map((kind) => {
+                const row = document.createElement('div');
+                row.className = 'sb-volume-row';
+                const icon = document.createElement('button');
+                icon.type = 'button';
+                icon.className = 'sb-volume-mute';
+                const range = document.createElement('input');
+                range.type = 'range';
+                range.min = '0';
+                range.max = '100';
+                range.step = '5';
+                range.className = 'sb-volume-range';
+                const val = document.createElement('span');
+                val.className = 'sb-volume-val';
+                row.appendChild(icon);
+                row.appendChild(range);
+                row.appendChild(val);
+                box.appendChild(row);
+                range.addEventListener('input', () => {
+                    Sound.setLevel(kind, Number(range.value) / 100);
+                    if (kind === 'music') Sound.startAmbient();
+                    refresh();
+                });
+                range.addEventListener('change', () => { if (kind === 'sfx' && Sound.playClick) Sound.playClick(); });
+                // The icon turns the channel off, and back on at its last level.
+                icon.addEventListener('click', () => {
+                    if (Sound.level(kind) > 0 && !Sound.isMuted()) {
+                        this._volumeLast = Object.assign(this._volumeLast || {}, { [kind]: Sound.level(kind) });
+                        Sound.setLevel(kind, 0);
+                    } else {
+                        if (Sound.isMuted()) Sound.setMuted(false);
+                        Sound.setLevel(kind, (this._volumeLast && this._volumeLast[kind]) || Sound.level(kind) || 0.5);
+                        if (kind === 'music') Sound.startAmbient();
+                    }
+                    refresh();
+                });
+                return { kind, icon, range, val };
+            });
+            const refresh = () => {
+                for (const r of rows) {
+                    const pct = Sound.isMuted() ? 0 : Math.round(Sound.level(r.kind) * 100);
+                    const name = I18n.t(r.kind === 'music' ? 'Music' : 'Sound effects');
+                    r.range.value = String(pct);
+                    r.range.style.setProperty('--fill', pct + '%');
+                    r.range.setAttribute('aria-label', name);
+                    r.val.textContent = `${pct}%`;
+                    r.icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+                        icons[r.kind] + (pct === 0 ? off : '') + '</svg>';
+                    r.icon.classList.toggle('is-off', pct === 0);
+                    r.icon.title = name;
+                    r.icon.setAttribute('aria-label', name);
+                }
+                this._updateSoundButton();
+            };
+            // Esc on a slider does what Esc does on the panel.
+            box.addEventListener('keydown', (e) => { if (e.key === 'Escape') this._pauseBack(); });
+            window.addEventListener('resize', () => this._placeVolume());
+            this._volumeEl = box;
+            this._volumeRefresh = refresh;
+        }
+        this._volumeSpot = spot;
+        this._volumeRefresh();
+        if (!this._volumeEl.isConnected) document.body.appendChild(this._volumeEl);
+        this._placeVolume();
+    }
+
+    _placeVolume() {
+        const el = this._volumeEl, spot = this._volumeSpot;
+        if (!el || !el.isConnected || !spot) return;
+        const r = this.canvas.getBoundingClientRect();
+        const k = r.width / VIEW.W;
+        // The badges' size, smaller if needed to fit its space (`maxW`, canvas px).
+        el.style.fontSize = Math.max(10, 12 * k) + 'px';
+        if (spot.maxW && el.offsetWidth > spot.maxW * k) {
+            el.style.fontSize = (parseFloat(el.style.fontSize) * spot.maxW * k / el.offsetWidth) + 'px';
+        }
+        const left = spot.left !== undefined ? spot.left * k : spot.cx * k - el.offsetWidth / 2;
+        el.style.left = (r.left + left) + 'px';
+        el.style.top = (r.top + spot.cy * k - el.offsetHeight / 2) + 'px';
+    }
+
+    _closeVolume() {
+        if (this._volumeEl && this._volumeEl.isConnected) this._volumeEl.remove();
     }
 
     // ── Input ──
