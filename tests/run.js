@@ -4910,8 +4910,10 @@ suite('New Endless (E1): run rules, bests per game, leaderboard queue, lobby', (
     const btn = (id) => gm.ui.buttons.find(b => b.id === id);
     enter(S.ENDLESS_HUB);
     ok('the lobby has a card for each of the nine games', ENDLESS.games.every(g => btn(`endless-g-${g.key}`)));
+    ok('every game is ready (E5)', ENDLESS.games.every(g => g.ready) && ENDLESS.readyGames().length === 9);
     btn('endless-g-checksum').onClick();
-    ok('a game that is not ready yet says so', gm._hubMessage === 'Coming in a later update' && gm._endlessGame === 'timingbar');
+    ok('tapping a card picks its game', gm._endlessGame === 'checksum' && !gm._hubMessage);
+    btn('endless-g-timingbar').onClick();
     btn('endless-g-timingbar').onClick();
     ok('tapping the picked game again starts its run', gm.state.pendingState === S.ENDLESS);
     drawn.length = 0;
@@ -5176,6 +5178,71 @@ suite('New Endless (E4): Logic Bomb and Defrag rounds', () => {
     ok('a restored disk scores', d.result === 'success' && won.score === d.score && won.score > 0);
     step(100);
     ok('…and the next disk starts with a fresh clock', won.round === 2 && gm._activeMinigame !== d && gm._activeMinigame instanceof DF);
+});
+
+suite('New Endless (E5): Checksum Grid on one time pool', () => {
+    const mod = loadGameManager({});
+    const { ENDLESS, GameRegistry, ChecksumGridMechanic: CG } = mod;
+    const game = ENDLESS.game('checksum');
+    let slow = 0, bad = null;
+    for (let r = 1; r <= 16; r++) {
+        const t0 = Date.now();
+        try {
+            const m = GameRegistry.get('checksum').create(Object.assign({ rng: makeRng(r * 11) }, game.round(r), { endless: true }));
+            m.init({ width: 960, height: 640 });
+            if (m.result !== null || m.solution.length !== m.rows * m.cols) bad = r;
+        } catch (e) { bad = `${r}: ${e.message}`; }
+        slow = Math.max(slow, Date.now() - t0);
+    }
+    ok('checksum: rounds 1–16 all build', bad === null, String(bad));
+    ok('checksum: no grid takes long to build (no freeze between grids)', slow < 2500, `${slow} ms`);
+    ok('checksum: grids grow to 12 × 12, the added time shrinks after round 8 down to 65 %',
+        game.round(5).rows === 12 && game.round(10).addTime < game.round(8).addTime && game.round(40).addTime === Math.round(420 * 0.65));
+
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    const step = (n) => { for (let k = 0; k < n; k++) gm.state._handlers[S.MINIGAME].update(1 / 60); };
+    gm._endlessGame = 'checksum';
+    gm._startEndlessRun();
+    enter(S.MINIGAME, gm._endlessCfg);
+    const run = gm._endlessCfg.endless;
+    let m = gm._activeMinigame;
+    ok('the pool starts with the first grid\'s time', run.kind === 'pool' && run.timeLeft === game.round(1).addTime && m instanceof CG);
+    step(60);
+    ok('the pool runs down', Math.abs(run.timeLeft - (game.round(1).addTime - 1)) < 0.05);
+    drawn.length = 0;
+    gm.state._handlers[S.MINIGAME].render(ctx, 0);
+    ok('the host shows the pool and the audit cost', drawn.includes('TIME POOL') && drawn.includes('2:29') && drawn.some(t => t.indexOf('each costs 15 s') >= 0));
+    const before = run.timeLeft;
+    m.cells[m.solution.indexOf(0)] = 1;   // a wrong fill
+    m.audit();
+    step(1);
+    ok('an audit that finds a mistake costs 15 s', Math.abs(before - run.timeLeft - 15 - 1 / 60) < 0.01);
+    m.audit();
+    step(1);
+    ok('…every time', Math.abs(before - run.timeLeft - 30 - 2 / 60) < 0.01);
+    m.cells = m.solution.map(v => (v ? 1 : 2));
+    m.result = 'success'; m.score = m.computeScore();
+    const atWin = run.timeLeft;
+    step(60);
+    ok('the pool waits while a solved grid is shown', run.timeLeft === atWin && run.score === m.score);
+    step(120);
+    ok('a solved grid adds the next grid\'s time', run.round === 2 && run.timeLeft > atWin + game.round(2).addTime - 1 && run.timeLeft <= atWin + game.round(2).addTime && gm._activeMinigame !== m);
+    m = gm._activeMinigame;
+    run.timeLeft = 0.01;
+    step(2);
+    ok('an empty pool ends the run', run.over && run.reason === 'time' && gm.state.pendingState === S.ENDLESS_OVER);
+    enter(S.ENDLESS_OVER, {});
+    ok('…with a recovery on offer', !!gm.ui.buttons.find(b => b.id === 'revive') && gm._eo.game === 'checksum' && gm._eo.round === 2);
+    run.revive();
+    enter(S.MINIGAME, Object.assign(gm._endlessCfg, { resume: true }));
+    step(1);
+    ok('a recovery gives the pool 20 s on the same grid', !run.over && run.timeLeft > 19 && gm._activeMinigame === m);
 });
 
 // ─────────────────────────────────────────────

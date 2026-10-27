@@ -340,11 +340,12 @@ const UITheme = {
         ctx.textAlign = 'left';
         ctx.fillStyle = UITheme.color.textMute;
         ctx.font = UITheme.font('label', 600);
-        ctx.fillText(UITheme.t('HEALTH'), x, y - 10);
+        // A time pool reuses the bar: its own label and value text.
+        ctx.fillText(UITheme.t(opts.label || 'HEALTH'), x, y - 10);
         ctx.textAlign = 'right';
         ctx.fillStyle = color;
         ctx.font = UITheme.font('label', 700, 'Orbitron');
-        ctx.fillText(Math.ceil(v * 100) + '%', x + w, y - 10);
+        ctx.fillText(opts.text || Math.ceil(v * 100) + '%', x + w, y - 10);
         UITheme.chamferPath(ctx, x, y - h / 2, w, h, 3);
         ctx.fillStyle = 'rgba(30,41,59,0.9)';
         ctx.fill();

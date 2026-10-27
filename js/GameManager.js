@@ -629,6 +629,7 @@ class GameManager {
                     }, c));
                 }
                 this._mgLives = this._activeMinigame ? this._activeMinigame.lives : 0;
+                this._mgAudits = this._activeMinigame ? this._activeMinigame.auditErrors || 0 : 0;
             },
             update: (dt) => {
                 const m = this._activeMinigame;
@@ -693,6 +694,13 @@ class GameManager {
                     // Endless: the run's score and its one health bar.
                     this.ui.renderScore(run.score, 0);
                     if (run.kind === 'health') UITheme.healthBar(ctx, W - 196, 70, 180, run.health, { flash: run.hurtFlash });
+                    if (run.kind === 'pool') {
+                        // The time pool: a full bar is five minutes or more.
+                        const s = Math.ceil(run.timeLeft);
+                        UITheme.healthBar(ctx, W - 196, 70, 180, run.timeLeft / 300, {
+                            flash: run.hurtFlash, label: 'TIME POOL', text: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+                        });
+                    }
                 }
                 if (cfg.footHint) this._drawFaintHint(ctx, cfg.footHint, W / 2, H - 14);
                 this.ui.renderButtons();
@@ -2144,7 +2152,8 @@ class GameManager {
         const game = ENDLESS.game(this._endlessGame) || ENDLESS.game('timingbar');
         this.levels.endlessMode = false;
         if (game.key === 'timingbar') { this.state.change(S.ENDLESS); return; }
-        const run = new EndlessRun(game);
+        // A time pool starts with round 1's time.
+        const run = new EndlessRun(game, { time: game.kind === 'pool' ? game.round(1).addTime : 0 });
         this._endlessActive = run;
         this._endlessCfg = { endless: run, title: `∞ ${this._endlessTitle(game.key)}`, mechanic: this._endlessMechanic(game, run.round) };
         this.state.change(S.MINIGAME, this._endlessCfg);
@@ -2171,6 +2180,13 @@ class GameManager {
         if (run.kind === 'timer') {
             m.update(dt);
             run.syncTime(m.timeLeft);
+        } else if (run.kind === 'pool') {
+            // The pool waits while a solved grid is shown; a wrong audit costs time.
+            if (m.result === null) run.update(dt);
+            m.update(dt);
+            if ((m.auditErrors || 0) > this._mgAudits) run.spendTime((m.auditErrors - this._mgAudits) * (m.auditPenalty || 0));
+            this._mgAudits = m.auditErrors || 0;
+            if (run.over) { this.state.change(S.ENDLESS_OVER, {}); return; }
         } else {
             run.update(dt);
             m.update(dt);
@@ -2199,11 +2215,13 @@ class GameManager {
         // The next round (or the same one again) is ready, also for a revive.
         const next = this._endlessMechanic(game, won ? run.round + 1 : run.round);
         next.init({ width: VIEW.W, height: VIEW.H });
-        if (won) run.nextRound(next.timeLimit || 0);   // a timer game starts with its fresh clock
+        // A timer game starts with its fresh clock; a pool gets the next grid's time.
+        if (won) run.nextRound(run.kind === 'pool' ? game.round(run.round + 1).addTime : (next.timeLimit || 0));
         else run.hurt();
         this._activeMinigame = next;
         this._mgConfig.mechanic = next;
         this._mgLives = next.lives;
+        this._mgAudits = 0;
         this._mgHandled = false;
         this._mgEndTimer = 0;
         if (run.over) this.state.change(S.ENDLESS_OVER, {});

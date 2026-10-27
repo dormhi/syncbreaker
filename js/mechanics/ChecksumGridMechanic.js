@@ -46,6 +46,8 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         this.smooth = options.smooth !== undefined ? options.smooth : 1;   // blob passes (0 = raw)
         this.minSweeps = options.minSweeps || 3;       // line-solver sweeps the puzzle needs
         this.maxSweeps = options.maxSweeps || 99;
+        this.endless = !!options.endless;              // Endless: a time pool, audit errors cost time
+        this.auditPenalty = options.auditPenalty || 0;
         this.wantsDrag = true;
         this.coachStore = null;
         this.firstStage = false;
@@ -604,7 +606,9 @@ class ChecksumGridMechanic extends _MechanicBaseCG {
         const x = G.x, y = G.y + G.h + 18;
         ctx.fillStyle = this.auditErrors ? '#fca5a5' : '#94a3b8';
         ctx.font = '700 14px Rajdhani';
-        ctx.fillText(UITheme.t('AUDIT ERRORS {n}  ·  no timer, no lives', { n: this.auditErrors }), x, y);
+        ctx.fillText(this.endless
+            ? UITheme.t('AUDIT ERRORS {n}  ·  each costs {s} s', { n: this.auditErrors, s: this.auditPenalty })
+            : UITheme.t('AUDIT ERRORS {n}  ·  no timer, no lives', { n: this.auditErrors }), x, y);
         this._renderRules(ctx, B.rules);
         if (this.message) {
             ctx.fillStyle = this.message.color;

@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
 > Durum (2026-10-27): **10 act'in hepsi oynanabilir ve yayında, iki dilde. Bütün act'ler beta testte** (bölüm 8c): kullanıcının arkadaşları oynuyor, kademeler ve yıldız kuralları gelen görüşlere göre ayarlanacak. Act 7–10'un kademeleri ve yıldız kuralları hâlâ taslak.
-> Açık işler: **yeni Endless** (bölüm 8b; E1–E4 bitti (altyapı, can oyunları, süreli oyunlar), yayında değil; sırada E5 Checksum Grid süre havuzu), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
+> Açık işler: **yeni Endless** (bölüm 8b; E1–E5 bitti: 9 oyunun hepsi sonsuzda oynanıyor, yayında değil; sırada oyun testi ve sayıların ayarı), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -774,6 +774,14 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 - Defrag rampası: 1. tur 5×5 tam harita (60 sn), 2. tur 6×6 dönük bloklar + bozuk sektörler (83 sn), 3–4. tur 7×6 yarım harita (97 sn), 5. turdan snapshot diskler (125 sn) ile yarım haritalı diskler sırayla gelir; 6. turdan süre her tur %3 azalır, en az %70.
 - Tur süreleri kampanya kademelerinin payload / disk başına süreleri; onlar oyuncu modelinin yaklaşık 1.8–2.8 (Logic Bomb) ve 1.6–2 katı (Defrag) olarak ayarlanmıştı. En kısa sürede bu pay Logic Bomb'da ~1.3–2×, Defrag'da ~1.1–1.4× olur. Kusursuz bot 1–20. turların hepsini hatasız geçiyor (test); zamanlı bot taraması yapılmadı, oyun testine bırakıldı.
 
+**E5'te yapılanlar (2026-10-27, taslak sayılar):**
+- Checksum Grid sonsuzda oynanır; böylece 9 oyunun hepsi hazır, lobide "YAKINDA" kalmadı.
+- Bir tur = bir ızgara. Bütün oyun boyunca tek bir **süre havuzu** akar: 1. ızgaranın süresiyle başlar, çözülen her ızgara bir sonraki ızgaranın süresini ekler. Çözülen ızgara gösterilirken havuz durur. Hata bulan her AUDIT havuzdan 15 sn düşer (oyunda "AUDIT HATASI n · her biri 15 sn"). Havuz biterse oyun biter; Code Breaker havuza +20 sn ekler, aynı ızgara devam eder.
+- Havuz sağ üstte can barının yerinde çizilir (`UITheme.healthBar` etiket ve metin alıyor: SÜRE HAVUZU, m:ss; dolu çubuk = 5 dakika).
+- Izgara rampası: 1. tur 8×8 (150 sn), 2. tur 10×10 (240 sn), 3–4. tur 10×10 zor (270 sn), 5–6. tur 12×12 (360 sn), 7. turdan 12×12, çözücü 7 tur (420 sn); 9. turdan eklenen süre her tur %4 azalır, en az %65.
+- Kampanyanın UZMAN ayarı (çözücü 9 tur) bazen 3–5 sn'de üretiliyor; sonsuzda bu iki ızgara arasında donma olurdu. Bu yüzden en derin ayar 7 tur (ortanca ~0,14 sn, en kötü ~1 sn).
+- Süreler tahmin: nonogram için gerçekçi bir bot yok (çözücü insan gibi düşünmüyor). Oyun testine bırakıldı.
+
 **Sonra karar verilecekler:** can barında hata başına yüzde (taslak %20–25) ve başarılı turda biraz dolup dolmayacağı; Code Breaker ile kurtarma kuralı (bugün enerji yettikçe sınırsız; süreli oyunda +20 sn, can oyununda +can); her oyunun zorluk artışı ve tur süreleri (bot taramasıyla); bugünkü Timing Bar sonsuz skorlarının yeni listeye taşınması (son sürümdeki veri silmeyle zaten sıfırlanacak, bölüm 5b).
 
 **Fazlar (öneri):**
@@ -783,7 +791,7 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 | E2 ✅ (2026-10-27, yayında değil, taslak sayılar) | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
 | E3 ✅ (2026-10-27, yayında değil, taslak sayılar) | Süreli oyunlar: Signal Lock, Route Trace |
 | E4 ✅ (2026-10-27, yayında değil, taslak sayılar) | Süreli oyunlar: Logic Bomb, Defrag |
-| E5 | Checksum Grid (süre havuzu) |
+| E5 ✅ (2026-10-27, yayında değil, taslak sayılar) | Checksum Grid (süre havuzu) |
 | Son | Bütün oyunlarda bot taraması ve ayar, sonra son sürüm ve veri silme (bölüm 5b) |
 
 ### Eski notlar

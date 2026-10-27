@@ -146,7 +146,25 @@ const ENDLESS = {
                 return Object.assign({}, p, { disks: 1, timeLimit: Math.round(p.timeLimit * share) });
             },
             points: (m) => m.score },
-        { key: 'checksum',  act: 9, kind: 'pool',   ready: false }
+        // A round is one grid; the whole run shares one time pool. It
+        // starts with round 1's time, every solved grid adds the next
+        // grid's time, and an audit that finds a mistake costs
+        // `auditPenalty` seconds. Grids follow the campaign tiers up to
+        // 12 × 12, then the added time shrinks from round 9. The deepest
+        // reasoning stays at 7 solver sweeps (the campaign's EXPERT 9 can
+        // take seconds to build, a freeze between grids).
+        { key: 'checksum', act: 9, kind: 'pool', ready: true, auditPenalty: 15,
+            round: (r) => {
+                const p = r <= 1 ? { rows: 8, cols: 8, density: 0.55, smooth: 1, minSweeps: 3, addTime: 150 }
+                    : r <= 2 ? { rows: 10, cols: 10, density: 0.55, smooth: 1, minSweeps: 4, addTime: 240 }
+                    : r <= 4 ? { rows: 10, cols: 10, density: 0.5, smooth: 0, minSweeps: 6, addTime: 270 }
+                    : r <= 6 ? { rows: 12, cols: 12, density: 0.5, smooth: 0, minSweeps: 6, addTime: 360 }
+                    : { rows: 12, cols: 12, density: 0.5, smooth: 0, minSweeps: 7, addTime: 420 };
+                // Past round 8: 4 % less time a grid, down to 65 %.
+                const share = r <= 8 ? 1 : Math.max(0.65, 1 - 0.04 * (r - 8));
+                return Object.assign({}, p, { addTime: Math.round(p.addTime * share), auditPenalty: 15 });
+            },
+            points: (m) => m.score }
     ],
 
     /** A game entry by key (null when the game has no endless version). */

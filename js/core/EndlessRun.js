@@ -53,6 +53,14 @@ class EndlessRun {
         if (!this.over) this.timeLeft = Math.max(0, timeLeft);
     }
 
+    /** A time-pool penalty (e.g. an audit that found a mistake). */
+    spendTime(s) {
+        if (this.over || this.kind !== 'pool') return;
+        this.timeLeft = Math.max(0, this.timeLeft - s);
+        this.hurtFlash = 0.4;
+        if (this.timeLeft <= 0) this._end('time');
+    }
+
     /** A timer game lost its round: out of time, or another way ('fail'). */
     lose(reason = 'time') { this._end(reason); }
 
