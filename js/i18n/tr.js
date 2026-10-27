@@ -387,6 +387,7 @@ if (typeof I18n !== 'undefined') {
         'Your turn: tap when the marker is in the zone. Misses don\'t count yet, and the timer waits.': 'Sıra sende: işaret bölgedeyken dokun. Iskalar henüz sayılmıyor, süre de bekliyor.',
         'HIT! Hits near the centre are PERFECT and build a COMBO. Land {n} hits before the timer runs out — every miss costs a life.': 'İSABET! Ortaya yakın vuruşlar PERFECT sayılır ve COMBO yapar. Süre bitmeden {n} isabet yap — her ıska bir can götürür.',
         'Hit: {done}/{n}': 'İsabet: {done}/{n}',
+        'HITS {done} / {n}': 'İSABET {done} / {n}',
         'Time: {time}': 'Süre: {time}',
         // Hit feedback words (LevelThemes hitWords)
         'PURGED': 'ARINDIRILDI', 'ERROR': 'HATA',

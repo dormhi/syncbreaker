@@ -429,6 +429,7 @@ class LevelManager {
 
         // Level info
         this._renderInfo(ctx, W, H);
+        this._renderHitProgress(ctx, W, barY, theme);
 
         if (this.coach && this.coach.active) {
             const step = this.coach.step;
@@ -436,6 +437,45 @@ class LevelManager {
                 : step.rects === 'zone' ? [{ x: zoneX - 8, y: barY - 22, w: zoneW + 16, h: 44 }] : [];
             this.coach.render(ctx, W, H, rects, { at: 'top' });
         }
+    }
+
+    /**
+     * Hits so far, under the bar (beta feedback 2026-10-28: the small grey
+     * "Hit: 3/8" line at the top went unnoticed): a big count and one
+     * segment per required hit, filled in the stage's colour.
+     */
+    _renderHitProgress(ctx, W, barY, theme) {
+        const need = this.currentLevel.requiredHits;
+        if (!isFinite(need) || need <= 0) return;
+        const done = Math.min(this.hitCount, need);
+        const color = theme.zoneColor;
+        const w = Math.min(520, W * 0.56), x0 = W / 2 - w / 2, y = barY + 96;
+        const gap = need > 12 ? 4 : 6, seg = (w - gap * (need - 1)) / need, h = 12;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = color;
+        ctx.font = '700 20px Orbitron, OrbitronTR';
+        ctx.fillText(UITheme.t('HITS {done} / {n}', { done, n: need }), W / 2, y - 14);
+        for (let k = 0; k < need; k++) {
+            const x = x0 + k * (seg + gap);
+            if (k < done) {
+                ctx.fillStyle = color;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = UITheme.reducedMotion ? 0 : 8;
+                Utils.roundRect(ctx, x, y, seg, h, 3);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            } else {
+                ctx.fillStyle = 'rgba(30,41,59,0.8)';
+                ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+                ctx.lineWidth = 1;
+                Utils.roundRect(ctx, x, y, seg, h, 3);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
     }
 
     _renderInfo(ctx, W, H) {
@@ -453,8 +493,6 @@ class LevelManager {
         ctx.font = '400 14px Rajdhani';
         ctx.fillText(UITheme.t(this.currentLevel.desc), W / 2, 95);
 
-        // Progress
-        ctx.fillText(UITheme.t('Hit: {done}/{n}', { done: this.hitCount, n: this.currentLevel.requiredHits }), W / 2, 115);
 
         // Time
         const timeColor = this.timer < 10 ? '#ef4444' : '#64748b';
