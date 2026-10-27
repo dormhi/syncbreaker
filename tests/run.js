@@ -5351,20 +5351,30 @@ suite('Operator account: required to play, progress saved with it, one-time wipe
         getProgress: async () => server,
         saveProgress: async (blob) => { server = JSON.parse(JSON.stringify(blob)); saves++; return true; }
     };
-    store.setItem('sb_coach_route', '{"tutorial":true}');
-    const sync = new S2(store, service);
+    // Its own storage: the game below signs out on `store` meanwhile.
+    const syncStore = loadGameManager({ sb_epoch: PS.EPOCH }).storage;
+    syncStore.setItem('sb_coach_route', '{"tutorial":true}');
+    const sync = new S2(syncStore, service);
     pendingSuites.push((async () => {
         server = { v: 1, campaign: b.campaign, endlessBests: b.endlessBests, coach: {}, guideSeen: true };
         const changed = await sync.pull();
-        ok('pull: the account\'s progress comes into the browser', changed && JSON.parse(store.getItem('sb_campaign_v1')).gates.join() === '1,2' && store.getItem('sb_guide_seen') === '1');
+        ok('pull: the account\'s progress comes into the browser', changed && JSON.parse(syncStore.getItem('sb_campaign_v1')).gates.join() === '1,2' && syncStore.getItem('sb_guide_seen') === '1');
         ok('pull: what only this browser had goes to the account', saves === 1 && server.coach.route.tutorial === true);
         ok('push: nothing new, nothing sent', (await sync.push()) === false && saves === 1);
-        store.setItem('sb_coach_cut', '{"tutorial":true}');
+        syncStore.setItem('sb_coach_cut', '{"tutorial":true}');
         ok('push: a change is sent', (await sync.push()) === true && saves === 2 && server.coach.cut.tutorial);
-        S2.clear(store);
+        S2.clear(syncStore);
         await sync.push(true);
         ok('RESET replaces the account\'s copy with an empty one', saves === 3 && !server.campaign && !Object.keys(server.coach).length);
-        ok('clear keeps the browser\'s own keys', store.getItem('sb_epoch') === S2.EPOCH);
+        ok('clear keeps the browser\'s own keys', syncStore.getItem('sb_epoch') === S2.EPOCH);
+        // Progress saved elsewhere after the last pull (another browser, the admin grant) survives a save.
+        server = { v: 1, campaign: b.campaign, endlessBests: {}, coach: {}, guideSeen: false };
+        syncStore.setItem('sb_guide_seen', '1');
+        let told = 0;
+        sync.onChange = () => { told++; };
+        await sync.push();
+        ok('a save merges the saved copy first: nothing saved elsewhere is lost', server.campaign && server.campaign.endlessUnlocked && server.guideSeen);
+        ok('…and the browser gets it too (the game is told)', JSON.parse(syncStore.getItem('sb_campaign_v1')).endlessUnlocked === true && told === 1);
     })());
 
     // ── The game: gate, account screen, sign out ──

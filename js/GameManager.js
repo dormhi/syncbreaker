@@ -23,6 +23,8 @@ class GameManager {
         this._securePromptDismissed = false;
         // The operator's progress follows the account (ProgressSync).
         this.sync = new ProgressSync(this._storage(), this.leaderboard);
+        // A save that merged in progress from elsewhere: read the saves again.
+        this.sync.onChange = () => this._reloadSaves();
         this._accountStatus = '';
 
         // Campaign: acts, stages, gates (docs/ACT_PLAN.md)
@@ -1215,6 +1217,13 @@ class GameManager {
         try {
             if (await this.sync.pull()) this._reloadProgress();
         } catch (e) { }
+    }
+
+    /** Read the saves again, leaving the screen where it is (a background sync). */
+    _reloadSaves() {
+        this.progress = new CampaignProgress(CAMPAIGN);
+        this.endlessProgress = new EndlessProgress(this._storage());
+        this._guideSeen = this._readFlag('sb_guide_seen');
     }
 
     /** Read the saved progress again after a sync, sign-out or reset. */

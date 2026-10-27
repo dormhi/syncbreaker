@@ -13,8 +13,12 @@
 
    Both copies are merged, never overwritten: a stage cleared on any
    browser stays cleared, the best score and stars win, gates and lessons
-   add up. So the order of syncs never loses progress. Only RESET replaces
-   the saved copy on purpose (`push(true)` after clearing the browser).
+   add up. Every save reads the saved copy and merges it in first (since
+   2026-10-28: a save used to send the browser's copy as it was, and could
+   drop progress saved meanwhile, e.g. the admin grant). So the order of
+   syncs never loses progress. Only RESET replaces the saved copy on
+   purpose (`push(true)` after clearing the browser). `onChange` tells the
+   game when a merge brought new progress into the browser.
 
    Save epoch: bumping EPOCH wipes every browser's saved data once on its
    next visit (the owner's decision, docs/ACT_PLAN.md 5b). Language and
@@ -106,8 +110,9 @@ class ProgressSync {
     }
 
     static _mergeCampaign(a, b) {
-        if (!a || a.v !== 1) return b && b.v === 1 ? b : null;
-        if (!b || b.v !== 1) return a;
+        // One side only: still a fresh, normalised copy (gates sorted, nothing shared).
+        if (!a || a.v !== 1) return b && b.v === 1 ? ProgressSync._mergeCampaign(b, b) : null;
+        if (!b || b.v !== 1) return ProgressSync._mergeCampaign(a, a);
         const stages = {};
         for (const id of new Set([...Object.keys(a.stages || {}), ...Object.keys(b.stages || {})])) {
             const la = (a.stages || {})[id] || [], lb = (b.stages || {})[id] || [];
@@ -156,28 +161,48 @@ class ProgressSync {
      */
     async pull() {
         if (!this.service || !this.service.hasProfile()) return false;
-        const saved = await this.service.getProgress();
-        const local = ProgressSync.collect(this.storage);
-        const merged = ProgressSync.merge(local, saved);
-        const changed = JSON.stringify(ProgressSync.merge(local, null)) !== JSON.stringify(merged);
-        if (changed) ProgressSync.write(this.storage, merged);
-        this._sent = saved ? JSON.stringify(ProgressSync.merge(saved, null)) : null;
-        await this.push();
-        return changed;
+        return this._mergeAndSave(await this.service.getProgress());
     }
 
     /**
-     * Send the browser's copy if the server does not hold it yet.
-     * `replace` (RESET) sends it even when it has less than the server.
+     * Send the browser's progress when it changed. The saved copy is read
+     * and merged first: it may hold progress from another browser (or an
+     * admin grant) since the last pull, and a save must never drop it.
+     * `replace` (RESET) sends the browser's copy as it is, on purpose.
+     * @returns {Promise<boolean>} true if anything was sent.
      */
     async push(replace = false) {
         if (!this.service || !this.service.hasProfile()) return false;
-        const blob = ProgressSync.merge(ProgressSync.collect(this.storage), null);
-        const json = JSON.stringify(blob);
-        if (!replace && json === this._sent) return false;
-        await this.service.saveProgress(blob);
-        this._sent = json;
+        const local = JSON.stringify(ProgressSync.merge(ProgressSync.collect(this.storage), null));
+        if (replace) {
+            await this.service.saveProgress(JSON.parse(local));
+            this._sent = local;
+            return true;
+        }
+        if (local === this._sent) return false;
+        await this._mergeAndSave(await this.service.getProgress());
         return true;
+    }
+
+    /** Merge `saved` into the browser, save the result if the server lacks any of it. */
+    async _mergeAndSave(saved) {
+        const local = ProgressSync.merge(ProgressSync.collect(this.storage), null);
+        const merged = ProgressSync.merge(local, saved);
+        const changed = ProgressSync._same(local, merged) === false;
+        if (changed) {
+            ProgressSync.write(this.storage, merged);
+            if (this.onChange) this.onChange();
+        }
+        if (!saved || ProgressSync._same(ProgressSync.merge(saved, null), merged) === false) await this.service.saveProgress(merged);
+        this._sent = JSON.stringify(ProgressSync.merge(ProgressSync.collect(this.storage), null));
+        return changed;
+    }
+
+    /** Same progress, whatever the key order. */
+    static _same(a, b) {
+        const canon = (x) => JSON.stringify(x, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)
+            ? Object.keys(v).sort().reduce((o, key) => { o[key] = v[key]; return o; }, {}) : v));
+        return canon(a) === canon(b);
     }
 
     /** Push in the background when something changed; errors wait for the next try. */
