@@ -97,10 +97,13 @@ const CAMPAIGN = {
                 { tier: 'HARD',      params: { keys: 4, timeLimit: 45, tol: 0.23, drain: 1.0, driftAmp: 0.5, driftSpeed: 1.0, syncTime: 1.4 } },
                 { tier: 'VERY HARD', params: { keys: 4, timeLimit: 45, tol: 0.23, drain: 1.0, driftAmp: 0.5, driftSpeed: 1.0, syncTime: 1.4, glitchMin: 5, glitchMax: 8 } },
                 // EXPERT's own trick (beta feedback 2026-10-28): blackouts, the target
-                // goes dark for 2 s every 8-11 s and keeps drifting meanwhile. Bot
-                // sweep (40 runs): good 39, average 25, slow 4 (time limit unchanged).
+                // goes dark for 2 s and keeps drifting meanwhile. Every key gets one
+                // 0.6-1 s after its target appears, before the fastest lock (1.4 s);
+                // a timed one every 8-11 s let players lock 3 keys first. Long keys
+                // get more every 8-11 s. Bot sweep (40 runs): sharp 35, good 32,
+                // average 11, slow 1 (time limit unchanged).
                 { tier: 'EXPERT',    params: { keys: 5, timeLimit: 50, tol: 0.22, drain: 1.0, driftAmp: 0.55, driftSpeed: 1.05, syncTime: 1.4, glitchMin: 5, glitchMax: 8,
-                    blackoutMin: 8, blackoutMax: 11, blackoutDur: 2 } }
+                    blackoutMin: 8, blackoutMax: 11, blackoutDur: 2, blackoutKeyMin: 0.6, blackoutKeyMax: 1.0 } }
             ]
         },
         {

@@ -5594,6 +5594,17 @@ suite('Signal Lock EXPERT: blackouts (beta feedback)', () => {
     for (let k = 0; k < 60 * 15; k++) c2.update(1 / 60);
     ok('…and not again', !c2.coach);
     ok('Endless: blackouts from round 16', !mod.ENDLESS.game('signal').round(15).blackoutMin && mod.ENDLESS.game('signal').round(16).blackoutMin > 0);
+    // Every key gets its own blackout soon after its target appears.
+    const k = make({ glitchMin: 0, glitchMax: 0 });
+    ok('the first key goes dark within 1 s, before the fastest lock', k.blackAt - k.time >= 0.6 && k.blackAt - k.time <= 1.0);
+    let perKey = true;
+    for (let n = 0; n < 60 * 40 && k.result === null; n++) {
+        const before = k.locked;
+        k.update(1 / 60);
+        if (k.locked > before && k.result === null && !(k.blackAt - k.time >= 0.6 && k.blackAt - k.time <= 1.0 && !k.dark())) perKey = false;
+        if (k.locked === before && n % 90 === 0) { k.sync = 0.999; k.f = k.target; k.v = 0; }
+    }
+    ok('…and so does every next key, after its target is shown', perKey && k.locked >= 2);
 });
 
 // ─────────────────────────────────────────────

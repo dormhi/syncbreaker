@@ -74,7 +74,9 @@ const ENDLESS = {
                     // EXPERT's blackouts from round 16 (the good player's plateau).
                     blackoutMin: r >= 16 ? endlessRamp(r - 15, 11, -0.3, 6) : 0,
                     blackoutMax: r >= 16 ? endlessRamp(r - 15, 11, -0.3, 6) + 3 : 0,
-                    blackoutDur: 2
+                    blackoutDur: 2,
+                    // …and one on every key from round 20, like EXPERT.
+                    blackoutKeyMin: r >= 20 ? 0.6 : 0, blackoutKeyMax: r >= 20 ? 1.0 : 0
                 };
             },
             points: (m) => m.score },

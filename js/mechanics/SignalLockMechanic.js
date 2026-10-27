@@ -12,7 +12,10 @@
    and "glitches" (the target jumps; it flickers first as a warning).
    EXPERT adds blackouts (beta feedback 2026-10-28: the top stage needed a
    trick of its own): the target fades for a moment, then goes dark for
-   `blackoutDur` s. It keeps drifting in the dark, so the player follows
+   `blackoutDur` s. Every key gets one: a new target shows for
+   `blackoutKeyMin`..`blackoutKeyMax` s, then goes dark (players locked
+   3 keys before a timed one came), and a long key gets more every
+   `blackoutMin`..`blackoutMax` s. It keeps drifting in the dark, so the player follows
    it from memory; SYNC still fills, but no colour gives the match away.
    (A target that stood still in the dark made EXPERT easier for slow
    players in the bot sweep.) No glitch jumps in the dark, and a locked
@@ -50,6 +53,8 @@ class SignalLockMechanic extends _MechanicBaseSL {
         this.blackoutMin = options.blackoutMin || 0;    // s between blackouts (0 = none)
         this.blackoutMax = options.blackoutMax || this.blackoutMin;
         this.blackoutDur = options.blackoutDur || 2;   // s the target stays dark
+        this.blackoutKeyMin = options.blackoutKeyMin || 0;   // s a new target shows before its blackout (0 = timed only)
+        this.blackoutKeyMax = options.blackoutKeyMax || this.blackoutKeyMin;
         this.blackoutWarn = 0.8;
         this.reviveTime = options.reviveTime || 20;
 
@@ -89,7 +94,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
         this.base = 0;
         this.blackout = null;    // end time of the blackout going on
         this._newTarget();
-        this._scheduleBlackout();
+        this._scheduleBlackout(true);
 
         this.coach = null;
         if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
@@ -147,8 +152,12 @@ class SignalLockMechanic extends _MechanicBaseSL {
 
     get target() { return this.targetAt(this.time); }
 
-    _scheduleBlackout() {
-        this.blackAt = this.blackoutMin > 0 ? this.time + this._rand(this.blackoutMin, this.blackoutMax) : Infinity;
+    /** The next blackout; `newKey`: soon after a new target appears. */
+    _scheduleBlackout(newKey = false) {
+        if (this.blackoutMin <= 0) { this.blackAt = Infinity; return; }
+        this.blackAt = this.time + (newKey && this.blackoutKeyMin > 0
+            ? this._rand(this.blackoutKeyMin, this.blackoutKeyMax)
+            : this._rand(this.blackoutMin, this.blackoutMax));
     }
 
     /** The target is dark right now. */
@@ -232,10 +241,11 @@ class SignalLockMechanic extends _MechanicBaseSL {
                 this.score = this.computeScore();
                 return;
             }
-            // A new target is always shown: a blackout going on ends here (the
-            // next one keeps its time otherwise, so fast players meet them too).
-            if (this.dark()) { this.blackout = null; this._scheduleBlackout(); }
+            // A new target is always shown first: a blackout going on ends here,
+            // and the new key gets its own blackout soon after.
+            this.blackout = null;
             this._newTarget();
+            this._scheduleBlackout(true);
         }
 
         if (this.timeLeft <= 0) {
