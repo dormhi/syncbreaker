@@ -514,10 +514,16 @@ class GameManager {
                             this.levels.revivesUsed = (this.levels.revivesUsed || 0) + 1;
                             this.state.change(S.LEVEL);
                         } else if (this._lockpickReason === 'endless_revive') {
-                            // The same run goes on: one mistake's worth of health.
-                            this.levels.endlessRun.revive();
-                            this.levels.levelFailed = false;
-                            this.state.change(S.ENDLESS);
+                            // The same run goes on: one mistake's worth of health (or more time).
+                            const run = this._endlessActive;
+                            if (run && run.game !== 'timingbar') {
+                                run.revive();
+                                this.state.change(S.MINIGAME, Object.assign(this._endlessCfg, { resume: true }));
+                            } else {
+                                this.levels.endlessRun.revive();
+                                this.levels.levelFailed = false;
+                                this.state.change(S.ENDLESS);
+                            }
                         }
                     } else {
                         if (this._lockpickReason === 'revive') {
@@ -588,17 +594,30 @@ class GameManager {
                 const c = context || {};
                 this._mgConfig = c;
                 this._activeMinigame = c.mechanic || null;
-                this._addLeaveButton({
-                    label: c.title || '',
-                    title: c.stage ? 'LEAVE THIS STAGE?' : 'LEAVE THIS CHALLENGE?',
-                    detail: c.stage ? 'Your progress in this stage will be lost.' : 'This attempt will still count.',
-                    // Gates / Dual Ring spend an attempt per try: no restart.
-                    onRestart: c.stage ? () => this._restartStage() : null,
-                    onLeave: () => {
-                        if (c.stage) this._backToAct();
-                        else this.state.change(S.HUB);
-                    }
-                });
+                if (c.endless) {
+                    // An Endless run (docs/ACT_PLAN.md 8b): leaving ends the run, the score counts.
+                    this._addLeaveButton({
+                        label: c.title,
+                        title: 'END THIS RUN?',
+                        detail: 'Your score so far still counts.',
+                        onLeave: () => {
+                            c.endless.quit();
+                            this.state.change(S.ENDLESS_OVER, { noRevive: true });
+                        }
+                    });
+                } else {
+                    this._addLeaveButton({
+                        label: c.title || '',
+                        title: c.stage ? 'LEAVE THIS STAGE?' : 'LEAVE THIS CHALLENGE?',
+                        detail: c.stage ? 'Your progress in this stage will be lost.' : 'This attempt will still count.',
+                        // Gates / Dual Ring spend an attempt per try: no restart.
+                        onRestart: c.stage ? () => this._restartStage() : null,
+                        onLeave: () => {
+                            if (c.stage) this._backToAct();
+                            else this.state.change(S.HUB);
+                        }
+                    });
+                }
                 this._mgHandled = false;
                 this._mgEndTimer = 0;
                 if (this._activeMinigame && this._activeMinigame.init && !c.resume) {
@@ -607,10 +626,12 @@ class GameManager {
                         height: VIEW.H
                     }, c));
                 }
+                this._mgLives = this._activeMinigame ? this._activeMinigame.lives : 0;
             },
             update: (dt) => {
                 const m = this._activeMinigame;
                 if (!m) return;
+                if ((this._mgConfig || {}).endless) { this._updateEndlessGame(dt); return; }
                 m.update(dt);
 
                 if (m.result !== null && !this._mgHandled) {
@@ -644,10 +665,12 @@ class GameManager {
                 ctx.textBaseline = 'alphabetic';
                 ctx.fillText(UITheme.t(cfg.title || 'MINIGAME'), W / 2, 44);
 
-                if (cfg.subtitle) {
+                const run = cfg.endless || null;
+                const subtitle = run ? UITheme.t('ROUND {n}', { n: run.round }) : cfg.subtitle;
+                if (subtitle) {
                     ctx.fillStyle = '#64748b';
                     ctx.font = '400 14px Rajdhani';
-                    ctx.fillText(UITheme.t(cfg.subtitle), W / 2, 64);
+                    ctx.fillText(UITheme.t(subtitle), W / 2, 64);
                 }
                 if (cfg.hint) {
                     ctx.fillStyle = '#64748b';
@@ -664,9 +687,14 @@ class GameManager {
                     max: this.energy.maxEnergy,
                     nextRegenIn: this.energy.getTimeToNextRegen()
                 });
+                if (run) {
+                    // Endless: the run's score and its one health bar.
+                    this.ui.renderScore(run.score, 0);
+                    if (run.kind === 'health') UITheme.healthBar(ctx, W - 196, 70, 180, run.health, { flash: run.hurtFlash });
+                }
                 if (cfg.footHint) this._drawFaintHint(ctx, cfg.footHint, W / 2, H - 14);
                 this.ui.renderButtons();
-                if (this._resultStars && this._mgHandled) this._drawResultStars(ctx, W / 2, H - 120);
+                if (this._resultStars && this._mgHandled && !run) this._drawResultStars(ctx, W / 2, H - 120);
             },
             exit: () => {
                 this._releaseHold('all');
@@ -807,6 +835,7 @@ class GameManager {
                 if (!this.levels.endlessMode) {
                     this.levels.startEndless(new EndlessRun(game), this.endlessProgress.best(game.key).score);
                 }
+                this._endlessActive = this.levels.endlessRun;
             },
             update: (dt) => {
                 this.levels.updateEndless(dt);
@@ -845,15 +874,17 @@ class GameManager {
                 const lCtx = context || {};
                 const lv = this.levels;
                 // The run that just ended (a context can stand in when there is none).
-                const run = lv.endlessMode && lv.endlessRun ? lv.endlessRun : null;
+                const active = this._endlessActive;
+                const run = active && (active.game !== 'timingbar' || (lv.endlessMode && lv.endlessRun === active)) ? active : null;
+                const bar = !!run && run.game === 'timingbar';
 
                 this._eo = {
                     game: run ? run.game : this._endlessGame,
-                    score: run ? (lv.score || 0) : (lCtx.score || 0),
+                    score: run ? (bar ? (lv.score || 0) : run.score) : (lCtx.score || 0),
                     round: run ? run.round : (lCtx.wave || 1),
-                    wave: run ? (lv.endlessWave || 1) : (lCtx.wave || 1),
-                    maxCombo: run ? (lv.maxCombo || 0) : (lCtx.maxCombo || 0),
-                    hitCount: run ? (lv.hitCount || 0) : (lCtx.hitCount || 0),
+                    wave: bar ? (lv.endlessWave || 1) : (lCtx.wave || 1),
+                    maxCombo: bar ? (lv.maxCombo || 0) : (lCtx.maxCombo || 0),
+                    hitCount: bar ? (lv.hitCount || 0) : (lCtx.hitCount || 0),
                     quit: !!run && run.reason === 'quit',
                     noRevive: !!lCtx.noRevive || (!!run && run.reason === 'quit'),
                     recoveryFailed: !!lCtx.recoveryFailed
@@ -888,10 +919,7 @@ class GameManager {
 
                 // Same game again
                 this.ui.addButton('restart', '↻ RESTART', cx, cy + 105, 200, 40,
-                    () => {
-                        this.levels.endlessMode = false;
-                        this.state.change(S.ENDLESS);
-                    },
+                    () => this._startEndlessRun(),
                     { color: '#3b82f6' }
                 );
 
@@ -2108,9 +2136,61 @@ class GameManager {
         this._addGuideButton();
     }
 
+    /** A new run of the picked game: Timing Bar in its own state, the others in the game host. */
     _startEndlessRun() {
+        const S = this.state.STATES;
+        const game = ENDLESS.game(this._endlessGame) || ENDLESS.game('timingbar');
         this.levels.endlessMode = false;
-        this.state.change(this.state.STATES.ENDLESS);
+        if (game.key === 'timingbar') { this.state.change(S.ENDLESS); return; }
+        const run = new EndlessRun(game);
+        this._endlessActive = run;
+        this._endlessCfg = { endless: run, title: `∞ ${this._endlessTitle(game.key)}`, mechanic: this._endlessMechanic(game, run.round) };
+        this.state.change(S.MINIGAME, this._endlessCfg);
+    }
+
+    /** Round `round` of an Endless game: its own lives are endless, the run's health bar counts. */
+    _endlessMechanic(game, round) {
+        return GameRegistry.get(game.key).create(Object.assign({}, game.round(round), { lives: 999, endless: true }));
+    }
+
+    /**
+     * One step of an Endless mechanic run. A life the mechanic loses is a
+     * mistake on the run's health bar; a cleared round scores (times the
+     * round) and the next, harder round starts; a round lost another way
+     * (e.g. out of blocks) costs a share and starts over.
+     */
+    _updateEndlessGame(dt) {
+        const S = this.state.STATES;
+        const run = this._mgConfig.endless;
+        const m = this._activeMinigame;
+        if (run.over) return;
+        run.update(dt);
+        m.update(dt);
+        if (typeof m.lives === 'number' && m.lives < this._mgLives) {
+            run.hurt(this._mgLives - m.lives);
+            this._mgLives = m.lives;
+            if (run.over) { this.state.change(S.ENDLESS_OVER, {}); return; }
+        }
+        if (m.result === null) return;
+        const game = ENDLESS.game(run.game);
+        if (!this._mgHandled) {
+            this._mgHandled = true;
+            this._mgEndTimer = m.resultDuration || 1.2;
+            if (m.result === 'success') run.addScore(game.points(m) * run.round);
+        }
+        this._mgEndTimer -= dt;
+        if (this._mgEndTimer > 0) return;
+        if (m.result === 'success') run.nextRound();
+        else run.hurt();
+        // The next round (or the same one again) is ready, also for a revive.
+        const next = this._endlessMechanic(game, run.round);
+        next.init({ width: VIEW.W, height: VIEW.H });
+        this._activeMinigame = next;
+        this._mgConfig.mechanic = next;
+        this._mgLives = next.lives;
+        this._mgHandled = false;
+        this._mgEndTimer = 0;
+        if (run.over) this.state.change(S.ENDLESS_OVER, {});
     }
 
     /** One game card: act icon, game name, best score (or coming soon). */

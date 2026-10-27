@@ -42,6 +42,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         this.switchChance = options.switchChance || 0;  // chance a packet hops to a neighbour port
         this.switchAt = 0.4;                            // fraction of the flight when it hops
         this.maxLives = options.lives || 3;
+        this.endless = !!options.endless;   // Endless: the run's health bar replaces the hearts
 
         this.resultDuration = 1.2;
         this.stepDt = 1 / 60;
@@ -239,7 +240,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
     }
 
     computeScore() {
-        return this.blocked * 100 + this.lives * 250;
+        return this.blocked * 100 + (this.endless ? 0 : this.lives * 250);
     }
 
     _burst(x, y, color, n) {
@@ -412,7 +413,7 @@ class OrbitalShieldMechanic extends _MechanicBaseOS {
         ctx.font = '22px sans-serif';
         const step = 27;
         const x0 = W / 2 - 104 - this.maxLives * step;
-        for (let i = 0; i < this.maxLives; i++) {
+        for (let i = 0; i < (this.endless ? 0 : this.maxLives); i++) {
             ctx.fillStyle = i < this.lives ? '#ef4444' : 'rgba(239,68,68,0.2)';
             ctx.fillText('♥', x0 + i * step, y);
         }

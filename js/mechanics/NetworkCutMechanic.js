@@ -58,6 +58,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         this.failoverMin = options.failoverMin || 0;
         this.failoverMax = options.failoverMax || this.failoverMin;
         this.maxLives = options.lives || 3;
+        this.endless = !!options.endless;   // Endless: the run's health bar replaces the hearts
         this.solvedPause = 0.8;
         this.coachStore = null;        // { seen(key), mark(key) } from the host
         this.firstStage = false;
@@ -606,7 +607,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
     }
 
     computeScore() {
-        return this.solved * 300 + this.spare * 50 + this.lives * 250;
+        return this.solved * 300 + this.spare * 50 + (this.endless ? 0 : this.lives * 250);
     }
 
     /** End-of-stage numbers for the star rules (thresholds: bot sweep, user approval). */
@@ -995,8 +996,8 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         const y = H - 40;
         ctx.save();
         ctx.textBaseline = 'middle';
-        // Networks
-        for (let i = 0; i < this.networks; i++) {
+        // Networks (an Endless round is one network: the host shows the round)
+        for (let i = 0; i < (this.endless ? 0 : this.networks); i++) {
             const done = i < this.solved;
             ctx.fillStyle = done ? 'rgba(34,197,94,0.3)' : 'rgba(15,23,42,0.6)';
             ctx.strokeStyle = done ? '#22c55e' : '#475569';
@@ -1004,7 +1005,7 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             ctx.beginPath(); ctx.arc(W / 2 - 200 + i * 28, y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         }
         // Lives
-        for (let i = 0; i < Math.max(this.lives, this.maxLives); i++) {
+        for (let i = 0; i < (this.endless ? 0 : Math.max(this.lives, this.maxLives)); i++) {
             ctx.fillStyle = i < this.lives ? '#ef4444' : 'rgba(239,68,68,0.2)';
             ctx.font = '700 18px Rajdhani';
             ctx.textAlign = 'center';
@@ -1014,7 +1015,9 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         ctx.fillStyle = this.scissors <= 1 ? '#fbbf24' : '#94a3b8';
         ctx.font = '700 20px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.fillText(UITheme.t('✂ {n}  ·  NETWORK {done}/{total}', { n: this.scissors, done: Math.min(this.solved + 1, this.networks), total: this.networks }), W / 2 + 260, y);
+        ctx.fillText(this.endless
+            ? UITheme.t('✂ {n}', { n: this.scissors })
+            : UITheme.t('✂ {n}  ·  NETWORK {done}/{total}', { n: this.scissors, done: Math.min(this.solved + 1, this.networks), total: this.networks }), W / 2 + 260, y);
 
         // Status line between the board and the HUD
         const B = this.boardRect();

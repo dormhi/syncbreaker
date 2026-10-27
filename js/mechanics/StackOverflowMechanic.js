@@ -39,6 +39,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         this.targetBlocks = options.targetBlocks || 7;
         this.maxDrops = options.maxDrops || 12;
         this.maxLives = options.lives || 3;
+        this.endless = !!options.endless;   // Endless: the run's health bar replaces the hearts
 
         this.blockH = 28;
         this.minBlockW = 82;
@@ -258,7 +259,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
     }
 
     computeScore() {
-        return this.placed.length * 100 + this.lives * 250 + (this.maxDrops - this.drops) * 50;
+        return this.placed.length * 100 + (this.endless ? 0 : this.lives * 250) + (this.maxDrops - this.drops) * 50;
     }
 
     hasReachedTarget() {
@@ -471,7 +472,7 @@ class StackOverflowMechanic extends _PhysicsMechanicBaseSO {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.font = '24px sans-serif';
-        for (let i = 0; i < this.maxLives; i++) {
+        for (let i = 0; i < (this.endless ? 0 : this.maxLives); i++) {
             ctx.fillStyle = i < this.lives ? '#ef4444' : 'rgba(239,68,68,0.2)';
             ctx.fillText('♥', W / 2 - 230 + i * 32, y);
         }

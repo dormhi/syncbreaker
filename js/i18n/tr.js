@@ -985,6 +985,7 @@ if (typeof I18n !== 'undefined') {
         '{n} of {total} games are ready — the rest arrive in the next updates': '{total} oyundan {n} tanesi hazır — diğerleri sonraki güncellemelerle geliyor',
         'HEALTH': 'CAN',
         'ROUND {n}': 'TUR {n}',
+        '✂ {n}': '✂ {n}',
         'RUN ENDED': 'OYUN BİTİRİLDİ',
         'ROUND': 'TUR'
     });

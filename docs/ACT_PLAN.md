@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
 > Durum (2026-10-27): **10 act'in hepsi oynanabilir ve yayında, iki dilde. Bütün act'ler beta testte** (bölüm 8c): kullanıcının arkadaşları oynuyor, kademeler ve yıldız kuralları gelen görüşlere göre ayarlanacak. Act 7–10'un kademeleri ve yıldız kuralları hâlâ taslak.
-> Açık işler: **yeni Endless** (bölüm 8b; E1 altyapısı bitti, yayında değil; sırada E2 can oyunları), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
+> Açık işler: **yeni Endless** (bölüm 8b; E1 altyapısı ve E2 can oyunları bitti, yayında değil; sırada E3 süreli oyunlar), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -751,13 +751,21 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 - **Yayın sırası:** önce kullanıcı SQL'i canlı Supabase'de çalıştırır, sonra `v2` push. Yeni istemci eski SQL'le skor gönderemez (yerelde bekler, sonra gönderir).
 - Ortak can barı çizimi: `UITheme.healthBar`. İki dilde (CAN, TUR, OYUN BİTİRİLDİ, YAKINDA…).
 
+**E2'de yapılanlar (2026-10-27, taslak sayılar):**
+- Stack Overflow, Orbital Shield ve Network Cut sonsuzda oynanır (`ready: true`). Her tur oyunun bir bölümü: `ENDLESS.game(key).round(r)` turun ayarlarını verir, `points(m)` kazanılan turun puanını (oyunun kendi canları sayılmaz). Tur puanı tur numarasıyla çarpılır.
+- Oyunlar oyun barındırıcısında (`MINIGAME`) açılır: `_startEndlessRun` → `_endlessMechanic` (oyuna `lives: 999, endless: true`), `_updateEndlessGame`. Oyunun kaybettiği her can, can barından bir pay düşürür; kazanılan tur sonraki, daha zor turu açar; başka yoldan kaybedilen tur (ör. blok bitti) bir pay düşürür ve aynı tur yeniden oynanır. Can barı bitince sonuç ekranı.
+- Sonsuzda oyunlar kendi kalplerini çizmez, skorlarına can katmaz; Network Cut tek ağlık turda "AĞ 1/1" sayacını göstermez. Barındırıcı üstte TUR n, skor ve can barı gösterir. ⏸ → "OYUN BİTİRİLSİN Mİ?" (skor sayılır, kurtarma yok).
+- Code Breaker ile kurtarma aynı turdan devam eder (`resume: true`); BAŞTAN BAŞLA aynı oyunu yeniden açar.
+- Taslak rampalar (`js/data/Endless.js`): Stack 5→9 blok, vinç hızı 1.30→1.75; Orbital 4/6/8 port, hız 150→300, uyarı 0.6→0.25 sn, 6. turdan seri paket, 9. turdan port değiştiren paket; Network Cut 5→6 sütun, sahip hatları 3., zırhlı kablolar 6., yedek hatlar 9. turdan. Hasar Stack / Cut %25, Orbital %20; her 3 turda bir pay geri.
+- Bot taraması (2026-10-27): Stack'te ±8 px nişan her turu hatasız geçer, ±18 px nişan 5. turdan itibaren tur başına 1–3,5 hata yapar. Orbital'de 0,25 sn tepki her turu hatasız geçer, 0,4 sn tepki 10. turdan itibaren tur başına 3–8 hata yapar. Rampalar 10–16. turda tavana varıyor; çok iyi oyuncu için sonsuza dek sürebilir. Tavan sonrası artış oyuncu görüşüyle konuşulacak.
+
 **Sonra karar verilecekler:** can barında hata başına yüzde (taslak %20–25) ve başarılı turda biraz dolup dolmayacağı; Code Breaker ile kurtarma kuralı (bugün enerji yettikçe sınırsız; süreli oyunda +20 sn, can oyununda +can); her oyunun zorluk artışı ve tur süreleri (bot taramasıyla); bugünkü Timing Bar sonsuz skorlarının yeni listeye taşınması (son sürümdeki veri silmeyle zaten sıfırlanacak, bölüm 5b).
 
 **Fazlar (öneri):**
 | Faz | Kapsam |
 |---|---|
 | E1 ✅ (2026-10-27, yayında değil) | Altyapı: lobide oyun seçimi, oyun başına en iyi skor, ortak sonsuz barındırıcı (tur akışı, can barı, tur süresi, sonuç ekranı, "Oyun bitirildi"), oyun başına leaderboard (SQL + istemci). Timing Bar yeni yapıya taşınır. |
-| E2 | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
+| E2 ✅ (2026-10-27, yayında değil, taslak sayılar) | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
 | E3 | Süreli oyunlar: Signal Lock, Route Trace |
 | E4 | Süreli oyunlar: Logic Bomb, Defrag |
 | E5 | Checksum Grid (süre havuzu) |

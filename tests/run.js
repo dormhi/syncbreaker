@@ -4910,7 +4910,7 @@ suite('New Endless (E1): run rules, bests per game, leaderboard queue, lobby', (
     const btn = (id) => gm.ui.buttons.find(b => b.id === id);
     enter(S.ENDLESS_HUB);
     ok('the lobby has a card for each of the nine games', ENDLESS.games.every(g => btn(`endless-g-${g.key}`)));
-    btn('endless-g-stack').onClick();
+    btn('endless-g-signal').onClick();
     ok('a game that is not ready yet says so', gm._hubMessage === 'Coming in a later update' && gm._endlessGame === 'timingbar');
     btn('endless-g-timingbar').onClick();
     ok('tapping the picked game again starts its run', gm.state.pendingState === S.ENDLESS);
@@ -4942,6 +4942,89 @@ suite('New Endless (E1): run rules, bests per game, leaderboard queue, lobby', (
     ok('the recovery line only follows a failed recovery', drawn.includes('Recovery protocol failed'));
     enter(S.LEADERBOARD);
     ok('the leaderboard opens on the picked game', gm._leaderboardGame === 'timingbar');
+});
+
+suite('New Endless (E2): Stack Overflow, Orbital Shield and Network Cut runs', () => {
+    const mod = loadGameManager({});
+    const { ENDLESS, GameRegistry } = mod;
+
+    // Every round up to 30 builds a playable game quickly (the Network Cut generator above all).
+    for (const key of ['stack', 'orbital', 'cut']) {
+        const game = ENDLESS.game(key);
+        let slow = 0, broken = null;
+        for (let r = 1; r <= 30; r++) {
+            const t0 = Date.now();
+            try {
+                const m = GameRegistry.get(key).create(Object.assign({}, game.round(r), { lives: 999, endless: true }));
+                m.init({ width: 960, height: 640 });
+                if (m.result !== null) broken = r;
+            } catch (e) { broken = `${r}: ${e.message}`; }
+            slow = Math.max(slow, Date.now() - t0);
+        }
+        ok(`${key}: rounds 1–30 all build`, broken === null, String(broken));
+        ok(`${key}: no round takes long to build`, slow < 400, `${slow} ms`);
+    }
+
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const drawn = [];
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    gm.progress.isEndlessUnlocked = () => true;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    enter(S.ENDLESS_HUB);
+    btn('endless-g-orbital').onClick();
+    btn('endless-g-orbital').onClick();
+    ok('a mechanic game runs in the game host', gm.state.pendingState === S.MINIGAME && !!gm._endlessCfg && gm._endlessCfg.endless.game === 'orbital');
+    enter(S.MINIGAME, gm._endlessCfg);
+    const run = gm._endlessCfg.endless;
+    let m = gm._activeMinigame;
+    ok('its own hearts are hidden behind the run', m.endless === true && m.lives === 999);
+    m.lives -= 2;
+    gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('two lost lives cost two shares of health', Math.abs(run.health - (1 - 2 * run.damage)) < 1e-9 && !run.over);
+    m.blocked = 12; m.result = 'success';
+    gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('a cleared round scores at once', run.score === ENDLESS.game('orbital').points(m) * 1 && run.round === 1);
+    for (let k = 0; k < 120; k++) gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('…then the next round starts', run.round === 2 && gm._activeMinigame !== m && gm._activeMinigame.result === null);
+    drawn.length = 0;
+    gm.state._handlers[S.MINIGAME].render(ctx, 0);
+    ok('the host shows the round and the health bar', drawn.includes('ROUND 2') && drawn.includes('HEALTH'));
+    m = gm._activeMinigame;
+    m.result = 'fail';
+    for (let k = 0; k < 120; k++) gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('a lost round costs a share and is played again', run.round === 2 && Math.abs(run.health - (1 - 3 * run.damage)) < 1e-9);
+    gm._activeMinigame.lives -= 5;
+    gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('an empty health bar ends the run', run.over && run.reason === 'health' && gm.state.pendingState === S.ENDLESS_OVER);
+    enter(S.ENDLESS_OVER, {});
+    ok('the results are this run', gm._eo.game === 'orbital' && gm._eo.score === run.score && gm._eo.round === 2 && !!btn('revive'));
+    ok('…and its best is kept', gm.endlessProgress.best('orbital').score === run.score);
+    // A won Code Breaker brings the run back where it stopped.
+    gm._lockpickReason = 'endless_revive';
+    const before = gm._activeMinigame;
+    run.revive();
+    gm.state.change(S.MINIGAME, Object.assign(gm._endlessCfg, { resume: true }));
+    enter(S.MINIGAME, gm._endlessCfg);
+    ok('a recovery resumes the same round', !run.over && run.health > 0 && gm._activeMinigame === before && gm._activeMinigame.result === null);
+    // Leaving on purpose.
+    gm._endlessCfg.endless.quit();
+    enter(S.ENDLESS_OVER, { noRevive: true });
+    ok('leaving ends the run without recovery', gm._eo.quit && !btn('revive'));
+    btn('restart').onClick();
+    ok('RESTART starts a fresh run of the same game', gm._endlessCfg.endless !== run && gm._endlessCfg.endless.round === 1 && gm._endlessCfg.endless.game === 'orbital');
+
+    // Stack Overflow: running out of drops is a lost round.
+    gm._endlessGame = 'stack';
+    gm._startEndlessRun();
+    enter(S.MINIGAME, gm._endlessCfg);
+    const sr = gm._endlessCfg.endless;
+    gm._activeMinigame.result = 'fail';
+    for (let k = 0; k < 120; k++) gm.state._handlers[S.MINIGAME].update(1 / 60);
+    ok('stack: a lost round costs a share', Math.abs(sr.health - (1 - sr.damage)) < 1e-9 && sr.round === 1);
 });
 
 // ─────────────────────────────────────────────
