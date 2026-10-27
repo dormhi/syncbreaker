@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
 > Durum (2026-10-27): **10 act'in hepsi oynanabilir ve yayında, iki dilde. Bütün act'ler beta testte** (bölüm 8c): kullanıcının arkadaşları oynuyor, kademeler ve yıldız kuralları gelen görüşlere göre ayarlanacak. Act 7–10'un kademeleri ve yıldız kuralları hâlâ taslak.
-> Açık işler: **yeni Endless** (bölüm 8b; E1 altyapısı, E2 can oyunları ve E3 süreli oyunlar bitti, yayında değil; sırada E4 Logic Bomb ve Defrag), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
+> Açık işler: **yeni Endless** (bölüm 8b; E1–E4 bitti (altyapı, can oyunları, süreli oyunlar), yayında değil; sırada E5 Checksum Grid süre havuzu), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -767,6 +767,13 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 - Route Trace rampası: 4×4 (1–2. tur), 5×5 (3–5), 6×6 (6. turdan); 1–2. turda 2 iz, sonra 3; kilitli karolar 6. turdan (%12 → %20), kendiliğinden dönen karolar 9. turdan (12 → 6 sn arayla); iz başına süre 6×6'da 28 sn'den her tur 1 sn azalır, en az 22 sn.
 - Bot taraması (2026-10-27, 20 deneme): Signal Lock'ta yavaş bot 12. turda, ortalama bot 14. turda zorlanmaya başlıyor; iyi bot 25. turda hâlâ geçiyor. İlk taslakta 10. turdan sonra keskin bir uçurum vardı (kayma hızı 1.08'e çıkıyordu); kayma 1.0'da tutulup süre daha uzun düşürülünce yumuşadı. Route Trace'te süre / basit çözme modeli oranı kampanyadaki gibi 1,9× ile başlıyor, 6×6'da 1,3×, 12. turdan sonra 1,0×.
 
+**E4'te yapılanlar (2026-10-27, taslak sayılar):**
+- Logic Bomb ve Defrag sonsuzda oynanır. Bir tur = bir payload / bir disk, kendi süresiyle. Turun HUD'unda "PAYLOAD 1/1" / "DİSK 1/1" sayacı gösterilmez.
+- Süreli oyunlarda kaybedilen tur artık önce gösterilir (patlama, süre bitti), sonra oyun biter. Süre dışında kaybetmek (Logic Bomb'da 3 hata) oyunu `fail` nedeniyle bitirir (`EndlessRun.lose`). Code Breaker aynı payload / diskle devam eder (Logic Bomb'da +20 sn ve bir hata silinir).
+- Logic Bomb rampası, kampanyanın sırasıyla: 1. tur sadece hatlar (60 sn), 2. tur + tetik devresi (75 sn), 3–4. tur + şifre paneli (90 sn), 5. turdan + kill switch, SIG / bayrak kuralları ve CLK (120 sn); 6. turdan her tur 4 sn azalır, en az 85 sn.
+- Defrag rampası: 1. tur 5×5 tam harita (60 sn), 2. tur 6×6 dönük bloklar + bozuk sektörler (83 sn), 3–4. tur 7×6 yarım harita (97 sn), 5. turdan snapshot diskler (125 sn) ile yarım haritalı diskler sırayla gelir; 6. turdan süre her tur %3 azalır, en az %70.
+- Tur süreleri kampanya kademelerinin payload / disk başına süreleri; onlar oyuncu modelinin yaklaşık 1.8–2.8 (Logic Bomb) ve 1.6–2 katı (Defrag) olarak ayarlanmıştı. En kısa sürede bu pay Logic Bomb'da ~1.3–2×, Defrag'da ~1.1–1.4× olur. Kusursuz bot 1–20. turların hepsini hatasız geçiyor (test); zamanlı bot taraması yapılmadı, oyun testine bırakıldı.
+
 **Sonra karar verilecekler:** can barında hata başına yüzde (taslak %20–25) ve başarılı turda biraz dolup dolmayacağı; Code Breaker ile kurtarma kuralı (bugün enerji yettikçe sınırsız; süreli oyunda +20 sn, can oyununda +can); her oyunun zorluk artışı ve tur süreleri (bot taramasıyla); bugünkü Timing Bar sonsuz skorlarının yeni listeye taşınması (son sürümdeki veri silmeyle zaten sıfırlanacak, bölüm 5b).
 
 **Fazlar (öneri):**
@@ -775,7 +782,7 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 | E1 ✅ (2026-10-27, yayında değil) | Altyapı: lobide oyun seçimi, oyun başına en iyi skor, ortak sonsuz barındırıcı (tur akışı, can barı, tur süresi, sonuç ekranı, "Oyun bitirildi"), oyun başına leaderboard (SQL + istemci). Timing Bar yeni yapıya taşınır. |
 | E2 ✅ (2026-10-27, yayında değil, taslak sayılar) | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
 | E3 ✅ (2026-10-27, yayında değil, taslak sayılar) | Süreli oyunlar: Signal Lock, Route Trace |
-| E4 | Süreli oyunlar: Logic Bomb, Defrag |
+| E4 ✅ (2026-10-27, yayında değil, taslak sayılar) | Süreli oyunlar: Logic Bomb, Defrag |
 | E5 | Checksum Grid (süre havuzu) |
 | Son | Bütün oyunlarda bot taraması ve ayar, sonra son sürüm ve veri silme (bölüm 5b) |
 

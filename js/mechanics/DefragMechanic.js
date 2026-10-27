@@ -69,6 +69,7 @@ class DefragMechanic extends _MechanicBaseDF {
         this.map = options.map || 'none';                 // disk map: 'all' | 'half' | 'none'
         this.timeLimit = options.timeLimit || 60;         // seconds for the stage
         this.penaltyTime = options.penaltyTime || 10;
+        this.endless = !!options.endless;                 // Endless: one disk a round, the host counts rounds
         this.reviveTime = options.reviveTime || 20;
         this.restoredPause = 0.9;
         this.wantsDrag = true;
@@ -977,7 +978,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.save();
         ctx.textBaseline = 'middle';
         const y = H - 38;
-        for (let i = 0; i < this.disks; i++) {
+        for (let i = 0; i < (this.endless ? 0 : this.disks); i++) {
             const done = i < this.restored;
             ctx.fillStyle = done ? 'rgba(34,197,94,0.3)' : 'rgba(15,23,42,0.6)';
             ctx.strokeStyle = done ? '#22c55e' : i === this.restored ? '#2dd4bf' : '#475569';
@@ -987,7 +988,7 @@ class DefragMechanic extends _MechanicBaseDF {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 18px Rajdhani';
         ctx.textAlign = 'left';
-        ctx.fillText(UITheme.t('DISK {done}/{n}', { done: Math.min(this.restored + 1, this.disks), n: this.disks }), W / 2 - 200 + this.disks * 28, y);
+        if (!this.endless) ctx.fillText(UITheme.t('DISK {done}/{n}', { done: Math.min(this.restored + 1, this.disks), n: this.disks }), W / 2 - 200 + this.disks * 28, y);
         const low = this.timeLeft < 10 && this.result === null;
         ctx.fillStyle = low && Math.sin(this.time * 12) > 0 ? '#fca5a5' : low ? '#ef4444' : '#e2e8f0';
         ctx.font = '700 24px Orbitron, OrbitronTR';

@@ -9,7 +9,8 @@
    - timer games: `timeLeft` counts down; `nextRound(time)` starts the
      next round with a fresh timer.
    - pool games: `timeLeft` is one shared pool; `nextRound(time)` adds to it.
-   A run ends with a reason: 'health' | 'time' | 'quit' (the player left).
+   A run ends with a reason: 'health' | 'time' | 'fail' (a timer game lost
+   its round another way, e.g. a detonated payload) | 'quit' (the player left).
    `revive()` (Code Breaker) brings an ended run back: one mistake's worth
    of health, or `reviveTime` seconds.
    Simulation only: the host calls `update(dt)` from its update step.
@@ -45,13 +46,15 @@ class EndlessRun {
 
     /**
      * Timer games whose mechanic keeps the round's clock (it waits for
-     * lessons and pauses): the run follows it, and time out ends the run.
+     * lessons and pauses): the run follows it. The host ends the run with
+     * `lose` once the lost round has been shown.
      */
     syncTime(timeLeft) {
-        if (this.over) return;
-        this.timeLeft = Math.max(0, timeLeft);
-        if (this.timeLeft <= 0) this._end('time');
+        if (!this.over) this.timeLeft = Math.max(0, timeLeft);
     }
+
+    /** A timer game lost its round: out of time, or another way ('fail'). */
+    lose(reason = 'time') { this._end(reason); }
 
     /** A mistake in a health game. @returns {boolean} true if it ended the run. */
     hurt(times = 1) {

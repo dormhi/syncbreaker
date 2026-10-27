@@ -4910,7 +4910,7 @@ suite('New Endless (E1): run rules, bests per game, leaderboard queue, lobby', (
     const btn = (id) => gm.ui.buttons.find(b => b.id === id);
     enter(S.ENDLESS_HUB);
     ok('the lobby has a card for each of the nine games', ENDLESS.games.every(g => btn(`endless-g-${g.key}`)));
-    btn('endless-g-bomb').onClick();
+    btn('endless-g-checksum').onClick();
     ok('a game that is not ready yet says so', gm._hubMessage === 'Coming in a later update' && gm._endlessGame === 'timingbar');
     btn('endless-g-timingbar').onClick();
     ok('tapping the picked game again starts its run', gm.state.pendingState === S.ENDLESS);
@@ -5054,7 +5054,9 @@ suite('New Endless (E3): Signal Lock and Route Trace rounds against the clock', 
     t.syncTime(12.5);
     ok('a timer run follows the round clock', t.timeLeft === 12.5 && !t.over);
     t.syncTime(0);
-    ok('…and time out ends it', t.over && t.reason === 'time');
+    ok('…an empty clock alone does not end it (the host shows the lost round first)', !t.over && t.timeLeft === 0);
+    t.lose('fail');
+    ok('…lose ends it with its reason', t.over && t.reason === 'fail');
 
     const canvas = makeFakeCanvas();
     const ctx = makeFakeCtx(canvas);
@@ -5079,7 +5081,9 @@ suite('New Endless (E3): Signal Lock and Route Trace rounds against the clock', 
     m = gm._activeMinigame;
     m.timeLeft = 0.01;
     step(2);
-    ok('time out ends the run at once', run.over && run.reason === 'time' && gm.state.pendingState === S.ENDLESS_OVER);
+    ok('time out first shows the lost round', m.result === 'fail' && !run.over && !gm.state.pendingState);
+    step(80);
+    ok('…then ends the run', run.over && run.reason === 'time' && gm.state.pendingState === S.ENDLESS_OVER && gm._activeMinigame === m);
     enter(S.ENDLESS_OVER, {});
     ok('time out offers a recovery', !!btn('revive') && gm._eo.game === 'route' && gm._eo.round === 2);
     // A won Code Breaker: +20 s on the same round.
@@ -5093,6 +5097,85 @@ suite('New Endless (E3): Signal Lock and Route Trace rounds against the clock', 
     m.solved = m.traces; m.result = 'success'; m.score = m.computeScore();
     step(100);
     ok('…and the run goes on to round 3', run.round === 3 && !run.over);
+});
+
+suite('New Endless (E4): Logic Bomb and Defrag rounds', () => {
+    const mod = loadGameManager({});
+    const { ENDLESS, GameRegistry, LogicBombMechanic: LB, DefragMechanic: DF } = mod;
+    const make = (key, r, seed) => {
+        const m = GameRegistry.get(key).create(Object.assign({ rng: makeRng(seed) }, ENDLESS.game(key).round(r), { lives: 999, endless: true }));
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+    // The perfect bots of the Act 7 and Act 8 suites, through the public controls.
+    const solveModule = (m) => {
+        const x = m.current, s = LB.solve(x);
+        if (x.kind === 'wires') { m.tapWire(s.wire); m.tapWire(s.wire); return; }
+        if (x.kind === 'circuit') { s.switches.forEach((v, k) => { if (x.switches[k] !== v && !x.done) m.toggleSwitch(k); }); return; }
+        if (x.kind === 'pad') { for (const k of s.keys) m.pressKey(k); return; }
+        m.pressButton();
+        if (!s.hold) { m.handlePointer(0, 0, 'up'); return; }
+        for (let i = 0; i < 2400 && !(m.holding.t >= 0.6 && m.timerText().indexOf(String(s.digit)) >= 0); i++) m.update(1 / 60);
+        m.handlePointer(0, 0, 'up');
+    };
+    const playBomb = (m) => { for (let g = 0; g < 200 && m.result === null; g++) { if (m.pause > 0) { m.update(1 / 60); continue; } solveModule(m); } };
+    const playDefrag = (m) => {
+        for (let g = 0; g < 400 && m.result === null; g++) {
+            if (m.pause > 0) { m.update(1 / 60); continue; }
+            for (const p of m.pieces.filter(q => !q.corrupt && !q.at)) { while (p.turns) m.turn(p); m._placeOrReturn(p, p.home.r, p.home.c); }
+        }
+    };
+    for (const [key, play, clean] of [['bomb', playBomb, (m) => m.totalStrikes === 0], ['defrag', playDefrag, (m) => m.penalties === 0]]) {
+        let bad = null, slow = 0;
+        for (let r = 1; r <= 20; r++) {
+            const t0 = Date.now();
+            try {
+                const m = make(key, r, 600 + r);
+                slow = Math.max(slow, Date.now() - t0);
+                play(m);
+                if (m.result !== 'success' || !clean(m) || !(m.timeLeft > 0)) bad = r;
+            } catch (e) { bad = `${r}: ${e.message}`; }
+        }
+        ok(`${key}: a perfect bot clears rounds 1–20 cleanly`, bad === null, String(bad));
+        ok(`${key}: no round takes long to build`, slow < 400, `${slow} ms`);
+    }
+    const bomb = ENDLESS.game('bomb'), defrag = ENDLESS.game('defrag');
+    ok('bomb: one payload a round, the kill switch from round 5', bomb.round(1).payloads === 1 && bomb.round(5).kinds.includes('button') && !bomb.round(4).kinds.includes('button'));
+    ok('bomb: the timer shrinks after round 5, never below 85 s', bomb.round(6).timeLimit < bomb.round(5).timeLimit && bomb.round(40).timeLimit === 85);
+    ok('defrag: one disk a round, snapshot disks from round 5', defrag.round(1).disks === 1 && defrag.round(5).image && !defrag.round(6).image && defrag.round(7).image);
+    ok('defrag: never below 70 % of the time', defrag.round(41).timeLimit === Math.round(125 * 0.7) && defrag.round(40).timeLimit === Math.round(97 * 0.7));
+
+    // In the host: a detonated payload ends the run (after the blast), a recovery goes on.
+    const canvas = makeFakeCanvas();
+    const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+    const S = gm.state.STATES;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    const step = (n) => { for (let k = 0; k < n; k++) gm.state._handlers[S.MINIGAME].update(1 / 60); };
+    gm._endlessGame = 'bomb';
+    gm._startEndlessRun();
+    enter(S.MINIGAME, gm._endlessCfg);
+    const run = gm._endlessCfg.endless;
+    const m = gm._activeMinigame;
+    ok('a bomb run plays one payload with its own timer', m instanceof LB && m.payloads === 1 && run.kind === 'timer');
+    m._strike('test'); m._strike('test'); m._strike('test');
+    step(2);
+    ok('three strikes detonate it, the blast shows first', m.result === 'fail' && m.timeLeft > 0 && !run.over);
+    step(100);
+    ok('…then the run ends as a defeat (not time out)', run.over && run.reason === 'fail' && gm.state.pendingState === S.ENDLESS_OVER);
+    m.revive(); run.revive();
+    enter(S.MINIGAME, Object.assign(gm._endlessCfg, { resume: true }));
+    step(1);
+    ok('a recovery goes on with the same payload, one strike short of the limit', !run.over && gm._activeMinigame === m && m.result === null && m.strikes === 2);
+    gm._endlessGame = 'defrag';
+    gm._startEndlessRun();
+    enter(S.MINIGAME, gm._endlessCfg);
+    const d = gm._activeMinigame;
+    playDefrag(d);
+    step(1);
+    const won = gm._endlessCfg.endless;
+    ok('a restored disk scores', d.result === 'success' && won.score === d.score && won.score > 0);
+    step(100);
+    ok('…and the next disk starts with a fresh clock', won.round === 2 && gm._activeMinigame !== d && gm._activeMinigame instanceof DF);
 });
 
 // ─────────────────────────────────────────────

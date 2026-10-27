@@ -78,6 +78,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         this.xor = !!options.xor;
         this.clock = !!options.clock;
         this.padColumns = options.padColumns || 3;
+        this.endless = !!options.endless;                 // Endless: one payload a round, the host counts rounds
         this.flipSlack = options.flipSlack !== undefined ? options.flipSlack : 1;   // spare circuit flips
         this.reviveTime = options.reviveTime || 20;
         this.speedPerStrike = 0.25;
@@ -1442,7 +1443,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.textBaseline = 'middle';
         // Payload progress
         const y = H - 38;
-        for (let i = 0; i < this.payloads; i++) {
+        for (let i = 0; i < (this.endless ? 0 : this.payloads); i++) {
             const done = i < this.defused;
             ctx.fillStyle = done ? 'rgba(34,197,94,0.3)' : 'rgba(15,23,42,0.6)';
             ctx.strokeStyle = done ? '#22c55e' : i === this.defused ? '#ec4899' : '#475569';
@@ -1452,7 +1453,7 @@ class LogicBombMechanic extends _MechanicBaseLB {
         ctx.fillStyle = '#94a3b8';
         ctx.font = '700 18px Rajdhani';
         ctx.textAlign = 'left';
-        ctx.fillText(`PAYLOAD ${Math.min(this.defused + 1, this.payloads)}/${this.payloads}`, W / 2 - 150 + this.payloads * 28, y);
+        if (!this.endless) ctx.fillText(`PAYLOAD ${Math.min(this.defused + 1, this.payloads)}/${this.payloads}`, W / 2 - 150 + this.payloads * 28, y);
 
         let text = null, color = '#94a3b8';
         if (this.result === 'success') { text = lbT('ALL PAYLOADS DEFUSED · SCORE {n}', { n: this.score }); color = '#22c55e'; }

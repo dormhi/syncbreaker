@@ -2160,7 +2160,8 @@ class GameManager {
      * mistake on the run's health bar; a cleared round scores (times the
      * round) and the next, harder round starts; a round lost another way
      * (e.g. out of blocks) costs a share and starts over. Timer games keep
-     * their own round clock: the run follows it, time out ends the run.
+     * their own round clock: the run follows it, and a lost round (time out,
+     * a detonated payload) ends the run once it has been shown.
      */
     _updateEndlessGame(dt) {
         const S = this.state.STATES;
@@ -2170,7 +2171,6 @@ class GameManager {
         if (run.kind === 'timer') {
             m.update(dt);
             run.syncTime(m.timeLeft);
-            if (run.over) { this.state.change(S.ENDLESS_OVER, {}); return; }
         } else {
             run.update(dt);
             m.update(dt);
@@ -2189,8 +2189,14 @@ class GameManager {
         }
         this._mgEndTimer -= dt;
         if (this._mgEndTimer > 0) return;
-        // The next round (or the same one again) is ready, also for a revive.
         const won = m.result === 'success';
+        if (!won && run.kind === 'timer') {
+            // The same round stays up: a recovery goes on from here.
+            run.lose(m.timeLeft > 0 ? 'fail' : 'time');
+            this.state.change(S.ENDLESS_OVER, {});
+            return;
+        }
+        // The next round (or the same one again) is ready, also for a revive.
         const next = this._endlessMechanic(game, won ? run.round + 1 : run.round);
         next.init({ width: VIEW.W, height: VIEW.H });
         if (won) run.nextRound(next.timeLimit || 0);   // a timer game starts with its fresh clock

@@ -111,8 +111,41 @@ const ENDLESS = {
                 failoverMax: r >= 11 ? 2 : r >= 9 ? 1 : 0
             }),
             points: (m) => m.solved * 300 + m.spare * 50 },
-        { key: 'bomb',      act: 7, kind: 'timer',  ready: false },
-        { key: 'defrag',    act: 8, kind: 'timer',  ready: false },
+        // A round is one payload with its own timer, adding the campaign's
+        // new things in its order (trigger circuit, cipher pad, kill switch
+        // with SIG / flag rules); from round 6 the timer gets shorter. A
+        // detonated payload (3 strikes or time out) ends the run.
+        { key: 'bomb', act: 7, kind: 'timer', ready: true,
+            round: (r) => {
+                const lv = r <= 1 ? 0 : r <= 2 ? 1 : r <= 4 ? 2 : 3;
+                const p = [
+                    { modules: 2, kinds: ['wires'], timeLimit: 60, wireMin: 3, wireMax: 4, rules: 3 },
+                    { modules: 2, kinds: ['wires', 'circuit'], timeLimit: 75, wireMin: 3, wireMax: 4, rules: 3, inputs: 3, gates: 3, flipSlack: 1 },
+                    { modules: 3, kinds: ['wires', 'circuit', 'pad'], timeLimit: 90, wireMin: 4, wireMax: 5, rules: 4, inputs: 3, gates: 3, xor: true, flipSlack: 1, padColumns: 3 },
+                    { modules: 4, kinds: ['wires', 'circuit', 'pad', 'button'], timeLimit: 120, wireMin: 5, wireMax: 6, rules: 4, edgework: true, compound: true, inputs: 3, gates: 3, clock: true, flipSlack: 1, padColumns: 4 }
+                ][lv];
+                // Past round 5: 4 s less a round, down to 85 s.
+                const timeLimit = r <= 5 ? p.timeLimit : Math.max(85, 120 - 4 * (r - 5));
+                return Object.assign({}, p, { payloads: 1, strikes: 3, timeLimit });
+            },
+            points: (m) => m.score },
+        // A round is one disk with its own timer, in the campaign's order:
+        // 5 × 5 with the full map, 6 × 6 with turned blocks and corrupted
+        // sectors, 7 × 6 with half the map; from round 5 snapshot disks
+        // and half-map disks take turns and the timer gets shorter.
+        { key: 'defrag', act: 8, kind: 'timer', ready: true,
+            round: (r) => {
+                const half = { cols: 7, rows: 6, pieceMin: 9, pieceMax: 11, sizeMin: 3, sizeMax: 5, blockedMin: 4, blockedMax: 5, turned: true, map: 'half', timeLimit: 97 };
+                const snap = { cols: 6, rows: 6, pieceMin: 7, pieceMax: 8, sizeMin: 4, sizeMax: 5, blockedMin: 2, blockedMax: 2, image: true, twinMin: 2, twinMax: 3, penaltyTime: 10, timeLimit: 125 };
+                const p = r <= 1 ? { cols: 5, rows: 5, pieceMin: 6, pieceMax: 8, sizeMin: 3, sizeMax: 4, map: 'all', timeLimit: 60 }
+                    : r <= 2 ? { cols: 6, rows: 6, pieceMin: 7, pieceMax: 9, sizeMin: 3, sizeMax: 5, blockedMin: 2, blockedMax: 3, turned: true, map: 'all', timeLimit: 83 }
+                    : r <= 4 ? half
+                    : r % 2 ? snap : half;
+                // Past round 5: 3 % less time a round, down to 70 %.
+                const share = r <= 5 ? 1 : Math.max(0.7, 1 - 0.03 * (r - 5));
+                return Object.assign({}, p, { disks: 1, timeLimit: Math.round(p.timeLimit * share) });
+            },
+            points: (m) => m.score },
         { key: 'checksum',  act: 9, kind: 'pool',   ready: false }
     ],
 
