@@ -5541,6 +5541,61 @@ suite('Network Cut timed challenge in Endless (beta feedback): 5 / 10 minutes, m
     ok('NORMAL is the health-bar run as before', gm._endlessCfg.endless.kind === 'health' && !gm._endlessCfg.endless.challenge);
 });
 
+suite('Signal Lock EXPERT: blackouts (beta feedback)', () => {
+    const mod = loadGameManager();
+    const SL = mod.SignalLockMechanic;
+    const st = mod.CAMPAIGN.acts[3].stages;
+    ok('only EXPERT has blackouts', st[4].params.blackoutMin > 0 && st.slice(0, 4).every(x => !x.params.blackoutMin));
+    const make = (extra, store) => {
+        const m = new SL(Object.assign({ rng: makeRng(5) }, st[4].params, extra || {}));
+        if (store) m.useCoach(store, false);
+        m.init({ width: 960, height: 640 });
+        return m;
+    };
+    const m = make({ glitchMin: 0, glitchMax: 0 });
+    const until = (fn, max = 60 * 30) => { for (let k = 0; k < max && !fn(); k++) m.update(1 / 60); return fn(); };
+    ok('a blackout is announced first (the target fades)', until(() => m.blackoutWarning()) && !m.dark());
+    ok('…then the target goes dark', until(() => m.dark()));
+    const t0 = m.time, a = m.target;
+    for (let k = 0; k < 30; k++) m.update(1 / 60);
+    ok('the target keeps drifting in the dark', m.target !== a && m.dark());
+    ok('a blackout lasts its time, then the target is back', until(() => !m.dark()) && Math.abs(m.time - t0 - st[4].params.blackoutDur) < 0.05);
+    // Drawing: no target wave, no gauge band and no sync colour in the dark.
+    until(() => m.dark());
+    const drawn = [];
+    const ctx = makeFakeCtx(makeFakeCanvas());
+    ctx.fillText = (t) => { drawn.push(String(t)); };
+    m.f = m.target;
+    m.render(ctx, 960, 640, 0, 1);
+    ok('the dark scope says to hold your level, and hides the match', drawn.some(t => /SIGNAL BLACKOUT/.test(t)) && !drawn.includes('SYNCING'));
+    // A key locked in the dark ends the blackout: a new target is never hidden.
+    const keysBefore = m.locked;
+    m.sync = 0.999; m.f = m.target; m.v = 0;
+    m.update(1 / 60);
+    ok('a locked key ends the blackout', m.locked === keysBefore + 1 && !m.dark());
+    // No glitch jump in the dark.
+    const g = make({ glitchMin: 5, glitchMax: 8 });
+    let jumped = false;
+    for (let k = 0; k < 60 * 40 && g.result === null; k++) {
+        const was = g.base, dark = g.dark();
+        g.update(1 / 60);
+        if (dark && g.dark() && g.base !== was && g.locked === 0) jumped = true;
+    }
+    ok('no glitch jump while the target is dark', !jumped);
+    // The first blackout is explained once.
+    const seen = {};
+    const store = { seen: k => !!seen[k], mark: k => { seen[k] = true; } };
+    const c = make({ glitchMin: 0, glitchMax: 0 }, store);
+    for (let k = 0; k < 60 * 15 && !c.coach; k++) c.update(1 / 60);
+    ok('the first blackout gets a one-time note that freezes the scope', !!c.coach && c.coach.blocks && /keeps drifting/.test(c.coach.step.text));
+    c.handleKey('Space');
+    ok('…seen once', seen.blackout === true);
+    const c2 = make({ glitchMin: 0, glitchMax: 0 }, store);
+    for (let k = 0; k < 60 * 15; k++) c2.update(1 / 60);
+    ok('…and not again', !c2.coach);
+    ok('Endless: blackouts from round 16', !mod.ENDLESS.game('signal').round(15).blackoutMin && mod.ENDLESS.game('signal').round(16).blackoutMin > 0);
+});
+
 // ─────────────────────────────────────────────
 suite('RESET deletes every saved game key, lessons included', () => {
     const before = {

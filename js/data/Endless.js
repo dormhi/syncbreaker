@@ -70,7 +70,11 @@ const ENDLESS = {
                     drain: r <= 1 ? 0 : r <= 3 ? 0.6 : 1.0,
                     driftAmp: r <= 1 ? 0 : endlessRamp(r - 1, 0.35, 0.02, 0.6),
                     driftSpeed: r <= 1 ? 0 : endlessRamp(r - 1, 0.75, 0.03, 1.0),
-                    glitchMin, glitchMax: glitchMin ? glitchMin + 3 : 0
+                    glitchMin, glitchMax: glitchMin ? glitchMin + 3 : 0,
+                    // EXPERT's blackouts from round 16 (the good player's plateau).
+                    blackoutMin: r >= 16 ? endlessRamp(r - 15, 11, -0.3, 6) : 0,
+                    blackoutMax: r >= 16 ? endlessRamp(r - 15, 11, -0.3, 6) + 3 : 0,
+                    blackoutDur: 2
                 };
             },
             points: (m) => m.score },

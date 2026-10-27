@@ -1035,6 +1035,12 @@ if (typeof I18n !== 'undefined') {
         'Last one. Row 1 says 3, and both of its ends are ✕ now: the 3 fits only in the middle. Fill it — and every number turns grey.': 'Son adım. Satır 1, 3 diyor ve iki ucu artık ✕: 3 sadece ortaya sığar. Doldur — bütün sayılar griye döner.'
     });
 
+    // Signal Lock EXPERT: blackouts (beta feedback, 2026-10-28)
+    I18n.add('tr', {
+        'SIGNAL BLACKOUT — FOLLOW IT FROM MEMORY': 'SİNYAL KARARDI — EZBERDEN TAKİP ET',
+        'SIGNAL BLACKOUT: in a moment the target goes dark for a few seconds, but it keeps drifting the way it was going. Follow it from memory — SYNC still fills while you match it.': 'SİNYAL KARARMASI: birazdan hedef birkaç saniyeliğine kararacak, ama gittiği yöne kaymaya devam edecek. Onu ezberden takip et — eşleştiğin sürece SYNC dolmaya devam eder.'
+    });
+
     // Network Cut timed challenge in Endless (beta feedback, 2026-10-28)
     I18n.add('tr', {
         '∞ NORMAL': '∞ NORMAL',

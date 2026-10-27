@@ -10,6 +10,14 @@
 
    Harder tiers: narrower tolerance, a draining meter, a drifting target
    and "glitches" (the target jumps; it flickers first as a warning).
+   EXPERT adds blackouts (beta feedback 2026-10-28: the top stage needed a
+   trick of its own): the target fades for a moment, then goes dark for
+   `blackoutDur` s. It keeps drifting in the dark, so the player follows
+   it from memory; SYNC still fills, but no colour gives the match away.
+   (A target that stood still in the dark made EXPERT easier for slow
+   players in the bot sweep.) No glitch jumps in the dark, and a locked
+   key ends a blackout (a new target is never hidden). The first one is
+   explained once (`blackout`).
 
    revive(): the recovery protocol adds `reviveTime` seconds and the same
    run continues (locked keys are kept).
@@ -39,6 +47,10 @@ class SignalLockMechanic extends _MechanicBaseSL {
         this.glitchMin = options.glitchMin || 0;        // s between glitches (0 = none)
         this.glitchMax = options.glitchMax || 0;
         this.glitchWarn = 0.6;
+        this.blackoutMin = options.blackoutMin || 0;    // s between blackouts (0 = none)
+        this.blackoutMax = options.blackoutMax || this.blackoutMin;
+        this.blackoutDur = options.blackoutDur || 2;   // s the target stays dark
+        this.blackoutWarn = 0.8;
         this.reviveTime = options.reviveTime || 20;
 
         // Player signal physics (same in every tier).
@@ -75,7 +87,9 @@ class SignalLockMechanic extends _MechanicBaseSL {
         this.flash = 0;
         this.lockFlash = 0;
         this.base = 0;
+        this.blackout = null;    // end time of the blackout going on
         this._newTarget();
+        this._scheduleBlackout();
 
         this.coach = null;
         if (this.coachStore && this.firstStage && !this.coachStore.seen('tutorial') && typeof Coach !== 'undefined') {
@@ -133,6 +147,18 @@ class SignalLockMechanic extends _MechanicBaseSL {
 
     get target() { return this.targetAt(this.time); }
 
+    _scheduleBlackout() {
+        this.blackAt = this.blackoutMin > 0 ? this.time + this._rand(this.blackoutMin, this.blackoutMax) : Infinity;
+    }
+
+    /** The target is dark right now. */
+    dark(t = this.time) { return this.blackout !== null && t < this.blackout; }
+
+    /** The target fades just before a blackout. */
+    blackoutWarning(t = this.time) {
+        return isFinite(this.blackAt) && t >= this.blackAt - this.blackoutWarn && t < this.blackAt;
+    }
+
     /** True during the warning flicker before a glitch. */
     glitchWarning(t = this.time) {
         return isFinite(this.glitchAt) && t >= this.glitchAt - this.glitchWarn && t < this.glitchAt;
@@ -154,8 +180,24 @@ class SignalLockMechanic extends _MechanicBaseSL {
             else if (this.coach.blocks) return;
         }
 
+        // The first blackout is explained once, as it starts to fade.
+        if (this.coachStore && !this.coach && this.blackoutWarning() && !this.coachStore.seen('blackout') && typeof Coach !== 'undefined') {
+            this.coach = new Coach(this.coachStore).push({ kind: 'info', key: 'blackout', rects: 'scope',
+                text: 'SIGNAL BLACKOUT: in a moment the target goes dark for a few seconds, but it keeps drifting the way it was going. Follow it from memory — SYNC still fills while you match it.' });
+            return;
+        }
+
         this.time += h;
         if (!this.coach) this.timeLeft = Math.max(0, this.timeLeft - h);
+
+        // Blackouts: start on time, end after `blackoutDur`.
+        if (this.blackout !== null && this.time >= this.blackout) { this.blackout = null; this._scheduleBlackout(); }
+        if (this.blackout === null && this.time >= this.blackAt) {
+            this.blackout = this.time + this.blackoutDur;
+            this.blackAt = Infinity;
+            // No jump in the dark: a glitch waits until the target is back.
+            if (this.glitchAt < this.blackout + 1) this.glitchAt = this.blackout + 1 + this._rand(0, 2);
+        }
 
         // Player signal: hold pushes up, release pulls down, with damping.
         this.fPrev = this.f;
@@ -190,6 +232,9 @@ class SignalLockMechanic extends _MechanicBaseSL {
                 this.score = this.computeScore();
                 return;
             }
+            // A new target is always shown: a blackout going on ends here (the
+            // next one keeps its time otherwise, so fast players meet them too).
+            if (this.dark()) { this.blackout = null; this._scheduleBlackout(); }
             this._newTarget();
         }
 
@@ -243,6 +288,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
         const a = Math.max(0, Math.min(1, alpha));
         const f = this.fPrev + (this.f - this.fPrev) * a;
         const t = this.time - this.stepDt * (1 - a);
+        const dark = this.dark(this.time);
         const target = this.targetAt(t);
         const S = this.scope;
         const mid = S.y + S.h / 2;
@@ -250,12 +296,13 @@ class SignalLockMechanic extends _MechanicBaseSL {
         const cyan = '#22d3ee';
         const amber = '#f59e0b';
         const inSync = Math.abs(f - target) <= this.tol;
+        const cue = inSync && !dark;   // in a blackout no colour gives the match away
 
         ctx.save();
 
         // Scope frame + grid
         ctx.fillStyle = 'rgba(8,12,20,0.85)';
-        ctx.strokeStyle = inSync ? 'rgba(34,211,238,0.6)' : 'rgba(71,85,105,0.6)';
+        ctx.strokeStyle = cue ? 'rgba(34,211,238,0.6)' : 'rgba(71,85,105,0.6)';
         ctx.lineWidth = 1.5;
         Utils.roundRect(ctx, S.x, S.y, S.w, S.h, 10);
         ctx.fill();
@@ -287,9 +334,23 @@ class SignalLockMechanic extends _MechanicBaseSL {
             ctx.setLineDash([]);
         };
         const warn = this.glitchWarning(t);
-        wave(target, warn ? '#fbbf24' : amber, 2, true, warn ? 6 : 0);
+        if (dark) {
+            ctx.fillStyle = 'rgba(251,191,36,0.75)';
+            ctx.font = '700 16px Orbitron, OrbitronTR';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const msg = UITheme.t('SIGNAL BLACKOUT — FOLLOW IT FROM MEMORY');
+            UITheme.fitFont(ctx, msg, S.w - 40, 'body', 700, 'Orbitron');
+            ctx.fillText(msg, S.x + S.w / 2, S.y + 24);
+        } else {
+            // Fading before a blackout: the target flickers out.
+            const fade = this.blackoutWarning(this.time);
+            if (fade) ctx.globalAlpha = 0.25 + 0.75 * Math.abs(Math.sin(this.time * 18));
+            wave(target, warn ? '#fbbf24' : amber, 2, true, warn ? 6 : 0);
+            ctx.globalAlpha = 1;
+        }
         ctx.shadowColor = cyan;
-        ctx.shadowBlur = inSync ? 12 : 4;
+        ctx.shadowBlur = cue ? 12 : 4;
         wave(f, cyan, 2.5, false, 0);
         ctx.shadowBlur = 0;
 
@@ -299,10 +360,12 @@ class SignalLockMechanic extends _MechanicBaseSL {
         ctx.fillStyle = 'rgba(15,23,42,0.9)';
         Utils.roundRect(ctx, gx - 8, gy, 16, gh, 8);
         ctx.fill();
-        ctx.fillStyle = inSync ? 'rgba(34,211,238,0.35)' : 'rgba(245,158,11,0.3)';
-        const bandTop = yOf(Math.min(this.fMax, target + this.tol));
-        const bandBot = yOf(Math.max(this.fMin, target - this.tol));
-        ctx.fillRect(gx - 8, bandTop, 16, bandBot - bandTop);
+        if (!dark) {
+            ctx.fillStyle = cue ? 'rgba(34,211,238,0.35)' : 'rgba(245,158,11,0.3)';
+            const bandTop = yOf(Math.min(this.fMax, target + this.tol));
+            const bandBot = yOf(Math.max(this.fMin, target - this.tol));
+            ctx.fillRect(gx - 8, bandTop, 16, bandBot - bandTop);
+        }
         ctx.fillStyle = cyan;
         ctx.beginPath();
         ctx.moveTo(gx - 14, yOf(f));
@@ -321,7 +384,7 @@ class SignalLockMechanic extends _MechanicBaseSL {
             ctx.restore();
         }
 
-        this._renderHud(ctx, W, H, inSync);
+        this._renderHud(ctx, W, H, cue);
         if (this.coach && this.coach.active) {
             // The scope, the gauge and the SYNC meter under them.
             const rects = this.coach.step.rects === 'scope' ? [{ x: S.x, y: S.y, w: S.w + 60, h: S.h + 30 }] : [];
