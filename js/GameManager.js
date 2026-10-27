@@ -517,6 +517,8 @@ class GameManager {
                             // The same run goes on: one mistake's worth of health (or more time).
                             const run = this._endlessActive;
                             if (run && run.game !== 'timingbar') {
+                                // Timer games: the round's own clock gets the extra time.
+                                if (run.kind === 'timer' && this._activeMinigame && this._activeMinigame.revive) this._activeMinigame.revive();
                                 run.revive();
                                 this.state.change(S.MINIGAME, Object.assign(this._endlessCfg, { resume: true }));
                             } else {
@@ -2157,15 +2159,22 @@ class GameManager {
      * One step of an Endless mechanic run. A life the mechanic loses is a
      * mistake on the run's health bar; a cleared round scores (times the
      * round) and the next, harder round starts; a round lost another way
-     * (e.g. out of blocks) costs a share and starts over.
+     * (e.g. out of blocks) costs a share and starts over. Timer games keep
+     * their own round clock: the run follows it, time out ends the run.
      */
     _updateEndlessGame(dt) {
         const S = this.state.STATES;
         const run = this._mgConfig.endless;
         const m = this._activeMinigame;
         if (run.over) return;
-        run.update(dt);
-        m.update(dt);
+        if (run.kind === 'timer') {
+            m.update(dt);
+            run.syncTime(m.timeLeft);
+            if (run.over) { this.state.change(S.ENDLESS_OVER, {}); return; }
+        } else {
+            run.update(dt);
+            m.update(dt);
+        }
         if (typeof m.lives === 'number' && m.lives < this._mgLives) {
             run.hurt(this._mgLives - m.lives);
             this._mgLives = m.lives;
@@ -2180,11 +2189,12 @@ class GameManager {
         }
         this._mgEndTimer -= dt;
         if (this._mgEndTimer > 0) return;
-        if (m.result === 'success') run.nextRound();
-        else run.hurt();
         // The next round (or the same one again) is ready, also for a revive.
-        const next = this._endlessMechanic(game, run.round);
+        const won = m.result === 'success';
+        const next = this._endlessMechanic(game, won ? run.round + 1 : run.round);
         next.init({ width: VIEW.W, height: VIEW.H });
+        if (won) run.nextRound(next.timeLimit || 0);   // a timer game starts with its fresh clock
+        else run.hurt();
         this._activeMinigame = next;
         this._mgConfig.mechanic = next;
         this._mgLives = next.lives;

@@ -4910,7 +4910,7 @@ suite('New Endless (E1): run rules, bests per game, leaderboard queue, lobby', (
     const btn = (id) => gm.ui.buttons.find(b => b.id === id);
     enter(S.ENDLESS_HUB);
     ok('the lobby has a card for each of the nine games', ENDLESS.games.every(g => btn(`endless-g-${g.key}`)));
-    btn('endless-g-signal').onClick();
+    btn('endless-g-bomb').onClick();
     ok('a game that is not ready yet says so', gm._hubMessage === 'Coming in a later update' && gm._endlessGame === 'timingbar');
     btn('endless-g-timingbar').onClick();
     ok('tapping the picked game again starts its run', gm.state.pendingState === S.ENDLESS);
@@ -5025,6 +5025,74 @@ suite('New Endless (E2): Stack Overflow, Orbital Shield and Network Cut runs', (
     gm._activeMinigame.result = 'fail';
     for (let k = 0; k < 120; k++) gm.state._handlers[S.MINIGAME].update(1 / 60);
     ok('stack: a lost round costs a share', Math.abs(sr.health - (1 - sr.damage)) < 1e-9 && sr.round === 1);
+});
+
+suite('New Endless (E3): Signal Lock and Route Trace rounds against the clock', () => {
+    const mod = loadGameManager({});
+    const { ENDLESS, GameRegistry, EndlessRun } = mod;
+
+    for (const key of ['signal', 'route']) {
+        const game = ENDLESS.game(key);
+        let slow = 0, broken = null;
+        for (let r = 1; r <= 30; r++) {
+            const t0 = Date.now();
+            try {
+                const m = GameRegistry.get(key).create(Object.assign({}, game.round(r), { lives: 999, endless: true }));
+                m.init({ width: 960, height: 640 });
+                if (m.result !== null || !(m.timeLimit > 0)) broken = r;
+            } catch (e) { broken = `${r}: ${e.message}`; }
+            slow = Math.max(slow, Date.now() - t0);
+        }
+        ok(`${key}: rounds 1–30 all build with a clock`, broken === null, String(broken));
+        ok(`${key}: no round takes long to build`, slow < 400, `${slow} ms`);
+    }
+    const sig = ENDLESS.game('signal');
+    ok('signal: drift never passes 1.0 rad/s', [5, 10, 20, 40].every(r => sig.round(r).driftSpeed <= 1.0));
+    ok('signal: later rounds get less time per key', sig.round(20).timeLimit / sig.round(20).keys < sig.round(5).timeLimit / sig.round(5).keys);
+
+    const t = new EndlessRun(sig);
+    t.syncTime(12.5);
+    ok('a timer run follows the round clock', t.timeLeft === 12.5 && !t.over);
+    t.syncTime(0);
+    ok('…and time out ends it', t.over && t.reason === 'time');
+
+    const canvas = makeFakeCanvas();
+    const ctx = makeFakeCtx(canvas);
+    const gm = new mod.GameManager(canvas, ctx);
+    const S = gm.state.STATES;
+    gm.progress.isEndlessUnlocked = () => true;
+    const enter = (st, c) => { gm.state.currentState = st; gm.state.transitioning = false; gm.state.pendingState = null; gm.state._handlers[st].enter(c); };
+    const btn = (id) => gm.ui.buttons.find(b => b.id === id);
+    const step = (n) => { for (let k = 0; k < n; k++) gm.state._handlers[S.MINIGAME].update(1 / 60); };
+    gm._endlessGame = 'route';
+    gm._startEndlessRun();
+    enter(S.MINIGAME, gm._endlessCfg);
+    const run = gm._endlessCfg.endless;
+    let m = gm._activeMinigame;
+    step(60);
+    ok('the run shows the round clock', run.kind === 'timer' && Math.abs(run.timeLeft - (m.timeLimit - 1)) < 0.05);
+    m.solved = m.traces; m.timeLeft = 30; m.result = 'success'; m.score = m.computeScore();
+    step(1);
+    ok('a cleared round scores its points', run.score === m.score);
+    step(90);
+    ok('the next round starts with a fresh clock', run.round === 2 && gm._activeMinigame !== m && run.timeLeft > gm._activeMinigame.timeLimit - 1 && run.timeLeft <= gm._activeMinigame.timeLimit);
+    m = gm._activeMinigame;
+    m.timeLeft = 0.01;
+    step(2);
+    ok('time out ends the run at once', run.over && run.reason === 'time' && gm.state.pendingState === S.ENDLESS_OVER);
+    enter(S.ENDLESS_OVER, {});
+    ok('time out offers a recovery', !!btn('revive') && gm._eo.game === 'route' && gm._eo.round === 2);
+    // A won Code Breaker: +20 s on the same round.
+    gm._lockpickReason = 'endless_revive';
+    if (m.revive) m.revive();
+    run.revive();
+    enter(S.MINIGAME, Object.assign(gm._endlessCfg, { resume: true }));
+    step(1);
+    ok('a recovery gives the same round 20 s more', !run.over && gm._activeMinigame === m && m.result === null && run.timeLeft > 19);
+    gm.state.pendingState = null;
+    m.solved = m.traces; m.result = 'success'; m.score = m.computeScore();
+    step(100);
+    ok('…and the run goes on to round 3', run.round === 3 && !run.over);
 });
 
 // ─────────────────────────────────────────────

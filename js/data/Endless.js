@@ -53,8 +53,47 @@ const ENDLESS = {
                 };
             },
             points: (m) => m.blocked * 100 },
-        { key: 'signal',    act: 4, kind: 'timer',  ready: false },
-        { key: 'route',     act: 5, kind: 'timer',  ready: false },
+        // A round is a set of keys against the round's own timer: fewer
+        // seconds per key, a narrower window, a faster drifting target;
+        // glitches from round 6. Drift stops at 1.0 rad/s (above ~1.1 the
+        // game turns unplayable, docs/ACT_PLAN.md Act 4): later rounds
+        // only get shorter, down to 8 s per key.
+        { key: 'signal', act: 4, kind: 'timer', ready: true,
+            round: (r) => {
+                const keys = r <= 3 ? 3 : r <= 8 ? 4 : 5;
+                const glitchMin = r >= 6 ? endlessRamp(r - 5, 8, -0.3, 4) : 0;
+                return {
+                    keys,
+                    timeLimit: Math.round(keys * endlessRamp(r, 15, -0.35, 8)),
+                    tol: endlessRamp(r, 0.32, -0.01, 0.21),
+                    syncTime: r <= 4 ? 1.2 : 1.4,
+                    drain: r <= 1 ? 0 : r <= 3 ? 0.6 : 1.0,
+                    driftAmp: r <= 1 ? 0 : endlessRamp(r - 1, 0.35, 0.02, 0.6),
+                    driftSpeed: r <= 1 ? 0 : endlessRamp(r - 1, 0.75, 0.03, 1.0),
+                    glitchMin, glitchMax: glitchMin ? glitchMin + 3 : 0
+                };
+            },
+            points: (m) => m.score },
+        // A round is a set of traces against the round's own timer: the
+        // grid grows to 6 × 6, then locked tiles (round 6) and scrambles
+        // (round 9) join and the time per trace shrinks.
+        { key: 'route', act: 5, kind: 'timer', ready: true,
+            round: (r) => {
+                const size = r <= 2 ? 4 : r <= 5 ? 5 : 6;
+                const traces = r <= 2 ? 2 : 3;
+                const path = { 4: [4, 7], 5: [6, 11], 6: [9, 16] }[size];
+                const perTrace = size === 4 ? 22 : size === 5 ? 23 : Math.max(22, 28 - Math.max(0, r - 6));
+                const scrambleMin = r >= 9 ? endlessRamp(r - 8, 12, -0.5, 6) : 0;
+                return {
+                    size, traces, timeLimit: traces * perTrace,
+                    minPath: path[0], maxPath: path[1],
+                    decoyRate: endlessRamp(r, 0.45, 0.04, 0.8),
+                    teeRate: endlessRamp(r, 0.15, 0.015, 0.3),
+                    lockRate: r >= 6 ? endlessRamp(r - 5, 0.12, 0.01, 0.2) : 0,
+                    scrambleMin, scrambleMax: scrambleMin ? scrambleMin + 4 : 0
+                };
+            },
+            points: (m) => m.score },
         // A round is one network: wider, with owner lines from round 3,
         // armored cables from 6 and failover lines from 9.
         { key: 'cut', act: 6, kind: 'health', ready: true, damage: 0.25, refillEvery: 3, refill: 0.25,

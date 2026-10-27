@@ -43,6 +43,16 @@ class EndlessRun {
         if (this.timeLeft <= 0) this._end('time');
     }
 
+    /**
+     * Timer games whose mechanic keeps the round's clock (it waits for
+     * lessons and pauses): the run follows it, and time out ends the run.
+     */
+    syncTime(timeLeft) {
+        if (this.over) return;
+        this.timeLeft = Math.max(0, timeLeft);
+        if (this.timeLeft <= 0) this._end('time');
+    }
+
     /** A mistake in a health game. @returns {boolean} true if it ended the run. */
     hurt(times = 1) {
         if (this.over || this.kind !== 'health') return this.over;

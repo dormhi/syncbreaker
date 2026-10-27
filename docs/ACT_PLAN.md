@@ -1,7 +1,7 @@
 # SyncBreaker: Act Yapısı Planı
 
 > Durum (2026-10-27): **10 act'in hepsi oynanabilir ve yayında, iki dilde. Bütün act'ler beta testte** (bölüm 8c): kullanıcının arkadaşları oynuyor, kademeler ve yıldız kuralları gelen görüşlere göre ayarlanacak. Act 7–10'un kademeleri ve yıldız kuralları hâlâ taslak.
-> Açık işler: **yeni Endless** (bölüm 8b; E1 altyapısı ve E2 can oyunları bitti, yayında değil; sırada E3 süreli oyunlar), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
+> Açık işler: **yeni Endless** (bölüm 8b; E1 altyapısı, E2 can oyunları ve E3 süreli oyunlar bitti, yayında değil; sırada E4 Logic Bomb ve Defrag), beta test görüşlerine göre ayar (bölüm 8c, Act 9'un anlaşılırlığı dahil), son sürümde veri silme (bölüm 5b). Oyun İngilizce ve Türkçe (2026-10-26'dan beri yayında, `docs/I18N_PLAN.md`); bundan sonraki her ekleme iki dili de destekler.
 
 ## 1. Hedef
 
@@ -759,6 +759,14 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 - Taslak rampalar (`js/data/Endless.js`): Stack 5→9 blok, vinç hızı 1.30→1.75; Orbital 4/6/8 port, hız 150→300, uyarı 0.6→0.25 sn, 6. turdan seri paket, 9. turdan port değiştiren paket; Network Cut 5→6 sütun, sahip hatları 3., zırhlı kablolar 6., yedek hatlar 9. turdan. Hasar Stack / Cut %25, Orbital %20; her 3 turda bir pay geri.
 - Bot taraması (2026-10-27): Stack'te ±8 px nişan her turu hatasız geçer, ±18 px nişan 5. turdan itibaren tur başına 1–3,5 hata yapar. Orbital'de 0,25 sn tepki her turu hatasız geçer, 0,4 sn tepki 10. turdan itibaren tur başına 3–8 hata yapar. Rampalar 10–16. turda tavana varıyor; çok iyi oyuncu için sonsuza dek sürebilir. Tavan sonrası artış oyuncu görüşüyle konuşulacak.
 
+**E3'te yapılanlar (2026-10-27, taslak sayılar):**
+- Signal Lock ve Route Trace sonsuzda oynanır. Her turun kendi süresi var; tur kazanılınca sonraki tur taze süreyle başlar, süre biterse oyun biter. Saati oyunun kendisi tutar (bekleme ve duraklatma doğru çalışsın diye); sonsuz oyun onu izler (`EndlessRun.syncTime`).
+- Code Breaker ile kurtarma: aynı tura +20 sn (oyunun kendi `revive()`'ı).
+- Puan: oyunun kendi skoru (anahtar / iz puanı + kalan saniye bonusu) × tur.
+- Signal Lock rampası: 3 → 4 (4. tur) → 5 anahtar (9. tur); anahtar başına süre 15 sn'den her tur 0,35 sn azalır, en az 8 sn; tolerans 0.32 → 0.21; boşalma 2. turdan; hedef kayması 2. turdan, hızı en fazla 1.0 (1.1'i geçince oyun oynanamaz hale geliyor); sinyal sıçraması 6. turdan, aralığı 8 → 4 sn.
+- Route Trace rampası: 4×4 (1–2. tur), 5×5 (3–5), 6×6 (6. turdan); 1–2. turda 2 iz, sonra 3; kilitli karolar 6. turdan (%12 → %20), kendiliğinden dönen karolar 9. turdan (12 → 6 sn arayla); iz başına süre 6×6'da 28 sn'den her tur 1 sn azalır, en az 22 sn.
+- Bot taraması (2026-10-27, 20 deneme): Signal Lock'ta yavaş bot 12. turda, ortalama bot 14. turda zorlanmaya başlıyor; iyi bot 25. turda hâlâ geçiyor. İlk taslakta 10. turdan sonra keskin bir uçurum vardı (kayma hızı 1.08'e çıkıyordu); kayma 1.0'da tutulup süre daha uzun düşürülünce yumuşadı. Route Trace'te süre / basit çözme modeli oranı kampanyadaki gibi 1,9× ile başlıyor, 6×6'da 1,3×, 12. turdan sonra 1,0×.
+
 **Sonra karar verilecekler:** can barında hata başına yüzde (taslak %20–25) ve başarılı turda biraz dolup dolmayacağı; Code Breaker ile kurtarma kuralı (bugün enerji yettikçe sınırsız; süreli oyunda +20 sn, can oyununda +can); her oyunun zorluk artışı ve tur süreleri (bot taramasıyla); bugünkü Timing Bar sonsuz skorlarının yeni listeye taşınması (son sürümdeki veri silmeyle zaten sıfırlanacak, bölüm 5b).
 
 **Fazlar (öneri):**
@@ -766,7 +774,7 @@ Endless Mode bugünkü haliyle sadece Timing Bar üzerine kurulu. **Değişecek:
 |---|---|
 | E1 ✅ (2026-10-27, yayında değil) | Altyapı: lobide oyun seçimi, oyun başına en iyi skor, ortak sonsuz barındırıcı (tur akışı, can barı, tur süresi, sonuç ekranı, "Oyun bitirildi"), oyun başına leaderboard (SQL + istemci). Timing Bar yeni yapıya taşınır. |
 | E2 ✅ (2026-10-27, yayında değil, taslak sayılar) | Can oyunları: Stack Overflow, Orbital Shield, Network Cut |
-| E3 | Süreli oyunlar: Signal Lock, Route Trace |
+| E3 ✅ (2026-10-27, yayında değil, taslak sayılar) | Süreli oyunlar: Signal Lock, Route Trace |
 | E4 | Süreli oyunlar: Logic Bomb, Defrag |
 | E5 | Checksum Grid (süre havuzu) |
 | Son | Bütün oyunlarda bot taraması ve ayar, sonra son sürüm ve veri silme (bölüm 5b) |
