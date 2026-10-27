@@ -2552,7 +2552,7 @@ class GameManager {
         ].concat(caution);
     }
 
-    /** Menu footer (version, credits) and the "press back again" warning. */
+    /** Menu footer (version) and the "press back again" warning. */
     _renderMenuFooter(ctx) {
         const W = VIEW.W;
         const H = VIEW.H;
@@ -2562,13 +2562,6 @@ class GameManager {
         ctx.font = '400 14px Rajdhani';
         ctx.textAlign = 'center';
         ctx.fillText(UITheme.t('v3.0 · Written by dormhi'), cx, H - 16);
-
-        // Credits
-        ctx.fillStyle = 'rgba(148,163,184,0.55)';
-        ctx.font = '300 14px Rajdhani';
-        ctx.textAlign = 'right';
-        ctx.fillText('thanks for birlikterutin family', W - 16, H - 32);
-        ctx.fillText('alpyso and ezgyso', W - 16, H - 16);
 
         // Back pressed once on the menu: warn before leaving the site.
         if (this._exitArmed > 0) {

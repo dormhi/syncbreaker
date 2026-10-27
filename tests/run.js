@@ -1594,8 +1594,8 @@ suite('Leave prompt in every game + first-stage hint', () => {
     ok('menu badge says v3', texts.indexOf('(v3)') >= 0 && texts.indexOf('(v2)') < 0);
     ok('menu footer: v3.0 written by dormhi', texts.indexOf('v3.0 · Written by dormhi') >= 0);
     ok('menu footer: no beta line', !texts.some(t => /beta/i.test(t)));
-    ok('menu footer: birlikterutin credits kept',
-        texts.indexOf('thanks for birlikterutin family') >= 0 && texts.indexOf('alpyso and ezgyso') >= 0);
+    ok('menu footer: the thanks line is gone',
+        !texts.some(t => /birlikterutin|alpyso|ezgyso/.test(t)));
 
     // Timing Bar stage: ⏸ button, pause panel, warnings, restart.
     gm._coachStore('timingbar').mark('tutorial');   // the lesson is tested on its own
