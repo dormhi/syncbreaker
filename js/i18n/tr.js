@@ -229,8 +229,8 @@ if (typeof I18n !== 'undefined') {
         'Green tiles are already connected to you — extend the green line': 'Yeşil karolar sana zaten bağlı — yeşil hattı uzat',
         'Work from your node outward; ignore tiles that cannot reach the line': 'Kendi düğümünden dışarı doğru ilerle; hatta ulaşamayan karoları boş ver',
         'Tiles with a padlock cannot be rotated': 'Kilitli karolar döndürülemez',
-        'Red cables are the ones the attacker reaches — cut them before they touch the CORE': "Kırmızı kablolara saldırgan ulaşıyor — CORE'a varmadan kes",
-        'Look for the narrowest point between ATK and CORE: fewer cuts there': 'ATK ile CORE arasındaki en dar yeri bul: orada daha az kesim gerekir',
+        'Red cables are the ones the attacker reaches — cut them before they touch the CORE': 'Kırmızı kablolara saldırgan ulaşıyor — ÇEKİRDEĞE varmadan kes',
+        'Look for the narrowest point between ATK and CORE: fewer cuts there': 'SALDIRGAN ile ÇEKİRDEK arasındaki en dar yeri bul: orada daha az kesim gerekir',
         'Blue cables are the Director\'s own line — cutting one costs a life': 'Mavi kablolar Yöneticinin kendi hattı — birini kesmek bir can götürür',
         'Thick cables are armored and need two cuts': 'Kalın kablolar zırhlı, iki kesim ister',
         'A dashed purple cable wakes when the cable with the same letter is cut': 'Kesik çizgili mor kablo, aynı harfli kablo kesilince uyanır',
@@ -302,8 +302,8 @@ if (typeof I18n !== 'undefined') {
         'Hold anywhere to raise your signal, let go to lower it': 'Sinyali yükseltmek için ekrana basılı tut, düşürmek için bırak',
         'Click a tile to rotate it (or arrows + SPACE) · connect YOU to the ATTACKER': "Döndürmek için karoya tıkla (ya da oklar + SPACE) · YOU ile ATTACKER'ı bağla",
         'Tap a tile to rotate it · connect YOU to the ATTACKER': "Döndürmek için karoya dokun · YOU ile ATTACKER'ı bağla",
-        'Click a cable to select it, click again to cut · cut every red path to the CORE': "Seçmek için kabloya tıkla, kesmek için tekrar tıkla · CORE'a giden bütün kırmızı yolları kes",
-        'Tap a cable to select it, tap again to cut · cut every red path to the CORE': "Seçmek için kabloya dokun, kesmek için tekrar dokun · CORE'a giden bütün kırmızı yolları kes",
+        'Click a cable to select it, click again to cut · cut every red path to the CORE': 'Seçmek için kabloya tıkla, kesmek için tekrar tıkla · ÇEKİRDEĞE giden bütün kırmızı yolları kes',
+        'Tap a cable to select it, tap again to cut · cut every red path to the CORE': 'Seçmek için kabloya dokun, kesmek için tekrar dokun · ÇEKİRDEĞE giden bütün kırmızı yolları kes',
         'Do what the MANUAL on the right says · defuse every module before the timer ends': 'Sağdaki MANUAL ne diyorsa onu yap · süre bitmeden bütün modülleri etkisizleştir',
         'Drag the blocks onto the disk · click or right click a block to turn it · fill every empty sector': 'Blokları diske sürükle · çevirmek için tıkla ya da sağ tıkla · bütün boş sektörleri doldur',
         'Drag the blocks onto the disk · tap a block to turn it · fill every empty sector': 'Blokları diske sürükle · çevirmek için bloğa dokun · bütün boş sektörleri doldur',
@@ -361,7 +361,7 @@ if (typeof I18n !== 'undefined') {
         'A port blinks, then a packet flies at it. Snap the shield to that port to block it. Pink packets hop to a neighbouring port.': 'Bir port yanıp söner, sonra ona bir paket uçar. Engellemek için kalkanı o porta götür. Pembe paketler komşu porta atlar.',
         'Hold to raise your signal, release to lower it. Keep it on the target until SYNC fills to lock a key, before time runs out.': 'Basılı tutunca sinyalin yükselir, bırakınca düşer. Süre bitmeden sinyali hedefte tut: SYNC dolunca bir anahtar kilitlenir.',
         'Rotate tiles to connect your node to the attacker. Connected tiles glow green. Trace every route before time runs out.': 'Karoları döndürüp kendi düğümünü saldırgana bağla. Bağlı karolar yeşil yanar. Süre bitmeden bütün rotaları bul.',
-        'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue Director lines cost a life; thick cables need two cuts.': "Sınırlı makasla, hiçbir kırmızı yol CORE'a ulaşmayana kadar kablo kes. İlk dokunuş seçer, ikincisi keser. Yöneticinin mavi hatları bir can götürür; kalın kablolar iki kesim ister.",
+        'Cut cables until no red path reaches the CORE, with limited scissors. Tap once to select, again to cut. Blue Director lines cost a life; thick cables need two cuts.': "Sınırlı makasla, hiçbir kırmızı yol ÇEKİRDEĞE ulaşmayana kadar kablo kes. İlk dokunuş seçer, ikincisi keser. Yöneticinin mavi hatları bir can götürür; kalın kablolar iki kesim ister.",
         'Defuse every module before the timer ends. The MANUAL on the right tells you what to do: for lines, check its rules from the top and do only the first true one. A wrong move is a strike — the timer speeds up, 3 strikes and it blows.': "Süre bitmeden bütün modülleri etkisizleştir. Ne yapacağını sağdaki MANUAL söyler: hatlarda kurallara yukarıdan bak, sadece ilk doğru olanı uygula. Yanlış hamle bir STRIKE'tır — sayaç hızlanır, 3 STRIKE'ta bomba patlar.",
         'Drag the backup blocks onto the disk until every empty sector is filled. Tap a block to turn it. Red striped sectors stay empty. On EXPERT, blocks must match the clean snapshot and corrupted copies go to TRASH.': "Bütün boş sektörler dolana kadar yedek blokları diske sürükle. Çevirmek için bloğa dokun. Kırmızı çizgili sektörler boş kalır. UZMAN aşamasında bloklar temiz görüntüye (CLEAN SNAPSHOT) uymalı, bozuk kopyalar TRASH'e gider.",
         'Goal: turn every number grey. The numbers are the blocks of filled cells in that row or column, in order ("3 1" = 3 filled, a gap, then 1); a number greys out when its line matches. Mark cells you know are empty with ✕. No timer, no lives. AUDIT shows mistakes, but each audit that finds one costs a star.': 'Hedef: bütün sayıları griye çevir. Sayılar o satır ya da sütundaki dolu hücre bloklarıdır, sırayla ("3 1" = 3 dolu, bir boşluk, sonra 1); satır sayıya uyunca sayı griye döner. Boş olduğunu bildiğin hücreleri ✕ ile işaretle. Süre yok, can yok. AUDIT hataları gösterir, ama hata bulan her AUDIT bir yıldız götürür.',
@@ -448,27 +448,29 @@ if (typeof I18n !== 'undefined') {
     // ── Phase 5 · Acts 6-8: Network Cut, Logic Bomb, Defrag ──
     I18n.add('tr', {
         // Act 6 · Network Cut: lesson and one-time explanations
-        'This is the ATTACKER (left). It wants to reach your CORE (right).': "Bu ATTACKER (solda). Senin CORE'una (sağda) ulaşmak istiyor.",
-        'RED cables are the paths it can use. Cut cables until no red line reaches the CORE.': "KIRMIZI kablolar kullanabileceği yollar. Hiçbir kırmızı hat CORE'a ulaşmayana kadar kablo kes.",
-        'The STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Cut the cables in between.': 'ATTACKER ve CORE yanındaki ÇELİK kablolar korumalı: kesilemezler. Aradaki kabloları kes.',
+        'This is the ATTACKER (left). It wants to reach your CORE (right).': 'Bu SALDIRGAN (solda). ÇEKİRDEĞE (sağda) ulaşmak istiyor.',
+        'RED cables are the paths it can use. Cut cables until no red line reaches the CORE.': 'KIRMIZI kablolar kullanabileceği yollar. Hiçbir kırmızı hat ÇEKİRDEĞE ulaşmayana kadar kablo kes.',
+        'The STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Cut the cables in between.': 'SALDIRGAN ve ÇEKİRDEK yanındaki ÇELİK kablolar korumalı: kesilemezler. Aradaki kabloları kes.',
         'Tap this cable to select it.': 'Seçmek için bu kabloya dokun.',
         'Tap it again to cut it. Every cut uses one ✂ — you have a few.': 'Kesmek için tekrar dokun. Her kesim bir ✂ harcar — birkaç tane var.',
         'The attacker still gets through along the other route. Select a red cable there and cut it.': 'Saldırgan hâlâ öbür yoldan geçiyor. Oradaki kırmızı bir kabloyu seç ve kes.',
-        'No red line reaches the CORE: access cut! Solve every network to clear the stage.': "Hiçbir kırmızı hat CORE'a ulaşmıyor: erişim kesildi! Aşamayı geçmek için bütün ağları çöz.",
-        'STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Find the cut inside the network.': 'ATTACKER ve CORE yanındaki ÇELİK kablolar korumalı: kesilemezler. Kesimi ağın içinde bul.',
+        'No red line reaches the CORE: access cut! Solve every network to clear the stage.': 'Hiçbir kırmızı hat ÇEKİRDEĞE ulaşmıyor: erişim kesildi! Aşamayı geçmek için bütün ağları çöz.',
+        'STEEL cables at the ATTACKER and the CORE are shielded: they cannot be cut. Find the cut inside the network.': 'SALDIRGAN ve ÇEKİRDEK yanındaki ÇELİK kablolar korumalı: kesilemezler. Kesimi ağın içinde bul.',
         'BLUE cables are the DIRECTOR\'S LINE: they keep the Director connected to the core. Never cut them — it costs a life.': 'MAVİ kablolar YÖNETİCİNİN HATTI: Yöneticiyi çekirdeğe bağlı tutarlar. Asla kesme — bir can götürür.',
         'THICK cables are ARMORED. They need two cuts: the first one only cracks them.': 'KALIN kablolar ZIRHLI. İki kesim isterler: ilk kesim sadece çatlatır.',
         'A dashed purple cable is a BACKUP line. It switches on when you cut the cable with the same orange letter.': 'Kesik çizgili mor kablo bir YEDEK hat. Aynı turuncu harfli kabloyu kesince devreye girer.',
         // Network Cut: board and HUD
         'UNDER ATTACK': 'SALDIRI ALTINDA',
         'SAFE': 'GÜVENLİ',
-        'GOAL: cut cables until no red line reaches the CORE': "HEDEF: hiçbir kırmızı hat CORE'a ulaşmayana kadar kablo kes",
+        'GOAL: cut cables until no red line reaches the CORE': 'HEDEF: hiçbir kırmızı hat ÇEKİRDEĞE ulaşmayana kadar kablo kes',
         'Red: the attacker\'s path': 'Kırmızı: saldırganın yolu',
         'Steel: shielded — can\'t be cut': 'Çelik: korumalı — kesilemez',
         'Blue: Director line — don\'t cut': 'Mavi: Yöneticinin hattı — kesme',
         'Thick: armored — 2 cuts': 'Kalın: zırhlı — 2 kesim',
         'Dashed: backup — wakes when its orange letter is cut': 'Kesik çizgili: yedek — turuncu harfi kesilince uyanır',
         '✂ {n}  ·  NETWORK {done}/{total}': '✂ {n}  ·  AĞ {done}/{total}',
+        'NETWORK {done}/{total}': 'AĞ {done}/{total}',
+        'SCISSORS {n}': 'MAKAS {n}',
         'ACCESS CUT · SCORE {n}': 'ERİŞİM KESİLDİ · SKOR {n}',
         'ACCESS HELD': 'ERİŞİM SÜRÜYOR',
         'DIRECTOR LINE CUT': 'YÖNETİCİNİN HATTI KESİLDİ',
@@ -1038,6 +1040,7 @@ if (typeof I18n !== 'undefined') {
 
     // Roles (2026-10-28): the player is the operator; the attacked system is the Director's.
     I18n.add('tr', {
+        // ATK and CORE stay as short labels (SALDIRGAN / ÇEKİRDEK did not fit, 2026-10-28).
         'DIRECTOR': 'YÖNETİCİ'
     });
 

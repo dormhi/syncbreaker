@@ -872,17 +872,35 @@ class NetworkCutMechanic extends _MechanicBaseNC {
                 ctx.beginPath(); ctx.arc(n.x, n.y, 4, 0, Math.PI * 2); ctx.fill();
             }
             if (label) {
+                // ATK and CORE stay short labels; the Director's reads YÖNETİCİ in Turkish.
+                // A long one shrinks, stays inside the board and sits on a dark plate
+                // so the cables under it do not cut through the letters.
+                const text = UITheme.t(label);
+                let tw = 0;
+                for (let fs = 14; fs >= 10; fs--) {
+                    ctx.font = `700 ${fs}px Orbitron, OrbitronTR`;
+                    const m = ctx.measureText(text).width;
+                    tw = typeof m === 'number' ? m : text.length * 9;
+                    if (tw <= 92) break;
+                }
+                const Bd = this.boardRect();
+                const lx = Math.max(Bd.x + tw / 2 + 6, Math.min(Bd.x + Bd.w - tw / 2 - 6, n.x)), ly = n.y + r + 14;
+                ctx.fillStyle = 'rgba(8,12,20,0.85)';
+                ctx.fillRect(lx - tw / 2 - 4, ly - 9, tw + 8, 18);
                 ctx.fillStyle = color;
-                ctx.font = '700 14px Orbitron, OrbitronTR';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                // ATK and CORE are jargon; the Director's terminal reads in the player's language.
-                ctx.fillText(n.kind === 'owner' ? UITheme.t(label) : label, n.x, n.y + r + 14);
+                ctx.fillText(text, lx, ly);
             }
             if (n.kind === 'core') {
+                // The core's state, kept inside the board like its name.
+                const state = UITheme.t(hit ? 'UNDER ATTACK' : 'SAFE');
                 ctx.font = '700 14px Rajdhani';
+                const m = ctx.measureText(state).width;
+                const sw = typeof m === 'number' ? m : state.length * 7;
+                const Bd = this.boardRect();
                 ctx.fillStyle = hit ? red : '#22c55e';
-                ctx.fillText(UITheme.t(hit ? 'UNDER ATTACK' : 'SAFE'), n.x, n.y + r + 32);
+                ctx.fillText(state, Math.max(Bd.x + sw / 2 + 6, Math.min(Bd.x + Bd.w - sw / 2 - 6, n.x)), n.y + r + 32);
             }
         });
 
@@ -1017,6 +1035,44 @@ class NetworkCutMechanic extends _MechanicBaseNC {
         ctx.restore();
     }
 
+    /**
+     * Scissors left, on the HUD row right of the hearts (beta feedback
+     * 2026-10-28: the small grey count went unnoticed): a large count and
+     * one ✂ per scissor of the budget, the spent ones dimmed.
+     */
+    _renderScissors(ctx, right, y) {
+        const left = this.scissors, total = Math.max(this.budget || 0, left);
+        const color = left <= 0 ? '#ef4444' : left <= 1 ? '#fbbf24' : '#e2e8f0';
+        const icon = 24, iconsW = total * icon;
+        const label = UITheme.t('SCISSORS {n}', { n: left });
+        ctx.save();
+        ctx.textBaseline = 'middle';
+        for (let k = 0; k < total; k++) {
+            const c = k < left ? (left <= 1 ? '#fbbf24' : '#38bdf8') : 'rgba(100,116,139,0.35)';
+            NetworkCutMechanic.drawScissors(ctx, right - iconsW + k * icon + icon / 2, y, 10, c);
+        }
+        ctx.fillStyle = color;
+        ctx.font = '700 20px Orbitron, OrbitronTR';
+        ctx.textAlign = 'right';
+        ctx.fillText(label, right - iconsW - 10, y + 1);
+        ctx.restore();
+    }
+
+    /** A bold scissors mark (the font glyph is too thin on phones): blades up, rings down. */
+    static drawScissors(ctx, x, y, s, color) {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x - s * 0.35, y + s * 0.15); ctx.lineTo(x + s * 0.55, y - s * 0.85);
+        ctx.moveTo(x + s * 0.35, y + s * 0.15); ctx.lineTo(x - s * 0.55, y - s * 0.85);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(x - s * 0.5, y + s * 0.5, s * 0.36, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x + s * 0.5, y + s * 0.5, s * 0.36, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+    }
+
     _renderHud(ctx, W, H) {
         const y = H - 40;
         ctx.save();
@@ -1036,13 +1092,14 @@ class NetworkCutMechanic extends _MechanicBaseNC {
             ctx.textAlign = 'center';
             ctx.fillText('♥', W / 2 - 40 + i * 22, y);
         }
-        // Scissors
-        ctx.fillStyle = this.scissors <= 1 ? '#fbbf24' : '#94a3b8';
-        ctx.font = '700 20px Rajdhani';
-        ctx.textAlign = 'right';
-        ctx.fillText(this.endless
-            ? UITheme.t('✂ {n}', { n: this.scissors })
-            : UITheme.t('✂ {n}  ·  NETWORK {done}/{total}', { n: this.scissors, done: Math.min(this.solved + 1, this.networks), total: this.networks }), W / 2 + 260, y);
+        // Which network, left of its dots (the hearts sit right of them)
+        if (!this.endless) {
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '700 16px Rajdhani';
+            ctx.textAlign = 'right';
+            ctx.fillText(UITheme.t('NETWORK {done}/{total}', { done: Math.min(this.solved + 1, this.networks), total: this.networks }), W / 2 - 216, y);
+        }
+        this._renderScissors(ctx, W / 2 + 330, y);
 
         // Status line between the board and the HUD
         const B = this.boardRect();
