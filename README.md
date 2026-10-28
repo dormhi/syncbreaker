@@ -80,7 +80,7 @@ It checks collision and timing rules, frame-rate independence, the fixed-step lo
 | `tests/` | The test runner and its browser-free harness |
 | `vendor/` | Matter.js |
 
-The logical canvas is always 960 × 640; the backing store is scaled by the screen's pixel density (up to 2×). Game state only changes in fixed `update` steps, and rendering never changes state.
+The logical canvas is always 960 × 640; the backing store is scaled by the screen's pixel density (up to 3× with a mouse, 2× on touch screens). Game state only changes in fixed `update` steps, and rendering never changes state.
 
 ## ☁️ Online features
 Accounts, saved progress and the Endless leaderboards use [Supabase](https://supabase.com). To run your own copy:

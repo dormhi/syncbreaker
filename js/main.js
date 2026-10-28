@@ -33,8 +33,11 @@
             dH = dW / aspect;
         }
 
+        // Sharp on big screens: up to 3× with a mouse (a full-screen 4K canvas is
+        // ~3200 px wide), 2× on touch screens, where more pixels only cost battery.
         const dpr = window.devicePixelRatio || 1;
-        renderScale = Math.round(Math.min(2, Math.max(1, dW * dpr / GAME_WIDTH)) * 100) / 100;
+        const touch = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        renderScale = Math.round(Math.min(touch ? 2 : 3, Math.max(1, dW * dpr / GAME_WIDTH)) * 100) / 100;
         canvas.width = Math.round(GAME_WIDTH * renderScale);
         canvas.height = Math.round(GAME_HEIGHT * renderScale);
         canvas.style.width = dW + 'px';
