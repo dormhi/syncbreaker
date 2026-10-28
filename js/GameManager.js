@@ -43,12 +43,10 @@ class GameManager {
         this._mapScroll = this._mapIndex;
         this._wheelCooldown = 0;
 
-        // Challenge attempt windows (easter egg / gates)
-        this.dualRingGate = new ChallengeGate('sb_dualring');
+        // Challenge attempt windows (gates)
         this._gateTrackers = {};
 
-        // Hidden energy easter egg + transient hub message
-        this._energyEggCell = null;
+        // Transient hub message
         this._hubMessage = '';
         this._hubMessageTimer = 0;
 
@@ -276,7 +274,6 @@ class GameManager {
                 }
                 if (this._securedAnim) this._securedAnim.t = -0.5;   // after the screen change
                 this._buildActMapButtons();
-                this._pickEnergyEggCell();
                 this.tipBar.setTips('map', TipBar.MAP);
             },
             update: (dt) => {
@@ -318,11 +315,7 @@ class GameManager {
 
                 this._renderHubHeader(ctx, W);
 
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
 
                 this._renderActMap(ctx);
                 this.ui.renderButtons();
@@ -376,11 +369,7 @@ class GameManager {
             render: (ctx) => {
                 const W = VIEW.W;
                 const H = VIEW.H;
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
                 this._renderActScreen(ctx);
                 this.ui.renderButtons();
                 this._renderHubMessage(ctx, W, H);
@@ -464,11 +453,7 @@ class GameManager {
                 const H = VIEW.H;
 
                 this.ui.renderScore(this.levels.score, this.levels.combo);
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
                 this.levels.render(ctx, W, H, alpha);
                 this._renderStageHint(ctx, W, H - 22);
                 this.ui.renderButtons();
@@ -592,11 +577,7 @@ class GameManager {
                 this.lockpick.render(ctx, W / 2, H / 2 + 10);
 
                 // Energy
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
                 this.ui.renderButtons();
             },
             exit: () => this.ui.clearButtons(),
@@ -703,11 +684,7 @@ class GameManager {
                     this._activeMinigame.render(ctx, W, H, this.levels.gameTime, alpha);
                 }
 
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
                 if (run) {
                     // Endless: the run's score and its one health bar.
                     this.ui.renderScore(run.score, 0);
@@ -753,21 +730,20 @@ class GameManager {
                 this._goStage = lCtx.stage || this._stage;
                 this._reviveResume = lCtx.resume || null;
                 this._noRevive = lCtx.noRevive || false;
-                this._revivesUsed = lCtx.revivesUsed || 0;
                 this._goMessage = lCtx.message || null;
                 // Short cooldown so players can't mash restart right after a
                 // failure — gives the hands a moment to cool off.
                 this._goCooldown = 1.0;
-                const maxRevives = this.levels.maxRevives || 2;
-                const revivesLeft = Math.max(0, maxRevives - this._revivesUsed);
 
-                // Revive button: only for continuous games, energy available
-                // AND recovery charges remain. Lockpick difficulty = act number.
+                // Revive button: games that can be revived, as long as energy lasts
+                // (no per-stage limit since 2026-10-28). Lockpick difficulty = act number.
                 const goAct = this._goStage ? this.progress.act(this._goStage.actId) : null;
                 const game = goAct ? GameRegistry.get(goAct.game) : null;
-                if (!this._noRevive && game && game.revive && revivesLeft > 0 && this.energy.canAfford('REVIVE')) {
+                const revivable = !this._noRevive && game && game.revive;
+                this._goNoEnergy = !!revivable && !this.energy.canAfford('REVIVE');
+                if (revivable && !this._goNoEnergy) {
                     const extra = game.reviveLabel ? ` ${UITheme.t(game.reviveLabel)}` : '';
-                    this.ui.addButton('revive', UITheme.t('🔄 TRY RECOVERY PROTOCOL (1⚡){extra} · {n} left', { extra, n: revivesLeft }), cx, cy + 30, 340, 42,
+                    this.ui.addButton('revive', UITheme.t('🔄 TRY RECOVERY PROTOCOL (−{cost}% ⚡){extra}', { extra, cost: this.energy.COSTS.REVIVE }), cx, cy + 30, 340, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
                                 this.state.change(S.LOCKPICK, {
@@ -823,10 +799,10 @@ class GameManager {
                     ctx.fillStyle = '#ef4444';
                     ctx.font = '400 16px Rajdhani';
                     ctx.fillText(UITheme.t('Recovery protocol failed'), cx, cy);
-                } else if (this._revivesUsed >= (this.levels.maxRevives || 2)) {
+                } else if (this._goNoEnergy) {
                     ctx.fillStyle = '#f59e0b';
                     ctx.font = '400 16px Rajdhani';
-                    ctx.fillText(UITheme.t('No recovery charges left for this node'), cx, cy);
+                    ctx.fillText(UITheme.t('Not enough energy for a recovery ({cost}% ⚡) — it refills over time', { cost: this.energy.COSTS.REVIVE }), cx, cy);
                 }
 
                 if (this._goCooldown > 0) {
@@ -878,11 +854,7 @@ class GameManager {
                 const H = VIEW.H;
 
                 this.ui.renderScore(this.levels.score, this.levels.combo);
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
                 this.levels.renderEndless(ctx, W, H, alpha);
                 this.ui.renderButtons();
             },
@@ -938,7 +910,7 @@ class GameManager {
                 // Recovery (Code Breaker) as long as energy lasts; never after leaving on purpose.
                 if (!eo.noRevive && this.energy.canAfford('REVIVE')) {
                     const lockDiff = Math.min(eo.round, 6);
-                    this.ui.addButton('revive', '🔄 RECOVERY PROTOCOL (1⚡)', cx, cy + 50, 290, 42,
+                    this.ui.addButton('revive', UITheme.t('🔄 RECOVERY PROTOCOL (−{cost}% ⚡)', { cost: this.energy.COSTS.REVIVE }), cx, cy + 50, 290, 42,
                         () => {
                             if (this.energy.spend('REVIVE')) {
                                 this.state.change(S.LOCKPICK, { reason: 'endless_revive', difficulty: lockDiff });
@@ -1037,11 +1009,7 @@ class GameManager {
                 if (this._hubMessageTimer > 0) this._hubMessageTimer -= dt;
             },
             render: (ctx) => {
-                this.ui.renderEnergyBar({
-                    current: this.energy.currentEnergy,
-                    max: this.energy.maxEnergy,
-                    nextRegenIn: this.energy.getTimeToNextRegen()
-                });
+                this.ui.renderEnergyBar(this.energy);
                 this._renderEndlessHub(ctx);
                 this.ui.renderButtons();
                 this._renderHubMessage(ctx, VIEW.W, VIEW.H);
@@ -2563,7 +2531,7 @@ class GameManager {
         const acts = P.acts;
         const blank = { text: '', color: '' };
         const caution = [
-            { text: '> CAUTION: Energy resources are limited. Each operation costs charges.', color: '#f59e0b' },
+            { text: '> CAUTION: Energy resources are limited. Each recovery costs energy.', color: '#f59e0b' },
             { text: '  Do not stop until the system is fully cleansed!', color: '#64748b' }
         ];
         const cleared = acts.reduce((n, a) => n + P.stagesDone(a.id), 0);
@@ -4034,48 +4002,6 @@ class GameManager {
         return sum;
     }
 
-    _pickEnergyEggCell() {
-        if (this.energy.currentEnergy >= this.energy.maxEnergy) {
-            this._energyEggCell = null;
-            return;
-        }
-        this._energyEggCell = Math.floor(Math.random() * this.energy.maxEnergy);
-    }
-
-    _tryStartDualRing() {
-        const WINDOW = 5 * 60 * 1000;
-        const MAX = 2;
-        if (!this.dualRingGate.canAttempt(WINDOW, MAX)) {
-            const wait = Math.ceil(this.dualRingGate.timeUntilReset(WINDOW, MAX));
-            this._hubMessage = UITheme.t('Recovery module recharging ({s}s)', { s: wait });
-            this._hubMessageTimer = 2.5;
-            return;
-        }
-        this.dualRingGate.record(WINDOW);
-        this._energyEggCell = null;
-
-        const mechanic = new DualRingMechanic({
-            maxEnergy: this.energy.maxEnergy,
-            currentEnergy: this.energy.currentEnergy
-        });
-        this.state.change(this.state.STATES.MINIGAME, {
-            mechanic,
-            title: 'ENERGY RECOVERY',
-            subtitle: 'Nail 3 alignments in a row — the speed shifts every round',
-            hint: 'Press SPACE / tap when both markers line up',
-            onComplete: (success, m) => {
-                if (success) {
-                    const gained = this.energy.addEnergy(m.reward);
-                    this._hubMessage = UITheme.t('+{n} ENERGY', { n: gained });
-                } else {
-                    this._hubMessage = 'Recovery failed';
-                }
-                this._hubMessageTimer = 2.5;
-                this.state.change(this.state.STATES.HUB);
-            }
-        });
-    }
-
     _gateTracker(n) {
         // Gate 1 keeps the original key so pre-campaign attempts still count.
         const key = n === 1 ? 'sb_packetpurge' : `sb_gate_${n}`;
@@ -4100,6 +4026,7 @@ class GameManager {
         tracker.record(WINDOW);
 
         const cfg = CAMPAIGN.gates[n - 1];
+        if (cfg.game === 'dualring') { this._startSealGate(n, cfg); return; }
         const mechanic = new PacketPurgeMechanic({ waves: cfg.waves, speedScale: cfg.speedScale });
         this.state.change(this.state.STATES.MINIGAME, {
             mechanic,
@@ -4115,6 +4042,30 @@ class GameManager {
                     this._hubSlideFrom = n - 1;
                 } else {
                     this._hubMessage = 'Purge failed — the lock holds';
+                }
+                this._hubMessageTimer = 3.0;
+                this.state.change(this.state.STATES.HUB);
+            }
+        });
+    }
+
+    /** Gate 9: the attack is over — seal the system (Dual Ring); a breach opens Act 10 and refills energy. */
+    _startSealGate(n, cfg) {
+        const mechanic = new DualRingMechanic({ difficulty: cfg.difficulty, seal: true });
+        this.state.change(this.state.STATES.MINIGAME, {
+            mechanic,
+            title: UITheme.t('GATE {n} · SEAL THE SYSTEM', { n }),
+            subtitle: 'The attack is over. Nail 3 alignments in a row to seal the system',
+            hint: 'Press SPACE / tap when both markers line up',
+            onComplete: (success) => {
+                if (success) {
+                    this.progress.openGate(n);
+                    this.energy.fill();
+                    this._hubMessage = UITheme.t('SYSTEM SEALED · ACT {n} UNLOCKED · ENERGY 100%', { n: n + 1 });
+                    this._actView = n + 1;
+                    this._hubSlideFrom = n - 1;
+                } else {
+                    this._hubMessage = 'Seal failed — try again';
                 }
                 this._hubMessageTimer = 3.0;
                 this.state.change(this.state.STATES.HUB);
@@ -4333,7 +4284,7 @@ class GameManager {
         this.state.change(this.state.STATES.ACT, { actId });
     }
 
-    /** Routes canvas presses: UI buttons → minigame → hidden energy easter egg. */
+    /** Routes canvas presses: UI buttons → minigame → lesson bubbles. */
     _hitTestUI(x, y, source) {
         if (this.ui.handleClick(x, y)) return true;
         // Taps outside the leave prompt must not reach the paused game.
@@ -4355,15 +4306,6 @@ class GameManager {
             return true;
         }
 
-        if (this.state.currentState === this.state.STATES.HUB &&
-            this._energyEggCell !== null &&
-            this.energy.currentEnergy < this.energy.maxEnergy) {
-            const r = this.ui.getEnergyCellRect(this._energyEggCell, this.energy.maxEnergy);
-            if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
-                this._tryStartDualRing();
-                return true;
-            }
-        }
         return false;
     }
 
@@ -4839,7 +4781,7 @@ GameManager.GUIDE_PAGES = [
         items: [
             { text: 'An attacker is inside the system. {n} acts stand between them and full control.', vars: { n: CAMPAIGN.acts.length } },
             { head: 'ACTS & STAGES', text: 'Each act is one game. Its stages are that game\'s difficulty tiers — clear them in order to complete the act.' },
-            { head: 'GATES', text: 'A cleared act opens its gate. Breach the gate (Packet Purge) to reach the next act. Acts marked IN DEVELOPMENT are on their way.' }
+            { head: 'GATES', text: 'A cleared act opens its gate. Breach the gate (Packet Purge) to reach the next act. The last gate seals the system (Dual Ring) and refills your energy.' }
         ]
     },
     {
@@ -4858,6 +4800,7 @@ GameManager.GUIDE_PAGES = [
             ['Checksum Grid', 'Click / right click · arrows, SPACE, X', 'Tap · pick ✕ · drag'],
             ['Handover missions', 'Click · Tab + ENTER', 'Tap the buttons'],
             ['Packet Purge', 'Click red packets', 'Tap red packets'],
+            ['Dual Ring (gate 9)', 'SPACE / click', 'Tap'],
             ['Code Breaker', 'Arrow keys / WASD', 'Swipe'],
             ['Field guide', 'H', '? button']
         ]
@@ -4881,8 +4824,8 @@ GameManager.GUIDE_PAGES = [
     {
         title: 'ENERGY',
         items: [
-            { head: 'ENERGY', text: 'Up to 6 cells. Energy refills slowly over time.' },
-            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 1⚡ and win the Code Breaker to continue with one life; in Signal Lock, Route Trace, Logic Bomb and Defrag you get 20 more seconds. Twice per stage.' },
+            { head: 'ENERGY', text: 'A percentage, top right. It refills slowly (20% every 5 minutes), and to 100% when you seal the system at gate 9.' },
+            { head: 'RECOVERY PROTOCOL', text: 'Failed a Timing Bar or Orbital Shield stage? Spend 25% energy and win the Code Breaker to continue with one life; in Signal Lock, Route Trace, Logic Bomb and Defrag you get 20 more seconds. As often as your energy lasts — but a recovery caps the stage at one star.' },
             { head: 'ENDLESS MODE', text: 'Unlocks after ACT {n}. Its leaderboard uses your operator name and password, so you can keep your rank on any browser.', vars: { n: CAMPAIGN.finalAct } }
         ]
     }

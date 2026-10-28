@@ -8,7 +8,7 @@
 
 The Director's system is under attack. You are the **operator**: you push the attacker out layer by layer, from the network's perimeter down to its core, prove the system is clean, and finally hand control back to the Director, teaching them how to keep it safe.
 
-The campaign has **10 acts**. Every act is its own game, and its stages are that game's rising difficulty tiers. Clear every stage of an act, then breach the gate (a Packet Purge reaction game) to open the next one.
+The campaign has **10 acts**. Every act is its own game, and its stages are that game's rising difficulty tiers. Clear every stage of an act, then breach the gate (a Packet Purge reaction game) to open the next one. The last gate, before Act 10, seals the system instead.
 
 | Act | Name | Game | What you do | Stages |
 |---|---|---|---|---|
@@ -28,7 +28,7 @@ The network layers set the mood: **PERIMETER** (acts 1–3), **INTERNAL** (4–6
 ### Features
 - **Games that teach themselves:** every game opens with a short, hands-on lesson the first time. Checksum Grid has a four-chapter lesson for players who have never seen a nonogram, a replay button and a two-step hint.
 - **Stars:** each stage ends with 1–3 stars, based on how well it went (no misses, time left, no wasted cuts…). A revive caps a run at one star.
-- **Revives:** in games you can lose, the **Code Breaker** lockpick (a radial timing mini-game) can bring a failed run back for one energy cell. Energy refills over time.
+- **Revives:** in games you can lose, the **Code Breaker** lockpick (a radial timing mini-game) can bring a failed run back. Every try costs 25% energy, as often as the energy lasts; it refills over time, and to 100% when you seal the system at the last gate (a Dual Ring timing game).
 - **Endless Mode:** unlocked after Act 10. Pick any of the first nine games and play round after round with rising difficulty; each game has its own online leaderboard. Network Cut also has 5 and 10 minute challenges.
 - **Operator accounts:** a unique operator name and password is needed to play. Progress, stars and Endless bests follow the operator to any browser and still work offline once signed in.
 - **English and Turkish:** pick the language with the globe badge on the main menu. Every screen, lesson and game is translated.

@@ -94,7 +94,7 @@ TipBar.MAP = [
     { desktop: 'Arrow keys + Enter move around the map · Esc goes back', touch: 'Tap an act to see its stages' },
     'Clear every stage of an act, then breach its gate to open the next one',
     { desktop: 'Press H for the field guide', touch: 'Tap ? for the field guide' },
-    'Energy refills over time — keep a cell for the recovery protocol',
+    'Energy refills over time — every recovery protocol costs 25%',
     { text: 'Endless Mode unlocks after ACT {n}', vars: { n: typeof CAMPAIGN !== 'undefined' ? CAMPAIGN.finalAct : 10 } }
 ];
 
@@ -102,24 +102,24 @@ TipBar.ACT = {
     common: { desktop: 'Enter starts the highlighted stage · Esc goes back', touch: 'Tap a stage to start it' },
     timingbar: [
         'Hit near the centre of the zone for PERFECT — combos multiply your score',
-        'Failed? The recovery protocol (1⚡) lets you continue with one life'
+        'Failed? The recovery protocol (25% ⚡) lets you continue with one life'
     ],
     orbital: [
         'Watch the blinking port — the packet is on its way there',
         'Pink packets hop to a neighbouring port mid-flight',
-        'Failed? The recovery protocol (1⚡) lets you continue with one life'
+        'Failed? The recovery protocol (25% ⚡) lets you continue with one life'
     ],
     signal: [
         'Short taps hold the signal steady — long holds overshoot',
         'Watch the gauge on the right: keep the arrow inside the band',
         'The target flickers just before it jumps',
-        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+        'Out of time? The recovery protocol (25% ⚡) buys 20 more seconds'
     ],
     route: [
         'Green tiles are already connected to you — extend the green line',
         'Work from your node outward; ignore tiles that cannot reach the line',
         'Tiles with a padlock cannot be rotated',
-        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+        'Out of time? The recovery protocol (25% ⚡) buys 20 more seconds'
     ],
     cut: [
         'Red cables are the ones the attacker reaches — cut them before they touch the CORE',
@@ -127,21 +127,21 @@ TipBar.ACT = {
         'Blue cables are the Director\'s own line — cutting one costs a life',
         'Thick cables are armored and need two cuts',
         'A dashed purple cable wakes when the cable with the same letter is cut',
-        'Out of lives? The recovery protocol (1⚡) gives one back'
+        'Out of lives? The recovery protocol (25% ⚡) gives one back'
     ],
     bomb: [
         'Check the MANUAL\'s rules from the top — only the first true rule counts',
         'Each strike makes the timer run faster — slow down before you cut',
         'TRIGGER: lit wires carry a 1 — turn the DETONATE lamp off before your flips run out',
         'KILL SWITCH: while holding, watch the strip colour and the timer digits',
-        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+        'Out of time? The recovery protocol (25% ⚡) buys 20 more seconds'
     ],
     defrag: [
         'Fill the awkward corners first — the open middle is easier to finish',
         'Tap a block to turn it; on desktop right click or R works too',
         'A block on the disk can be picked up and moved again',
         'EXPERT: compare each block with the CLEAN SNAPSHOT — corrupted copies go to TRASH',
-        'Out of time? The recovery protocol (1⚡) buys 20 more seconds'
+        'Out of time? The recovery protocol (25% ⚡) buys 20 more seconds'
     ],
     checksum: [
         'Start with the big numbers: a block longer than half the line always fills its middle',

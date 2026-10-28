@@ -261,7 +261,6 @@ const CAMPAIGN = {
     ],
 
     // gates[n - 1] opens act n + 1. Packet Purge tuning; gate 1 = original.
-    // Gate 9 (act 9 -> 10) is tuned together with Act 10 (docs/ACT_PLAN.md).
     gates: [
         { id: 1, waves: 2, speedScale: 1.00 },
         { id: 2, waves: 2, speedScale: 1.08 },
@@ -271,8 +270,9 @@ const CAMPAIGN = {
         { id: 6, waves: 3, speedScale: 1.30 },
         { id: 7, waves: 3, speedScale: 1.35 },
         { id: 8, waves: 3, speedScale: 1.40 },
-        // Gate 9 opens the teaching final: one gentle wave, the story's last door.
-        { id: 9, waves: 1, speedScale: 0.90 }
+        // Gate 9 opens the teaching final: the attack is over, seal the system
+        // (Dual Ring, three alignments at a fixed gentle speed; refills energy to 100 %, 2026-10-28).
+        { id: 9, game: 'dualring', difficulty: 0.35 }
     ],
 
     // Lockpick revive difficulty is the act number (1-6).

@@ -38,17 +38,6 @@ class UIManager {
         });
     }
 
-    /** Energy cell geometry — must match renderEnergyBar() exactly. */
-    getEnergyCellRect(index, max) {
-        const W = VIEW.W;
-        const x = W - 170;
-        const y = 12;
-        const cellW = 22;
-        const cellH = 14;
-        const gap = 3;
-        if (index < 0 || index >= max) return null;
-        return { x: x + index * (cellW + gap), y, w: cellW, h: cellH };
-    }
 
     clearButtons() {
         this.buttons = [];
@@ -360,46 +349,47 @@ class UIManager {
         return text.slice(0, lo) + ell;
     }
 
+    /**
+     * Energy (an EnergySystem): a thin percentage bar, top right, with a
+     * notch at every recovery's cost so the tries left can be counted;
+     * the percentage and, below 100 %, the time to full.
+     */
     renderEnergyBar(energy) {
         const ctx = this.ctx;
         const W = VIEW.W;
-        const x = W - 170;
-        const y = 12;
-        const cellW = 22;
-        const cellH = 14;
-        const gap = 3;
+        const x = W - 170, y = 14, w = 150, h = 6;
+        const pct = Math.max(0, Math.min(100, Math.round(energy.currentEnergy / energy.maxEnergy * 100)));
+        const cost = energy.COSTS.REVIVE;
+        const low = energy.currentEnergy < cost;
 
         ctx.save();
-
-        // Label
+        ctx.textBaseline = 'middle';
         ctx.fillStyle = '#64748b';
         ctx.font = '500 14px Rajdhani';
         ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(UITheme.t('ENERGY'), x - 8, y + cellH / 2);
+        ctx.fillText(UITheme.t('ENERGY'), x - 8, y + h / 2);
 
-        // Cells
-        for (let i = 0; i < energy.max; i++) {
-            const cx = x + i * (cellW + gap);
-            const filled = i < energy.current;
-
-            ctx.fillStyle = filled ? '#3b82f6' : 'rgba(59,130,246,0.15)';
-            ctx.strokeStyle = filled ? '#3b82f6' : '#1e293b';
-            ctx.lineWidth = 1;
-            Utils.roundRect(ctx, cx, y, cellW, cellH, 3);
+        ctx.fillStyle = 'rgba(59,130,246,0.15)';
+        Utils.roundRect(ctx, x, y, w, h, 3);
+        ctx.fill();
+        if (pct > 0) {
+            ctx.fillStyle = low ? '#f59e0b' : '#3b82f6';
+            Utils.roundRect(ctx, x, y, Math.max(h, w * pct / 100), h, 3);
             ctx.fill();
-            ctx.stroke();
         }
+        ctx.fillStyle = 'rgba(5,8,15,0.9)';
+        for (let k = cost; k < energy.maxEnergy; k += cost) ctx.fillRect(x + w * k / energy.maxEnergy - 1, y, 2, h);
 
-        // Timer
-        if (energy.current < energy.max) {
-            const timeStr = Utils.formatTime(energy.nextRegenIn);
-            ctx.fillStyle = '#64748b';
+        ctx.font = '700 14px Rajdhani';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = low ? '#f59e0b' : '#93c5fd';
+        ctx.fillText(`${pct}%`, x, y + h + 12);
+        if (pct < 100) {
             ctx.font = '400 14px Rajdhani';
-            ctx.textAlign = 'center';
-            ctx.fillText(`+1 ${timeStr}`, x + (energy.max * (cellW + gap)) / 2, y + cellH + 14);
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#64748b';
+            ctx.fillText(UITheme.t('full in {t}', { t: Utils.formatTime(energy.getTimeToFull()) }), x + w, y + h + 12);
         }
-
         ctx.restore();
     }
 

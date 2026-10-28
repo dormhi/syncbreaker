@@ -430,29 +430,42 @@ suite('Congratulations screen flow', () => {
 });
 
 // ─────────────────────────────────────────────
-suite('EnergySystem — max 6 & addEnergy (regen untouched)', () => {
+suite('EnergySystem — a percentage, 25 % per recovery, old saves converted', () => {
     const e = new EnergySystem();
-    ok('max energy is 6', e.maxEnergy === 6);
-    ok('starts full', e.currentEnergy === 6);
+    ok('max energy is 100 (a percentage)', e.maxEnergy === 100);
+    ok('starts full', e.currentEnergy === 100);
+    ok('a recovery costs 25 %: four from full, then none', [1, 2, 3, 4].every(() => e.spend('REVIVE')) && e.currentEnergy === 0 && !e.canAfford('REVIVE') && !e.spend('REVIVE'));
 
-    e.currentEnergy = 5;
-    const gained = e.addEnergy(3);
-    ok('addEnergy clamps to cap', e.currentEnergy === 6 && gained === 1);
-
-    e.currentEnergy = 2;
-    ok('addEnergy grants full when room', e.addEnergy(3) === 3 && e.currentEnergy === 5);
+    e.currentEnergy = 90;
+    const gained = e.addEnergy(30);
+    ok('addEnergy clamps to cap', e.currentEnergy === 100 && gained === 10);
+    e.currentEnergy = 20;
+    ok('fill() goes back to 100 %', e.fill() === 80 && e.currentEnergy === 100);
     ok('addEnergy ignores non-positive', e.addEnergy(0) === 0 && e.addEnergy(-4) === 0);
 
-    // Time-based regen must be independent of addEnergy.
-    e.currentEnergy = 1;
+    // Time-based regen: 1 % every 15 s (20 % per 5 minutes), independent of addEnergy.
+    e.currentEnergy = 10;
     e.regenTimer = 10;
     e.addEnergy(2);
     ok('addEnergy does not touch regenTimer', e.regenTimer === 10);
     e.update(5);
-    ok('regen still advances', e.regenTimer === 15);
-    e.regenTimer = e.regenInterval - 1;
-    e.update(2);
-    ok('regen grants +1 and wraps', e.currentEnergy === 4 && e.regenTimer < e.regenInterval);
+    ok('regen grants +1 % after 15 s and wraps', e.currentEnergy === 13 && e.regenTimer < e.regenInterval);
+    e.currentEnergy = 50; e.regenTimer = 0;
+    e.update(300);
+    ok('5 minutes refill 20 %', e.currentEnergy === 70);
+    e.currentEnergy = 75; e.regenTimer = 0;
+    ok('time to full: 25 % = 6:15', e.getTimeToFull() === 375);
+
+    // Saves: the new { pct } and the old 0–6 cells.
+    const ls = api.localStorage;
+    ls.setItem('sb_energy', JSON.stringify({ energy: 3, ts: Date.now() }));
+    ok('an old save of 3 cells of 6 reads as 50 %', new EnergySystem().currentEnergy === 50);
+    ls.setItem('sb_energy', JSON.stringify({ pct: 40, ts: Date.now() - 60 * 1000 }));
+    ok('a saved 40 % a minute ago reads as 44 %', new EnergySystem().currentEnergy === 44);
+    const s2 = new EnergySystem();
+    s2.spend('REVIVE');
+    ok('spending saves the percentage', JSON.parse(ls.getItem('sb_energy')).pct === 19);
+    ls.removeItem('sb_energy');
 });
 
 // ─────────────────────────────────────────────
@@ -630,7 +643,7 @@ suite('Campaign data — acts, stages, tuning', () => {
     ok('gate 1 is the original Packet Purge', CAMPAIGN.gates[0].waves === 2 && CAMPAIGN.gates[0].speedScale === 1);
     const gs = CAMPAIGN.gates.map(g => g.speedScale);
     ok('gates 1-8 get harder', gs.slice(0, 8).every((v, i) => i === 0 || v > gs[i - 1]));
-    ok('gate 9 is one gentle wave before the teaching final', CAMPAIGN.gates[8].waves === 1 && CAMPAIGN.gates[8].speedScale < 1);
+    ok('gate 9 seals the system: Dual Ring at a fixed, gentle difficulty', CAMPAIGN.gates[8].game === 'dualring' && CAMPAIGN.gates[8].difficulty > 0 && CAMPAIGN.gates[8].difficulty < 0.5);
 });
 
 // ─────────────────────────────────────────────
@@ -901,18 +914,13 @@ suite('Act map HUB + gates', () => {
     for (let i = 0; i < 5; i++) gm.progress.completeStage(9, i, 100);
     settle(gm, S.HUB);
     gm._tryStartGate(9);
-    ok('gate 9 starts once act 9 is done (one gentle wave)', gm.state.pendingState === S.MINIGAME &&
-        gm.state.pendingContext.mechanic.waves === 1);
-
-    // Hidden energy easter egg still starts Dual Ring.
-    settle(gm, S.HUB);
-    gm.ui.clearButtons();
-    gm._buildActMapButtons();
-    gm.energy.currentEnergy = 4;
-    gm._pickEnergyEggCell();
-    const cell = gm.ui.getEnergyCellRect(gm._energyEggCell, gm.energy.maxEnergy);
-    ok('clicking hidden energy cell starts Dual Ring', gm._hitTestUI(cell.x + 2, cell.y + 2) === true &&
-        gm.state.pendingState === S.MINIGAME);
+    const seal = gm.state.pendingContext && gm.state.pendingContext.mechanic;
+    ok('gate 9 starts once act 9 is done: Dual Ring, "seal the system"', gm.state.pendingState === S.MINIGAME &&
+        seal.constructor.name === 'DualRingMechanic' && seal.seal && approx(seal.difficulty, mod.CAMPAIGN.gates[8].difficulty, 1e-9));
+    gm.energy.currentEnergy = 10;
+    gm.state.pendingContext.onComplete(true, seal);
+    ok('sealing opens Act 10 and refills energy to 100 %', gm.progress.isGateOpen(9) && gm.energy.currentEnergy === 100);
+    ok('no hidden energy easter egg on the map any more', gm._pickEnergyEggCell === undefined && gm._tryStartDualRing === undefined);
 
     // Packet Purge gate tiers scale speeds (same RNG -> scaled values).
     const a = new mod.PacketPurgeMechanic({ rng: makeRng(5) });
@@ -1916,7 +1924,12 @@ suite('Orbital Shield in the campaign (stage flow + revive)', () => {
     const go3 = gm.state.pendingContext;
     settle(gm, S.GAME_OVER);
     gm.state._handlers[S.GAME_OVER].enter(go3);
-    ok('no revive after two', go3.revivesUsed === 2 && !btn('revive'));
+    ok('a third recovery is on offer while energy lasts (no per-stage limit)', go3.revivesUsed === 2 && !!btn('revive') && /25%/.test(btn('revive').label));
+    gm.energy.currentEnergy = 20;
+    settle(gm, S.GAME_OVER);
+    gm.state._handlers[S.GAME_OVER].enter(go3);
+    ok('below 25 % energy: no recovery, and the screen says why', !btn('revive') && gm._goNoEnergy === true);
+    gm.energy.currentEnergy = 100;
 });
 
 // ─────────────────────────────────────────────

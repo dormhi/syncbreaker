@@ -1,5 +1,10 @@
 /* =========================================
-   DualRingMechanic.js — Energy Recovery (easter egg)
+   DualRingMechanic.js — Gate 9: seal the system
+
+   Since 2026-10-28 this is the last gate (Act 9 → 10): the attack is
+   over and the player seals the system; a breach refills energy to
+   100 % (GameManager._tryStartGate). Before that it was a hidden energy
+   refill on the old cell bar.
 
    MULTI-ROUND: the player must nail several alignments in a row. Each
    successful round resets the markers to opposite sides and the next
@@ -8,10 +13,10 @@
    Two rings with markers converge on the top target. Press / tap when
    BOTH markers are inside their target arcs.
 
-   DIFFICULTY: speed scales with how EMPTY the energy is
-   (lower energy → faster rings → harder), clamped to a playable range.
+   DIFFICULTY: `difficulty` (0..1, Gate 9: CAMPAIGN.gates[8]); without
+   it, speed scales with how EMPTY the energy is, clamped to a playable range.
 
-   REWARD: 1–3 energy based on the average accuracy across all rounds.
+   REWARD (no `seal`): 1–3 based on the average accuracy across all rounds.
    ========================================= */
 
 const _MechanicBaseDR = (typeof Mechanic !== 'undefined') ? Mechanic : class {};
@@ -34,8 +39,10 @@ class DualRingMechanic extends _MechanicBaseDR {
         this.roundFlash = 0;
         this.result = null;
 
-        // Difficulty: 0 = full energy (easiest), 1 = empty (hardest)
-        const t = Math.max(0, Math.min(1, (this.maxEnergy - this.currentEnergy) / this.maxEnergy));
+        // Difficulty: 0 = full energy (easiest), 1 = empty (hardest); Gate 9 sets it (`difficulty`).
+        this.seal = !!options.seal;   // Gate 9: "seal the system" texts
+        const t = options.difficulty !== undefined ? Math.max(0, Math.min(1, options.difficulty))
+            : Math.max(0, Math.min(1, (this.maxEnergy - this.currentEnergy) / this.maxEnergy));
         this.difficulty = t;
 
         const speedMin = 100, speedMax = 205;
@@ -232,7 +239,9 @@ class DualRingMechanic extends _MechanicBaseDR {
             ctx.font = '700 22px Orbitron, OrbitronTR';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(ok ? UITheme.t('+{n} ENERGY', { n: this.reward }) : UITheme.t('RECOVERY FAILED'), cx, cy - rOuter - 84);
+            const text = this.seal ? (ok ? UITheme.t('SYSTEM SEALED') : UITheme.t('SEAL FAILED'))
+                : (ok ? UITheme.t('+{n} ENERGY', { n: this.reward }) : UITheme.t('RECOVERY FAILED'));
+            ctx.fillText(text, cx, cy - rOuter - 84);
         }
     }
 

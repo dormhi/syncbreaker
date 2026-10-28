@@ -28,6 +28,7 @@ const FILES = [
 ];
 
 const EXPORTS = [
+    'localStorage',   // the sandbox's stub, so tests can seed saves
     'Utils',
     'Collision',
     'Mechanic',

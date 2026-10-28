@@ -15,7 +15,7 @@
     const GAME_HEIGHT = VIEW.H;
 
     // Backing-store pixels per logical pixel: matches the screen's real
-    // pixel density so text and lines stay sharp, capped at 2 for speed.
+    // pixel density so text and lines stay sharp (capped, see resizeCanvas).
     let renderScale = 1;
 
     function resizeCanvas() {

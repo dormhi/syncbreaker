@@ -19,8 +19,7 @@ class LevelManager {
         this.lives = 3;
         this.timer = 0;
         this.usedRevive = false; // legacy (endless)
-        this.revivesUsed = 0;    // normal levels: up to maxRevives
-        this.maxRevives = 2;
+        this.revivesUsed = 0;    // recoveries this stage (energy is the only limit; a revive caps stars)
 
         // Timing bar — deterministic analytic motion (see TimingBarMechanic)
         this.timingBar = new TimingBarMechanic();
