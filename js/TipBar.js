@@ -165,13 +165,22 @@ TipBar.ACT = {
 
 // In-game rule reminders: how the game works, for a player who forgot.
 TipBar.RULES = {
+    // Checksum Grid, from first steps to tricks (2026-10-28: drawn examples
+    // in `pic`, see ChecksumGridMechanic._renderPic).
     checksum: [
-        'GOAL: turn every number grey. A number greys out when its row or column matches it.',
-        'The numbers are blocks of filled cells, in order: "3 1" = 3 filled, a gap, then 1.',
-        'Every row (numbers on the left) and every column (numbers on top) must match.',
-        'Blocks in one line always have at least one empty cell between them.',
+        { text: 'GOAL: turn every number grey. A number greys out when its row or column matches it.',
+            pic: [{ clue: '2 1', cells: '##x#x', mark: 'ok' }] },
+        { text: '"3 1" = a block of 3, a gap, then a block of 1 — in that order.',
+            pic: [{ clue: '3 1', cells: '###x#', mark: 'ok' }, { clue: '3 1', cells: '#x###', mark: 'bad' }] },
+        { text: 'Two blocks always have at least one empty cell between them.',
+            pic: [{ clue: '2 2', cells: '##x##', mark: 'ok' }, { clue: '2 2', cells: '####x', mark: 'bad' }] },
+        { text: 'Slide a block to both ends: the cells it covers BOTH times are sure. Fill them.',
+            pic: [{ clue: '4', cells: '####..' }, { clue: '4', cells: '..####' }, { clue: '4', cells: '..SS..' }] },
+        { text: 'A line that has all its blocks is finished: its other cells are empty (✕).',
+            pic: [{ clue: '3', cells: 'x###xx', mark: 'ok' }] },
+        'Every cell is in a row AND a column: what one line finds, the other can use.',
         { desktop: 'Click fills a cell · right click marks it ✕ (empty) · drag to do a whole line.', touch: 'Tap fills a cell · pick ✕ to mark it empty · drag to do a whole line.' },
-        'A block longer than half its line always covers the middle of the line.',
+        'Stuck? HINT once shows WHERE to look, twice shows WHY.',
         'AUDIT shows wrong cells: free when there are none, it costs a star when there are.',
         'No timer, no lives: never guess — every grid can be solved by logic.'
     ]

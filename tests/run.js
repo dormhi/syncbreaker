@@ -4173,8 +4173,12 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     const rb = rm.buttons().rules;
     rm.handlePointer(rb.x + 10, rb.y + 10, 'down');
     ok('rules box: a tap shows the next one, no cell changes', rm.rules.index === 2 && rm.cells.every(v => v === 0));
-    const ctl = mod.TipBar.RULES.checksum.find(t => typeof t === 'object');
+    const ctl = mod.TipBar.RULES.checksum.find(t => typeof t === 'object' && t.touch);
     ok('rules box: touch wording on phones', /Tap fills/.test(ctl.touch) && /right click/.test(ctl.desktop));
+    const pics = mod.TipBar.RULES.checksum.filter(t => t.pic);
+    ok('rules box: drawn examples for the first rules, each a checksum + cells', pics.length >= 4 &&
+        pics.every(t => t.pic.every(p => typeof p.clue === 'string' && /^[#x.S]+$/.test(p.cells))));
+    ok('rules box: the slide example shows its sure cells', pics.some(t => t.pic.some(p => p.cells.includes('S'))));
     ok('lesson spells out how to win', (() => { const c = new CG(Object.assign({ rng: makeRng(13) }, tiers[0])); c.useCoach({ seen: () => false, mark: () => {} }, true); c.init({}); return [c.coach.step].concat(c.coach.queue).some(st => /EVERY number grey/.test(st.text)); })());
 
     // Keyboard
@@ -4186,7 +4190,7 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     km.handleKey('KeyZ');
     ok('Z undoes', km.cells[1 * km.cols + 1] === 1);
 
-    // Lesson: a hand-made 5 × 5 map solved step by step, then the stage's real map.
+    // Lesson: four chapters on their own small maps, then the stage's real map.
     const st = (() => { const seen = {}; return { seen: k => !!seen[k], mark: k => { seen[k] = true; }, raw: seen }; })();
     const lm = new CG(Object.assign({ rng: makeRng(9) }, tiers[0]));
     lm.useCoach(st, true);
@@ -4194,35 +4198,110 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     const LL = () => lm.layout();
     const atL = (r, c) => ({ x: LL().x + (c + 0.5) * LL().cell, y: LL().y + (r + 0.5) * LL().cell });
     const tapL = (r, c, mark) => { lm.mode = mark ? 'mark' : 'fill'; const p = atL(r, c); lm.handlePointer(p.x, p.y, 'down'); lm.handlePointer(p.x, p.y, 'up'); };
-    ok('lesson: a 5 × 5 map first, the board waits for the intro', lm.rows === 5 && lm.lesson && lm.coach.blocks &&
+    const tick = () => lm.update(1 / 60);
+    const skipInfo = () => { let n = 0; while (lm.coach && lm.coach.blocks && n++ < 20) { lm.handleKey('Space'); tick(); } };
+    // Do what the current step asks (its goal cells, or the whole map).
+    const doStep = () => {
+        const s = lm.coach.step;
+        const want = s.goal || lm.solution.map((v, i) => [Math.floor(i / lm.cols), i % lm.cols, v]);
+        for (const [r, c, v] of want) if (lm.cells[r * lm.cols + c] !== (v ? 1 : 2)) tapL(r, c, !v);
+        tick();
+    };
+    ok('lesson: chapter 1 first, rows only (no column numbers), the board waits for the intro',
+        lm.lesson && lm.lesson.ch === 0 && lm.rowsOnly && lm.rows === 4 && lm.cols === 5 && lm.coach.blocks && lm.lineCount === 4 &&
         (lm.handlePointer(atL(0, 1).x, atL(0, 1).y, 'down'), lm.handlePointer(0, 0, 'up'), lm.cells.every(v => v === 0)));
-    while (lm.coach.blocks) lm.handleKey('Space');
-    ok('lesson: the first task lights row 2', lm.coach.step.kind === 'g1' && lm.coach.step.rects.lines[0].join() === 'row,1');
+    ok('lesson: a column never counts as matching in a rows-only drill', [0, 1, 2, 3, 4].every(c => !lm.lineOk('col', c)));
+    skipInfo();
+    ok('lesson: the first task lights row 1', lm.coach.step.kind === 'c1a' && lm.coach.step.rects.lines[0].join() === 'row,0');
+    tapL(1, 0);
+    ok('lesson: a move outside the lit row is taken back', lm.cells[5] === 0 && /Not that cell/.test(lm.message.text));
+    for (let c = 0; c < 5; c++) tapL(0, c);
+    tick();
+    ok('lesson: filling row 1 passes the step', lm.coach.step.kind === 'info');
+    skipInfo();
+    tapL(1, 3);
+    ok('lesson: "3 1" — filling the gap is taken back', lm.cells[1 * 5 + 3] === 0);
+    doStep();
+    ok('lesson: "3 1" filled, its gap gets ✕ by itself', lm.cells[1 * 5 + 3] === 2 && lm.lineOk('row', 1));
+    skipInfo();
+    ok('lesson: then a 0 row to mark ✕', lm.coach.step.kind === 'c1c');
+    doStep(); doStep();
+    skipInfo();
+    ok('lesson: chapter 2 — sure cells, 6 wide, with a slide', lm.lesson.ch === 1 && lm.cols === 6 && lm.coach.step.slide && lm.coach.step.slide.join() === 'row,0');
+    skipInfo();
     tapL(0, 0);
-    ok('lesson: a move against the map is taken back', lm.cells[0] === 0 && /Not that cell/.test(lm.message.text));
-    for (let c = 0; c < 5; c++) tapL(1, c);
-    ok('lesson: filling row 2 passes the step', lm.coach.step.kind === 'g2');
-    // Play the rest the way the steps ask.
-    for (let c = 0; c < 5; c++) tapL(3, c);
-    [0, 2, 4].forEach(r => tapL(r, 2));
-    while (lm.coach.blocks) lm.handleKey('Space');
-    ok('lesson: then the 1 1 1 row', lm.coach.step.kind === 'g4');
-    tapL(2, 0); tapL(2, 4);
-    const at5 = (r, c) => lm.cells[r * 5 + c];
-    ok('lesson: filling the two ends greys the row and its gaps get ✕ by themselves', at5(2, 1) === 2 && at5(2, 3) === 2);
-    ok('lesson: columns 1 and 5 turned grey too, their empty cells ✕', at5(0, 0) === 2 && at5(4, 0) === 2 && at5(0, 4) === 2 && at5(4, 4) === 2);
-    ok('lesson: the next step explains the automatic ✕', lm.coach.step.kind === 'info' && /by themselves/.test(lm.coach.step.text.desktop || lm.coach.step.text));
-    while (lm.coach.blocks) lm.handleKey('Space');
-    ok('lesson: HINT, AUDIT and UNDO are explained before the last step', lm.coach.step.kind === 'g6');
-    tapL(0, 1); tapL(0, 3);   // the middle one is already filled (column 3)
-    ok('lesson: solving the map marks it seen and starts the real map', st.raw.tutorial && !lm.lesson && lm.rows === tiers[0].rows &&
-        lm.result === null && lm.cells.every(v => v === 0) && lm.coach.blocks);
-    lm.handleKey('Space');
-    ok('lesson: then the real map is free to play', !lm.coach.active);
+    ok('lesson: an end cell is not sure — taken back with the reason', lm.cells[0] === 0 && /Not sure yet/.test(lm.message.text));
+    doStep(); doStep(); doStep();
+    skipInfo();
+    ok('lesson: chapter 3 — rows and columns together, both sets of numbers', lm.lesson.ch === 2 && !lm.rowsOnly && lm.rows === 5 && lm.lineCount === 10);
+    skipInfo(); doStep(); skipInfo();
+    ok('lesson: the full rows finish columns 1 and 5 for you (grey, ✕)', lm.lineOk('col', 0) && lm.lineOk('col', 4) && lm.cells[0] === 2);
+    let guardL = 0;
+    while (lm.lesson && lm.lesson.ch === 2 && guardL++ < 20) { skipInfo(); if (lm.lesson && lm.lesson.ch === 2 && lm.coach && !lm.coach.blocks) doStep(); }
+    ok('lesson: chapter 4 — a small generated map on your own', lm.lesson && lm.lesson.ch === 3 && lm.rows === 6 && lm.cols === 6);
+    skipInfo();
+    ok('lesson: no card stays over the panel while you solve it', !lm.coach);
+    ok('lesson: HINT works on the free map', lm.giveHint() && lm.hint.step === 1);
+    lm.solution.forEach((v, i) => { if (v && lm.cells[i] !== 1) tapL(Math.floor(i / 6), i % 6); });
+    tick();
+    ok('lesson: solving it marks it seen and starts the stage\'s real map', st.raw.tutorial && !lm.lesson && lm.rows === tiers[0].rows &&
+        lm.result === null && lm.cells.every(v => v === 0) && lm.coach.blocks && lm.auditErrors === 0);
+    lm.handleKey('Space'); tick();
+    ok('lesson: then the real map is free to play', !lm.coach);
     const again = new CG(Object.assign({ rng: makeRng(9) }, tiers[0]));
     again.useCoach(st, true);
     again.init({});
     ok('lesson: shown once', !again.lesson && again.rows === tiers[0].rows);
+    const hard = new CG(Object.assign({ rng: makeRng(9) }, tiers[2]));
+    hard.useCoach({ seen: () => false, mark: () => {} }, false);
+    hard.init({});
+    ok('lesson: only on the first stage', !hard.lesson);
+
+    // Every chapter's guided steps can be done the way they ask.
+    CG.CHAPTERS.forEach((ch, n) => {
+        if (!ch.map) return;
+        const sol = ch.map.join('');
+        const cols = ch.map[0].length;
+        const bad = ch.steps.filter(s => s.goal && s.goal.some(([r, c, v]) => (sol[r * cols + c] === '#') !== !!v));
+        ok(`lesson chapter ${n + 1}: every goal cell agrees with its map`, bad.length === 0, bad.map(s => s.kind).join());
+    });
+
+    // LESSON button: replay any time in the campaign, the map waits; ‹ › flip chapters; ✕ EXIT.
+    const rp = make(tiers[1], 61);
+    rp.useCoach({ seen: () => true, mark: () => {} }, false);
+    const RL0 = rp.layout();
+    rp.handlePointer(RL0.x + RL0.cell / 2, RL0.y + RL0.cell / 2, 'down'); rp.handlePointer(0, 0, 'up');
+    const before = rp.cells.slice(), size = rp.rows;
+    const lb = rp.buttons().lesson;
+    rp.handlePointer(lb.x + 5, lb.y + 5, 'down');
+    ok('LESSON: opens the lesson at chapter 1', rp.lesson && rp.lesson.ch === 0 && rp.rows === 4);
+    const gb = rp.buttons().goal;
+    rp.handlePointer(gb.x + gb.w - 5, gb.y + 40, 'down');
+    ok('LESSON: › in the GOAL box flips to the next chapter, even under a card', rp.lesson.ch === 1 && rp.cols === 6);
+    rp.handlePointer(gb.x + 5, gb.y + 40, 'down');
+    ok('LESSON: ‹ flips back', rp.lesson.ch === 0);
+    rp.handlePointer(lb.x + 5, lb.y + 5, 'down');
+    ok('LESSON: ✕ EXIT brings the waiting map back as it was', !rp.lesson && rp.rows === size && rp.cells.join() === before.join() && rp.undo.length === 1);
+    ok('LESSON: not in Endless (AUDIT keeps the full row)', (() => { const e = make(Object.assign({}, tiers[0], { endless: true }), 62); const B = e.buttons(); return !B.lesson && B.audit.w === B.goal.w && !e.startLesson(0); })());
+
+    // Slide: blocks pushed as far left / right as they go with the known cells.
+    const ex = CG.extremes([2, 2], [-1, -1, -1, -1, -1, -1]);
+    ok('extremes: 2 2 in 6 → left 0,3 / right 1,4', ex.left.join() === '0,3' && ex.right.join() === '1,4');
+    const ex2 = CG.extremes([3], [-1, -1, 1, -1, -1, 0, -1]);
+    ok('extremes: known cells hold the blocks in place', ex2.left.join() === '0' && ex2.right.join() === '2');
+    ok('extremes: a clue that cannot fit is null', CG.extremes([3], [-1, 0, -1, -1]) === null);
+    // The overlap the slide shows is always among the solver's sure cells.
+    let slideOk = true;
+    for (let t = 0; t < 300; t++) {
+        const rng = makeRng(t + 3), L = 4 + Math.floor(rng() * 6);
+        const line = Array.from({ length: L }, () => (rng() < 0.55 ? 1 : 0));
+        const clue = CG.runs(line);
+        const known = line.map(v => (rng() < 0.25 ? v : -1));
+        const e = CG.extremes(clue, known), s = CG.solveLine(clue, known);
+        if (!e || !s) { slideOk = false; break; }
+        clue.forEach((len, j) => { for (let x = e.right[j]; x < e.left[j] + len; x++) if (s[x] !== 1) slideOk = false; });
+    }
+    ok('slide: every yellow cell is a sure cell (300 random lines)', slideOk);
 
     // Auto ✕: a line the stroke turns grey gets ✕ in its empty cells; UNDO takes them back.
     const ax = make(tiers[0], 41);
@@ -4258,8 +4337,32 @@ suite('Checksum Grid (Act 9) — puzzles, controls, audit, lesson', () => {
     const hb = hm.buttons().hint;
     hm.handlePointer(hb.x + 5, hb.y + 5, 'down');
     ok('hint: lights a line and decides cells from an empty map', !!hm.hint && hm.hint.lines.length === 1 && hm.hint.cells.length > 0 && hm.hints === 1);
+    ok('hint: the first press only says where to look (step 1)', hm.hint.step === 1);
+    hm.handlePointer(hb.x + 5, hb.y + 5, 'down');
+    ok('hint: pressing again shows the cells and why, costs no second hint', hm.hint.step === 2 && hm.hints === 1);
+    ok('hint: an overlap reason slides the line on the map', hm.hint.slide === null || hm.hint.slide.join() === hm.hint.lines[0].join());
     ok('hint: every cell it decides is right', hm.hint.cells.every(({ i, v }) => hm.solution[i] === v));
     ok('hint: says why, in words', typeof hm.hint.text === 'string' && /\{line\}/.test(hm.hint.text) && /^(Row|Column) \d+$/.test(hm.hint.vars.line));
+    hm.render(makeFakeCtx(makeFakeCanvas()), 960, 640);
+    hm.handlePointer(hb.x + 5, hb.y + 5, 'down');
+    ok('hint: a third press with nothing changed starts a new hint', hm.hint.step === 1 && hm.hints === 2);
+
+    // Nudge: a campaign map left alone for a minute points at HINT; a move resets it.
+    const nm = make(tiers[0], 23);
+    for (let i = 0; i < 60 * 59; i++) nm.update(1 / 60);
+    ok('nudge: not before a minute', !nm.nudge);
+    for (let i = 0; i < 60 * 2; i++) nm.update(1 / 60);
+    ok('nudge: after a minute without a move', nm.nudge);
+    nm.render(makeFakeCtx(makeFakeCanvas()), 960, 640);
+    nm.handleKey('Space'); nm.update(1 / 60);
+    ok('nudge: a move ends it', !nm.nudge && nm.idle < 1);
+    for (let i = 0; i < 60 * 61; i++) nm.update(1 / 60);
+    nm.useCoach({ seen: () => true, mark: () => {} }, false);
+    nm.startLesson(0); nm.update(1 / 60);
+    ok('nudge: gone while the lesson runs', !nm.nudge);
+    const ne = make(Object.assign({}, tiers[0], { endless: true }), 24);
+    for (let i = 0; i < 60 * 90; i++) ne.update(1 / 60);
+    ok('nudge: never in Endless', !ne.nudge);
     // Following hints alone solves the map.
     let guard = 0;
     while (hm.result === null && guard++ < 400) {
