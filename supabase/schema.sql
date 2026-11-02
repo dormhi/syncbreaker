@@ -15,6 +15,9 @@
 --   * One Endless leaderboard per game (endless_game_scores).
 --   * The operator's progress is one JSON blob (operator_progress); the
 --     client merges it with the browser's copy (js/ProgressSync.js).
+--   * Explicit consent to privacy.html is kept per operator
+--     (operator_consents); delete_my_operator() erases an operator and
+--     everything tied to it (privacy.html, right to erasure).
 -- All writes go through the SECURITY DEFINER functions below. The game
 -- client stays the authority for gameplay: this is basic validation, not
 -- full anti-cheat protection.
@@ -385,6 +388,83 @@ begin
 end;
 $$;
 
+-- ── Privacy: consent and erasure (privacy.html, 2026-11-02) ──
+
+create table if not exists public.operator_consents (
+    profile_id uuid primary key references public.profiles(id) on delete cascade,
+    version text not null,
+    given_at timestamptz not null default now(),
+    constraint operator_consents_version check (version ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+);
+
+alter table public.operator_consents enable row level security;
+-- No policies on purpose: reachable only through the functions below.
+revoke all on table public.operator_consents from anon, authenticated;
+
+-- The operator accepted this version of the notice. Asking again for the
+-- same version keeps the first time.
+create or replace function public.record_consent(p_version text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+    v_profile uuid := public.current_operator_id();
+begin
+    if v_profile is null then
+        raise exception 'Profile required';
+    end if;
+    if p_version is null or p_version !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+        raise exception 'Invalid consent version';
+    end if;
+    insert into public.operator_consents (profile_id, version, given_at)
+    values (v_profile, p_version, now())
+    on conflict (profile_id) do update set version = excluded.version, given_at = excluded.given_at
+    where public.operator_consents.version is distinct from excluded.version;
+    return true;
+end;
+$$;
+
+-- Delete the operator this browser plays as, with its password. Every table
+-- that belongs to it (password, links, progress, scores, consent, failed
+-- logins) goes with it through ON DELETE CASCADE. Anonymous auth users stay:
+-- they hold no personal data. A wrong password returns false instead of
+-- raising, so the failed attempt is kept and the rate limit applies.
+create or replace function public.delete_my_operator(p_password text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+    v_profile uuid := public.current_operator_id();
+    v_hash text;
+    v_failures integer;
+begin
+    if v_profile is null then
+        raise exception 'Profile required';
+    end if;
+
+    select s.password_hash into v_hash from public.operator_secrets s where s.profile_id = v_profile;
+    if v_hash is not null then
+        select count(*) into v_failures
+        from public.operator_failed_logins f
+        where f.profile_id = v_profile and f.attempted_at > now() - interval '15 minutes';
+        if v_failures >= 5 then
+            raise exception 'Too many attempts. Try again in 15 minutes';
+        end if;
+        if p_password is null or extensions.crypt(p_password, v_hash) <> v_hash then
+            insert into public.operator_failed_logins (profile_id) values (v_profile);
+            return false;
+        end if;
+    end if;
+
+    delete from public.profiles p where p.id = v_profile;
+    return true;
+end;
+$$;
+
 -- ── Permissions ──
 -- New functions are executable by PUBLIC by default; lock them down first.
 revoke all on table public.profiles from anon, authenticated;
@@ -402,6 +482,8 @@ revoke all on function public.submit_endless_game_result(text, bigint, integer) 
 revoke all on function public.get_my_endless_game_rank(text) from public, anon;
 revoke all on function public.get_my_progress() from public, anon;
 revoke all on function public.save_my_progress(jsonb) from public, anon;
+revoke all on function public.record_consent(text) from public, anon;
+revoke all on function public.delete_my_operator(text) from public, anon;
 grant execute on function public.current_operator_id() to authenticated;
 grant execute on function public.get_my_operator() to authenticated;
 grant execute on function public.create_operator(text, text) to authenticated;
@@ -411,3 +493,5 @@ grant execute on function public.submit_endless_game_result(text, bigint, intege
 grant execute on function public.get_my_endless_game_rank(text) to authenticated;
 grant execute on function public.get_my_progress() to authenticated;
 grant execute on function public.save_my_progress(jsonb) to authenticated;
+grant execute on function public.record_consent(text) to authenticated;
+grant execute on function public.delete_my_operator(text) to authenticated;

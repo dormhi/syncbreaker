@@ -2981,6 +2981,7 @@ suite('Endless welcome menu + campaign-complete screen', () => {
     ok('ENTER without an operator asks for one first', gm.state.pendingState === S.PROFILE_SETUP && gm.state.pendingContext.cancelState === S.MENU);
     gm.state.transitioning = false; gm.state.pendingState = null;
     gm.leaderboard.profile = { id: 'op', displayName: 'Tester' };
+    gm._storage().setItem('sb_consent', mod.LeaderboardService.CONSENT_VERSION);
     btn('start').onClick();
     ok('ENTER goes to the act map', gm.state.pendingState === S.HUB);
     gm.leaderboard.profile = null;
@@ -5537,6 +5538,15 @@ suite('Operator account: required to play, progress saved with it, one-time wipe
     store.setItem('sb_operator', JSON.stringify({ id: 'op', displayName: 'Ace' }));
     gm.state.transitioning = false; gm.state.pendingState = null;
     gm._enterGame();
+    ok('signed in before the privacy notice: consent first, backing out returns to the menu',
+        gm.state.pendingState === S.PROFILE_SETUP && gm.state.pendingContext.mode === 'consent' && gm.state.pendingContext.cancelState === S.MENU);
+    store.setItem('sb_consent', '2020-01-01');
+    gm.state.transitioning = false; gm.state.pendingState = null;
+    gm._enterGame();
+    ok('an older notice version asks again', gm.state.pendingState === S.PROFILE_SETUP && gm.state.pendingContext.mode === 'consent');
+    store.setItem('sb_consent', mod.LeaderboardService.CONSENT_VERSION);
+    gm.state.transitioning = false; gm.state.pendingState = null;
+    gm._enterGame();
     ok('an operator remembered on this browser plays (offline too)', gm.state.pendingState === S.HUB);
     gm.state.transitioning = false; gm.state.pendingState = null;
     gm._openAccount();
@@ -5545,8 +5555,25 @@ suite('Operator account: required to play, progress saved with it, one-time wipe
     drawn.length = 0;
     gm.render(ctx, 0);
     ok('the account screen shows the operator, the warning and SIGN OUT', drawn.includes('Ace') && drawn.some(t => /Basic protection only/.test(t)) && !!gm.ui.buttons.find(b => b.id === 'account-signout'));
-    const keep = mod.GameManager.resetData({ length: 4, key: (i) => ['sb_operator', 'sb_epoch', 'sb_campaign_v1', 'sb_lang'][i], removeItem: function (k) { (this.gone = this.gone || []).push(k); } });
-    ok('RESET keeps the operator signed in and the epoch done', keep.join() === 'sb_campaign_v1');
+    ok('the account screen offers DELETE OPERATOR', !!gm.ui.buttons.find(b => b.id === 'account-delete'));
+    const keep = mod.GameManager.resetData({ length: 5, key: (i) => ['sb_operator', 'sb_epoch', 'sb_campaign_v1', 'sb_lang', 'sb_consent'][i], removeItem: function (k) { (this.gone = this.gone || []).push(k); } });
+    ok('RESET keeps the operator signed in, its consent and the epoch done', keep.join() === 'sb_campaign_v1');
+    // Consent given in the form is kept here and sent with the operator.
+    store.removeItem('sb_consent');
+    let consents = 0;
+    const realRecord = gm.leaderboard.recordConsent;
+    gm.leaderboard.recordConsent = async () => { consents++; return true; };
+    pendingSuites.push(gm._recordConsent().then(() => {
+        ok('a consent is kept on this browser and recorded with the operator', consents === 1 && store.getItem('sb_consent') === mod.LeaderboardService.CONSENT_VERSION);
+        gm.leaderboard.recordConsent = realRecord;
+    }));
+    // DELETE OPERATOR: a wrong password keeps everything.
+    const realDelete = gm.leaderboard.deleteOperator;
+    gm.leaderboard.deleteOperator = async () => false;
+    pendingSuites.push(gm._deleteOperator('nope-nope').then((msg) => {
+        ok('deleting with a wrong password says so and keeps the operator', msg === 'Password is incorrect.' && !!store.getItem('sb_operator'));
+        gm.leaderboard.deleteOperator = realDelete;
+    }));
     // Sign out with a fake service: progress saved first, then forgotten here.
     store.setItem('sb_campaign_v1', JSON.stringify(a.campaign));
     gm.progress = new mod.CampaignProgress(mod.CAMPAIGN);

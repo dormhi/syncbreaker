@@ -8,6 +8,19 @@
     // The owner's data wipe (save epoch): once per browser, before anything reads a save.
     try { ProgressSync.applyEpoch(window.localStorage); } catch (e) { }
 
+    // Visitor statistics (privacy.html §3): Cloudflare Web Analytics, no
+    // cookies, nothing stored in the browser. Live site only, so local runs
+    // are not counted; an empty token turns it off. spa: false, because the
+    // back guard's history entries are not page views.
+    const ANALYTICS_TOKEN = '';
+    if (ANALYTICS_TOKEN && window.location.hostname === 'syncbreaker.dormhi.com') {
+        const beacon = document.createElement('script');
+        beacon.defer = true;
+        beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+        beacon.setAttribute('data-cf-beacon', JSON.stringify({ token: ANALYTICS_TOKEN, spa: false }));
+        document.head.appendChild(beacon);
+    }
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 

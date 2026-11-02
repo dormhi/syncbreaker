@@ -8,6 +8,11 @@
      create  name + password + confirm   (new operator)
      signin  name + password             (same operator, another browser)
      secure  password + confirm          (operator created before passwords)
+     consent consent box only            (signed in before the privacy notice)
+     delete  password                    (delete the operator for good)
+
+   create, signin and consent carry the privacy consent box (privacy.html):
+   values.consent must be ticked to go on.
 
    open(mode, { onSubmit(mode, values) -> Promise<string|null>, onCancel })
    onSubmit resolves to an error message, or null on success.
@@ -79,8 +84,11 @@ class ProfileForm {
         const copy = {
             create: { title: 'OPERATOR PROFILE', sub: 'An operator is needed to play. Pick a unique name and a password: your progress is saved with it on every browser.', cta: 'CREATE OPERATOR' },
             signin: { title: 'SIGN IN', sub: 'Sign in to your operator: your progress comes with it.', cta: 'SIGN IN' },
-            secure: { title: 'SECURE YOUR NAME', sub: 'Set a password so you can play this operator from any browser.', cta: 'SAVE PASSWORD' }
+            secure: { title: 'SECURE YOUR NAME', sub: 'Set a password so you can play this operator from any browser.', cta: 'SAVE PASSWORD' },
+            consent: { title: 'YOUR CONSENT', sub: 'Before you play on: read how your operator data is stored and confirm.', cta: 'CONFIRM' },
+            delete: { title: 'DELETE OPERATOR', sub: 'Your operator, its progress, Endless scores and consent are deleted from the server for good, on every device. This cannot be undone.', cta: 'DELETE FOREVER' }
         }[m];
+        const asksConsent = m === 'create' || m === 'signin' || m === 'consent';
 
         const root = this._el('div', 'sb-form-backdrop');
         const form = this._el('form', 'sb-form');
@@ -88,28 +96,32 @@ class ProfileForm {
         form.appendChild(this._el('div', 'sb-form-title', copy.title));
         form.appendChild(this._el('div', 'sb-form-sub', copy.sub));
         // Names and passwords get basic protection only: say so plainly.
-        form.appendChild(this._el('div', 'sb-form-warn', '⚠ Basic protection only — never use a password you use anywhere else.'));
+        if (m !== 'consent' && m !== 'delete') form.appendChild(this._el('div', 'sb-form-warn', '⚠ Basic protection only — never use a password you use anywhere else.'));
 
-        if (m !== 'secure') {
+        if (m === 'create' || m === 'signin') {
             form.appendChild(this._field('OPERATOR NAME', {
                 name: 'username', type: 'text', autocomplete: 'username', maxlength: '16',
                 autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false',
                 placeholder: '3–16 letters, numbers, _ -'
             }));
         }
-        form.appendChild(this._field('PASSWORD', {
-            name: 'password', type: 'password', maxlength: '72',
-            autocomplete: m === 'signin' ? 'current-password' : 'new-password',
-            placeholder: 'at least 8 characters'
-        }));
-        if (m !== 'signin') {
+        if (m !== 'consent') {
+            form.appendChild(this._field('PASSWORD', {
+                name: 'password', type: 'password', maxlength: '72',
+                autocomplete: m === 'signin' || m === 'delete' ? 'current-password' : 'new-password',
+                placeholder: m === 'delete' ? 'your current password' : 'at least 8 characters'
+            }));
+        }
+        if (m === 'create' || m === 'secure') {
             form.appendChild(this._field('CONFIRM PASSWORD', {
                 name: 'confirm', type: 'password', maxlength: '72', autocomplete: 'new-password'
             }));
         }
 
+        if (asksConsent) form.appendChild(this._consentBox());
+
         form.appendChild(this._el('div', 'sb-form-status'));
-        const submit = this._el('button', 'sb-form-submit', copy.cta);
+        const submit = this._el('button', 'sb-form-submit' + (m === 'delete' ? ' is-danger' : ''), copy.cta);
         submit.type = 'submit';
         form.appendChild(submit);
 
@@ -130,7 +142,7 @@ class ProfileForm {
                 if (input) input.value = name;
             });
             row.appendChild(swap);
-        } else {
+        } else if (m === 'secure') {
             const later = this._el('button', 'sb-form-link', 'LATER');
             later.type = 'button';
             later.addEventListener('click', () => this._cancel());
@@ -149,6 +161,24 @@ class ProfileForm {
         root.appendChild(form);
         document.body.appendChild(root);
         this.root = root;
+    }
+
+    /** Explicit consent (KVKK Art. 9): a real checkbox, never ticked for the player, and a link to the notice. */
+    _consentBox() {
+        const wrap = this._el('div', 'sb-form-consent');
+        const label = this._el('label', 'sb-form-check');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.name = 'consent';
+        label.appendChild(box);
+        label.appendChild(this._el('span', null, 'I have read the privacy notice and give my explicit consent to my operator data being stored on servers abroad.'));
+        wrap.appendChild(label);
+        const link = this._el('a', 'sb-form-privacy', 'Read the privacy notice ↗');
+        link.href = `privacy.html?lang=${typeof I18n !== 'undefined' ? I18n.lang : 'en'}`;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        wrap.appendChild(link);
+        return wrap;
     }
 
     _position() {
@@ -173,13 +203,18 @@ class ProfileForm {
     async _submit() {
         if (this._busy) return;
         const m = this.mode;
-        const values = { name: this._value('username').trim(), password: this._value('password') };
-        if (m !== 'signin' && values.password !== this._value('confirm')) {
+        const box = this.root.querySelector('input[name="consent"]');
+        const values = { name: this._value('username').trim(), password: this._value('password'), consent: !!(box && box.checked) };
+        if (box && !values.consent) {
+            this.setStatus('Tick the consent box to go on.', true);
+            return;
+        }
+        if ((m === 'create' || m === 'secure') && values.password !== this._value('confirm')) {
             this.setStatus('Passwords do not match.', true);
             return;
         }
         this._busy = true;
-        this.setStatus(m === 'signin' ? 'Signing in…' : 'Saving…', false);
+        this.setStatus(m === 'signin' ? 'Signing in…' : m === 'delete' ? 'Deleting…' : 'Saving…', false);
         const submit = this.root.querySelector('.sb-form-submit');
         submit.disabled = true;
         let error = null;

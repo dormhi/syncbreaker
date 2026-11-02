@@ -235,6 +235,34 @@ class LeaderboardService {
         return true;
     }
 
+    /** Keep the operator's privacy consent on the server (proof of consent; same version: kept as it was). */
+    async recordConsent(version = LeaderboardService.CONSENT_VERSION) {
+        if (!this.client || !this.profile) throw new Error('Profile required');
+        const { error } = await this.client.rpc('record_consent', { p_version: version });
+        if (error) throw error;
+        return true;
+    }
+
+    /**
+     * Delete the operator for good (privacy.html, right to erasure): its
+     * name, password, progress, scores and consent go from the server, then
+     * this browser gets a new anonymous session.
+     * @returns {Promise<boolean>} false if the password is wrong.
+     */
+    async deleteOperator(password) {
+        await this.initialize();
+        if (!this.profile) throw new Error('Profile required');
+        const { data, error } = await this.client.rpc('delete_my_operator', { p_password: password || null });
+        if (error) throw error;
+        if (data !== true) return false;
+        await this.client.auth.signOut({ scope: 'local' }).catch(() => {});
+        this._setProfile(null);
+        this._writePending({});
+        const result = await this.client.auth.signInAnonymously();
+        if (result.error) throw result.error;
+        return true;
+    }
+
     /** Protect the current operator (or change its password). */
     async setPassword(password, currentPassword = null) {
         const passError = LeaderboardService.validatePassword(password);
@@ -331,3 +359,6 @@ class LeaderboardService {
         } catch (error) { }
     }
 }
+
+/** The privacy notice (privacy.html) a consent is given to: its "last updated" date. */
+LeaderboardService.CONSENT_VERSION = '2026-11-02';

@@ -1060,12 +1060,17 @@ class GameManager {
                 }
                 this.leaderboard.initialize().then((profile) => {
                     if (this.state.currentState !== S.PROFILE_SETUP) return;
+                    if (profile && this._profileMode === 'consent') {
+                        this._profileStatus = '';
+                        this._openProfileForm('consent');
+                        return;
+                    }
                     if (profile && !this.leaderboard.needsPassword()) {
                         this.state.change(this._profileReturnState);
                         return;
                     }
                     this._profileStatus = '';
-                    this._openProfileForm(profile ? 'secure' : (this._profileMode || 'create'));
+                    this._openProfileForm(profile ? 'secure' : (this._profileMode && this._profileMode !== 'consent' ? this._profileMode : 'create'));
                 }).catch(() => {
                     if (this.state.currentState !== S.PROFILE_SETUP) return;
                     this._profileStatus = 'Offline: connect to the internet and try again.';
@@ -1086,13 +1091,18 @@ class GameManager {
                 this.ui.clearButtons();
                 const cx = VIEW.W / 2;
                 this._accountStatus = '';
-                this.ui.addButton('account-signout', '⏻  SIGN OUT', cx, 430, 240, 44,
+                this.ui.addButton('account-signout', '⏻  SIGN OUT', cx, 420, 240, 44,
                     () => this._signOut(), { color: '#ef4444' });
-                this.ui.addButton('account-back', '← BACK', cx, 490, 160, 38,
+                this.ui.addButton('account-delete', '✕ DELETE OPERATOR', cx, 476, 240, 36,
+                    () => this._openDeleteForm(), { color: '#7f1d1d' });
+                this.ui.addButton('account-back', '← BACK', cx, 536, 160, 38,
                     () => this.state.change(S.MENU), { color: '#64748b' });
             },
             render: (ctx) => this._renderAccount(ctx),
-            exit: () => this.ui.clearButtons(),
+            exit: () => {
+                this.ui.clearButtons();
+                if (this.profileForm) this.profileForm.close();
+            },
             onKey: (e) => { if (e.code === 'Escape') this.state.change(S.MENU); }
         });
 
@@ -1158,7 +1168,10 @@ class GameManager {
     /** ENTER / START MISSION: in with an operator, otherwise create or sign in first. */
     _enterGame() {
         const S = this.state.STATES;
-        if (this.leaderboard.knownOperator()) this.state.change(S.HUB);
+        if (this.leaderboard.knownOperator() && !this._hasConsent()) {
+            // Signed in before the privacy notice: consent once, then in.
+            this.state.change(S.PROFILE_SETUP, { returnState: S.HUB, cancelState: S.MENU, mode: 'consent' });
+        } else if (this.leaderboard.knownOperator()) this.state.change(S.HUB);
         else this.state.change(S.PROFILE_SETUP, { returnState: S.HUB, cancelState: S.MENU, mode: 'create' });
     }
 
@@ -1170,12 +1183,26 @@ class GameManager {
         else this.state.change(S.PROFILE_SETUP, { returnState: S.MENU, mode: 'create' });
     }
 
+    /** The privacy notice this browser accepted is the current one (privacy.html). */
+    _hasConsent() {
+        return this._storage() ? this._storage().getItem('sb_consent') === LeaderboardService.CONSENT_VERSION : false;
+    }
+
+    /** Explicit consent given in the form: kept here, and with the operator on the server (quietly retried on load). */
+    _recordConsent() {
+        try { this._storage().setItem('sb_consent', LeaderboardService.CONSENT_VERSION); } catch (e) { }
+        return this.leaderboard.recordConsent().catch(() => {});
+    }
+
     /** On load: bring the remembered operator's saved progress in (quietly, offline is fine). */
     _accountBoot() {
         if (!this.leaderboard.knownOperator()) return;
         Promise.resolve()
             .then(() => this.leaderboard.initialize())
-            .then((profile) => (profile ? this._pullProgress() : null))
+            .then((profile) => {
+                if (profile && this._hasConsent()) this._recordConsent();
+                return profile ? this._pullProgress() : null;
+            })
             .catch(() => {})
             .finally(() => this._updateAccountButton());
     }
@@ -1230,6 +1257,32 @@ class GameManager {
         this._reloadProgress();
         this._updateAccountButton();
         if (this.state.currentState === S.ACCOUNT) this.state.change(S.MENU);
+    }
+
+    /** DELETE OPERATOR: the password, then the operator is erased everywhere and this browser starts fresh. */
+    _openDeleteForm() {
+        if (!this.profileForm || this._accountBusy || !this.leaderboard.knownOperator()) return;
+        this.profileForm.open('delete', {
+            onSubmit: (m, v) => this._deleteOperator(v.password),
+            onCancel: () => {}
+        });
+    }
+
+    /** @returns {Promise<string|null>} error to show, or null once the operator is gone. */
+    async _deleteOperator(password) {
+        try {
+            if (!(await this.leaderboard.deleteOperator(password))) return 'Password is incorrect.';
+        } catch (error) {
+            return LeaderboardService.friendlyError(error, 'Something went wrong. Try again.');
+        }
+        const storage = this._storage();
+        ProgressSync.clear(storage);
+        GameManager.resetData(storage);
+        try { storage.removeItem('sb_consent'); } catch (e) { }
+        if (this.profileForm) this.profileForm.close();
+        if (typeof window !== 'undefined' && window.alert) window.alert(UITheme.t('Your operator and all its data are deleted.'));
+        if (typeof window !== 'undefined' && window.location) window.location.href = window.location.href;
+        return null;
     }
 
     _renderAccount(ctx) {
@@ -1290,12 +1343,13 @@ class GameManager {
             } else if (mode === 'signin') {
                 const profile = await this.leaderboard.signIn(values.name, values.password);
                 if (!profile) return 'Name or password is incorrect.';
-            } else {
+            } else if (mode === 'secure') {
                 await this.leaderboard.setPassword(values.password);
             }
         } catch (error) {
             return LeaderboardService.friendlyError(error, 'Something went wrong. Try again.');
         }
+        if (values.consent) await this._recordConsent();
         // The operator's progress comes along (a new operator gets this browser's).
         await this._pullProgress();
         this._updateAccountButton();
@@ -1735,8 +1789,8 @@ class GameManager {
      */
     static resetData(storage) {
         if (!storage) return [];
-        // The operator stays signed in; the save epoch must not run again.
-        const keep = new Set(['sb_lang', 'sb_muted', 'sb_volume', 'sb_music', 'sb_epoch', 'sb_operator']);
+        // The operator stays signed in (and keeps its privacy consent); the save epoch must not run again.
+        const keep = new Set(['sb_lang', 'sb_muted', 'sb_volume', 'sb_music', 'sb_epoch', 'sb_operator', 'sb_consent']);
         const keys = [];
         for (let i = 0; i < storage.length; i++) keys.push(storage.key(i));
         const gone = keys.filter(k => k && k.startsWith('sb_') && !keep.has(k));
@@ -2894,6 +2948,7 @@ class GameManager {
      */
     _setBrandLink(visible) {
         this._setLangButton(visible);
+        this._setPrivacyLink(visible);
         this._setAccountButton(visible);
         if (typeof document === 'undefined' || !document.createElement || !document.body) return;
         if (!this._brand) {
@@ -2925,6 +2980,46 @@ class GameManager {
             this._placeBrand();
         } else if (this._brand.isConnected) {
             this._brand.remove();
+        }
+    }
+
+    // ── Privacy notice (menu only, next to the language badge) ──
+
+    /** A round badge with a shield: privacy.html in the player's language (a real link, like dormhi.com). */
+    _setPrivacyLink(visible) {
+        if (typeof document === 'undefined' || !document.createElement || !document.body) return;
+        if (!this._privacy) {
+            const a = document.createElement('a');
+            a.className = 'sb-brand sb-privacy';
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.innerHTML = '<svg class="sb-lang-mark" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7">' +
+                '<path d="M12 3l7 3v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg>';
+            const label = () => {
+                const text = UITheme.t('Privacy & storage');
+                a.href = `privacy.html?lang=${typeof I18n !== 'undefined' ? I18n.lang : 'en'}`;
+                a.title = text;
+                a.setAttribute('aria-label', text);
+            };
+            this._privacy = a;
+            this._placePrivacy = () => {
+                const r = this.canvas.getBoundingClientRect();
+                const k = r.width / VIEW.W;
+                const fs = Math.max(10, 12 * k);
+                // Same footer line, just right of the language badge.
+                a.style.fontSize = fs + 'px';
+                a.style.left = (r.left + 16 * k + 6.0 * fs) + 'px';
+                a.style.top = (r.top + (VIEW.H - 24) * k - 1.2 * fs) + 'px';
+            };
+            window.addEventListener('resize', this._placePrivacy);
+            if (typeof I18n !== 'undefined') I18n.onChange(label);
+            label();
+        }
+        if (visible) {
+            if (!this._privacy.isConnected) document.body.appendChild(this._privacy);
+            this._placePrivacy();
+        } else if (this._privacy.isConnected) {
+            this._privacy.remove();
         }
     }
 

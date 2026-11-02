@@ -1017,6 +1017,25 @@ if (typeof I18n !== 'undefined') {
         'Create an operator or sign in': 'Operator oluştur ya da giriş yap'
     });
 
+    // Privacy: notice, explicit consent, deleting the operator (2026-11-02, privacy.html)
+    I18n.add('tr', {
+        'Privacy & storage': 'Gizlilik ve depolama',
+        'YOUR CONSENT': 'ONAYIN',
+        'Before you play on: read how your operator data is stored and confirm.': 'Oynamaya devam etmeden önce: operator verilerinin nasıl saklandığını oku ve onayla.',
+        'CONFIRM': 'ONAYLA',
+        'I have read the privacy notice and give my explicit consent to my operator data being stored on servers abroad.': 'Aydınlatma metnini okudum; operator verilerimin yurt dışındaki sunucularda saklanmasına açık rıza veriyorum.',
+        'Read the privacy notice ↗': 'Aydınlatma metnini oku ↗',
+        'Tick the consent box to go on.': 'Devam etmek için onay kutusunu işaretle.',
+        '✕ DELETE OPERATOR': '✕ OPERATORÜ SİL',
+        'DELETE OPERATOR': 'OPERATORÜ SİL',
+        'Your operator, its progress, Endless scores and consent are deleted from the server for good, on every device. This cannot be undone.': 'Operatorün, ilerlemesi, Endless rekorları ve onayın sunucudan her cihaz için kalıcı olarak silinir. Bu geri alınamaz.',
+        'DELETE FOREVER': 'KALICI OLARAK SİL',
+        'your current password': 'şu anki parolan',
+        'Deleting…': 'Siliniyor…',
+        'Password is incorrect.': 'Parola yanlış.',
+        'Your operator and all its data are deleted.': 'Operatorün ve bütün verileri silindi.'
+    });
+
     // Checksum Grid: HINT and the step-by-step lesson (beta feedback, 2026-10-27)
     I18n.add('tr', {
         '💡 HINT': '💡 İPUCU',

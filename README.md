@@ -92,5 +92,8 @@ Accounts, saved progress and the Endless leaderboards use [Supabase](https://sup
 
 Without this the game still runs locally, but you cannot create an operator or post scores. The client is the authority for gameplay, so the server does basic validation, not full anti-cheat.
 
+## 🔒 Privacy
+SyncBreaker sets no cookies and has no ads or tracking. Fonts and libraries are served from the site itself. Creating or signing in to an operator asks for explicit consent, and an operator can be deleted for good from its account screen. Visits are counted with cookieless Cloudflare Web Analytics. Details, in English and Turkish: [`privacy.html`](privacy.html).
+
 ## 🎓 About
 Developed as a Computer Graphics university final project by [dormhi](https://dormhi.com).

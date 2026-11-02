@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncBreaker · Privacy</title>
+    <meta name="description" content="What SyncBreaker stores, where and why: privacy and storage notice.">
+    <style>
+        /* Same faces as the game, served from this site (css/style.css). */
+        @font-face { font-family: 'Orbitron'; font-weight: 400 900; font-display: swap; src: url(fonts/orbitron-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+2000-206F; }
+        @font-face { font-family: 'Rajdhani'; font-weight: 500; font-display: swap; src: url(fonts/rajdhani-latin-500.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+2000-206F; }
+        @font-face { font-family: 'Rajdhani'; font-weight: 500; font-display: swap; src: url(fonts/rajdhani-latin-ext-500.woff2) format('woff2'); unicode-range: U+0100-02BA; }
+        @font-face { font-family: 'Rajdhani'; font-weight: 700; font-display: swap; src: url(fonts/rajdhani-latin-700.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+2000-206F; }
+        @font-face { font-family: 'Rajdhani'; font-weight: 700; font-display: swap; src: url(fonts/rajdhani-latin-ext-700.woff2) format('woff2'); unicode-range: U+0100-02BA; }
+
+        :root { --bg: #0a0e17; --panel: #0f172a; --line: #1e293b; --text: #e2e8f0; --dim: #94a3b8; --accent: #f59e0b; --link: #93c5fd; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg); color: var(--text); font: 500 17px/1.5 'Rajdhani', system-ui, sans-serif; }
+        main { max-width: 760px; margin: 0 auto; padding: 28px 16px 56px; }
+        header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+        h1 { margin: 0; font: 700 22px 'Orbitron', sans-serif; letter-spacing: 0.04em; color: var(--accent); }
+        h2 { margin: 28px 0 8px; font: 700 15px 'Orbitron', sans-serif; letter-spacing: 0.04em; color: var(--text); }
+        p, li { color: #cbd5e1; }
+        ul { padding-left: 1.2em; }
+        li { margin: 4px 0; }
+        b { color: var(--text); }
+        a { color: var(--link); }
+        .meta { color: var(--dim); font-size: 15px; }
+        .box { margin: 16px 0; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; }
+        .langs { display: flex; gap: 6px; }
+        .langs button { padding: 6px 12px; font: 700 15px 'Rajdhani', sans-serif; color: var(--dim); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+        .langs button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
+        table { width: 100%; border-collapse: collapse; font-size: 16px; }
+        th, td { padding: 8px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+        th { color: var(--dim); font-weight: 700; }
+        .wrap { overflow-x: auto; }
+        .back { display: inline-block; margin-top: 32px; }
+        [data-lang] { display: none; }
+        html[lang="en"] [data-lang="en"], html[lang="tr"] [data-lang="tr"] { display: revert; }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <h1><span data-lang="en">Privacy &amp; storage</span><span data-lang="tr">Gizlilik ve depolama</span></h1>
+        <div class="langs" role="group" aria-label="Language / Dil">
+            <button type="button" data-set="tr">Türkçe</button>
+            <button type="button" data-set="en">English</button>
+        </div>
+    </header>
+    <p class="meta"><span data-lang="en">Last updated: 2 November 2026</span><span data-lang="tr">Son güncelleme: 2 Kasım 2026</span></p>
+
+    <!-- ── English ── -->
+    <section data-lang="en">
+        <div class="box">
+            <b>In short:</b> SyncBreaker sets <b>no cookies</b> and has <b>no ads and no tracking</b>.
+            It keeps your game save in your browser and, so you can play on any device, with your operator account on our database server.
+            Visitor numbers are counted without cookies and without identifying you.
+        </div>
+
+        <h2>Who is responsible</h2>
+        <p>SyncBreaker is a non-commercial game made by dormhi as a Computer Graphics final project. Contact: <a href="https://dormhi.com" target="_blank" rel="noopener">dormhi.com</a>.</p>
+
+        <h2>1. Stored in your browser (no cookies)</h2>
+        <p>The game uses your browser's local storage (localStorage). It never leaves your device by itself and is only needed for the game to work, so it needs no consent:</p>
+        <ul>
+            <li>game progress, stars, Endless bests, lessons seen, energy;</li>
+            <li>settings: language, music and sound levels;</li>
+            <li>the operator signed in on this browser (name and id) and its login session;</li>
+            <li>that you accepted this notice, and when.</li>
+        </ul>
+        <p>Clearing the site's data in your browser, <b>SIGN OUT</b> or <b>RESET</b> removes it.</p>
+
+        <h2>2. Stored with your operator account</h2>
+        <p>An operator account is required to play. On our database server (<b>Supabase</b>) we keep:</p>
+        <div class="wrap"><table>
+            <tr><th>Data</th><th>Why</th><th>How long</th></tr>
+            <tr><td>Operator name</td><td>your account; shown on the Endless leaderboard</td><td>until you delete the operator</td></tr>
+            <tr><td>Password (as a bcrypt hash only, never readable)</td><td>signing in on another device</td><td>until you delete the operator</td></tr>
+            <tr><td>Game progress and Endless bests</td><td>the same save on every device; the leaderboard</td><td>until you delete the operator</td></tr>
+            <tr><td>Which browsers play this operator (random ids, no device details)</td><td>staying signed in</td><td>until you delete the operator</td></tr>
+            <tr><td>Times of wrong password attempts</td><td>blocking password guessing</td><td>about 1 day</td></tr>
+            <tr><td>Your consent and the notice version</td><td>proof of consent</td><td>until you delete the operator</td></tr>
+        </table></div>
+        <p>No e-mail, real name, phone number or location is ever asked for. Supabase, like any server, briefly records the IP address of requests in its technical and security logs.</p>
+
+        <h2>3. Visitor statistics</h2>
+        <p>We count visits with <b>Cloudflare Web Analytics</b>: number of visits, pages, country, browser and device type, the site you came from. It sets no cookies, keeps nothing in your browser and does not follow you across sites; Cloudflare states that it does not store your IP address for this.</p>
+
+        <h2>4. Hosting</h2>
+        <p>The site is served by <b>GitHub Pages</b>, which records the IP address of requests in its logs for security reasons.</p>
+
+        <h2>5. Data abroad</h2>
+        <p>Supabase, Cloudflare and GitHub run servers outside Türkiye. That is why, when you create or sign in to an operator, we ask for your <b>explicit consent</b> to process your account data on these servers (KVKK Art. 9). Without it the game cannot store your account, so it cannot be played; you can still read this notice and the game's start screen.</p>
+
+        <h2>6. Legal basis</h2>
+        <ul>
+            <li>running the game and your account you asked for (KVKK Art. 5/2-c, GDPR Art. 6(1)(b));</li>
+            <li>anonymous visitor statistics and security logs: legitimate interest (KVKK Art. 5/2-f, GDPR Art. 6(1)(f));</li>
+            <li>transfer abroad: your explicit consent (KVKK Art. 9).</li>
+        </ul>
+
+        <h2>7. Your rights</h2>
+        <p>You can ask what data we keep about you, have it corrected, and have it deleted (KVKK Art. 11, GDPR Art. 15–21). You can do the most important ones yourself:</p>
+        <ul>
+            <li><b>Delete your operator:</b> menu → account badge (top right) → <b>DELETE OPERATOR</b>. Your name, password, progress, scores and consent are removed from the server at once.</li>
+            <li><b>Withdraw consent:</b> deleting the operator withdraws it.</li>
+            <li>Anything else: contact us through <a href="https://dormhi.com" target="_blank" rel="noopener">dormhi.com</a>.</li>
+        </ul>
+
+        <a class="back" href="./">← Back to the game</a>
+    </section>
+
+    <!-- ── Türkçe ── -->
+    <section data-lang="tr">
+        <div class="box">
+            <b>Kısaca:</b> SyncBreaker <b>çerez kullanmaz</b>; <b>reklam ve takip yoktur</b>.
+            Oyun kaydın tarayıcında ve, her cihazda oynayabilmen için, operator hesabınla birlikte veritabanı sunucumuzda tutulur.
+            Ziyaretçi sayısı çerezsiz ve seni tanımadan sayılır.
+        </div>
+
+        <h2>Veri sorumlusu</h2>
+        <p>SyncBreaker, dormhi'nin Bilgisayar Grafiği bitirme projesi olarak yaptığı ticari olmayan bir oyundur. İletişim: <a href="https://dormhi.com" target="_blank" rel="noopener">dormhi.com</a>.</p>
+
+        <h2>1. Tarayıcında saklananlar (çerez yok)</h2>
+        <p>Oyun tarayıcının yerel depolamasını (localStorage) kullanır. Bu veriler kendiliğinden cihazından çıkmaz ve yalnızca oyunun çalışması için gereklidir, bu yüzden onay gerektirmez:</p>
+        <ul>
+            <li>oyun ilerlemesi, yıldızlar, Endless rekorları, görülen dersler, enerji;</li>
+            <li>ayarlar: dil, müzik ve ses düzeyi;</li>
+            <li>bu tarayıcıda giriş yapmış operator (ad ve kimlik numarası) ve oturumu;</li>
+            <li>bu metni kabul ettiğin ve ne zaman kabul ettiğin.</li>
+        </ul>
+        <p>Tarayıcıda sitenin verilerini silmek, <b>ÇIKIŞ YAP</b> ya da <b>SIFIRLA</b> bunları kaldırır.</p>
+
+        <h2>2. Operator hesabınla saklananlar</h2>
+        <p>Oynamak için bir operator hesabı gerekir. Veritabanı sunucumuzda (<b>Supabase</b>) şunları tutarız:</p>
+        <div class="wrap"><table>
+            <tr><th>Veri</th><th>Neden</th><th>Ne kadar süre</th></tr>
+            <tr><td>Operator adı</td><td>hesabın; Endless sıralamasında görünür</td><td>operatorü silene kadar</td></tr>
+            <tr><td>Parola (yalnızca bcrypt özeti, okunamaz)</td><td>başka cihazda giriş</td><td>operatorü silene kadar</td></tr>
+            <tr><td>Oyun ilerlemesi ve Endless rekorları</td><td>her cihazda aynı kayıt; sıralama</td><td>operatorü silene kadar</td></tr>
+            <tr><td>Bu operatorla oynayan tarayıcılar (rastgele kimlikler, cihaz bilgisi yok)</td><td>girişin açık kalması</td><td>operatorü silene kadar</td></tr>
+            <tr><td>Yanlış parola denemelerinin zamanı</td><td>parola tahminini engellemek</td><td>yaklaşık 1 gün</td></tr>
+            <tr><td>Onayın ve metnin sürümü</td><td>onayın kanıtı</td><td>operatorü silene kadar</td></tr>
+        </table></div>
+        <p>E-posta, gerçek ad, telefon ya da konum hiçbir zaman istenmez. Supabase, her sunucu gibi, isteklerin IP adresini teknik ve güvenlik kayıtlarında kısa süre tutar.</p>
+
+        <h2>3. Ziyaretçi istatistikleri</h2>
+        <p>Ziyaretleri <b>Cloudflare Web Analytics</b> ile sayarız: ziyaret sayısı, sayfalar, ülke, tarayıcı ve cihaz türü, geldiğin site. Çerez koymaz, tarayıcında bir şey saklamaz ve seni siteler arasında izlemez; Cloudflare bunun için IP adresini saklamadığını belirtir.</p>
+
+        <h2>4. Barındırma</h2>
+        <p>Site <b>GitHub Pages</b> üzerinden sunulur; GitHub güvenlik için isteklerin IP adresini kayıtlarında tutar.</p>
+
+        <h2>5. Yurt dışına aktarım</h2>
+        <p>Supabase, Cloudflare ve GitHub'ın sunucuları Türkiye dışındadır. Bu yüzden bir operator oluştururken ya da giriş yaparken, hesap verilerinin bu sunucularda işlenmesi için <b>açık rızanı</b> isteriz (KVKK md. 9). Rıza olmadan oyun hesabını saklayamaz, bu yüzden oynanamaz; bu metni ve oyunun giriş ekranını yine de görebilirsin.</p>
+
+        <h2>6. Hukuki sebepler</h2>
+        <ul>
+            <li>istediğin oyunun ve hesabın sunulması (KVKK md. 5/2-c, GDPR md. 6(1)(b));</li>
+            <li>anonim ziyaretçi istatistikleri ve güvenlik kayıtları: meşru menfaat (KVKK md. 5/2-f, GDPR md. 6(1)(f));</li>
+            <li>yurt dışına aktarım: açık rızan (KVKK md. 9).</li>
+        </ul>
+
+        <h2>7. Hakların</h2>
+        <p>Hakkında hangi verileri tuttuğumuzu öğrenebilir, düzeltilmesini ve silinmesini isteyebilirsin (KVKK md. 11, GDPR md. 15–21). En önemlilerini kendin yapabilirsin:</p>
+        <ul>
+            <li><b>Operatorünü sil:</b> menü → hesap rozeti (sağ üst) → <b>OPERATORÜ SİL</b>. Adın, parolan, ilerlemen, rekorların ve onayın sunucudan hemen silinir.</li>
+            <li><b>Rızanı geri al:</b> operatorü silmek rızayı da geri alır.</li>
+            <li>Diğer her şey için <a href="https://dormhi.com" target="_blank" rel="noopener">dormhi.com</a> üzerinden bize ulaş.</li>
+        </ul>
+
+        <a class="back" href="./">← Oyuna dön</a>
+    </section>
+</main>
+<script>
+    // Opens in the game's language (?lang=tr, else the saved sb_lang); the buttons switch it.
+    (function () {
+        var saved = null;
+        try { saved = localStorage.getItem('sb_lang'); } catch (e) { }
+        var asked = (location.search.match(/[?&]lang=(en|tr)\b/) || [])[1];
+        function set(lang) {
+            document.documentElement.lang = lang;
+            var buttons = document.querySelectorAll('[data-set]');
+            for (var i = 0; i < buttons.length; i++) buttons[i].setAttribute('aria-pressed', String(buttons[i].getAttribute('data-set') === lang));
+            document.title = lang === 'tr' ? 'SyncBreaker · Gizlilik' : 'SyncBreaker · Privacy';
+        }
+        document.querySelector('.langs').addEventListener('click', function (e) {
+            var lang = e.target.getAttribute && e.target.getAttribute('data-set');
+            if (lang) set(lang);
+        });
+        set(asked || (saved === 'tr' || saved === 'en' ? saved : (/^tr\b/i.test(navigator.language || '') ? 'tr' : 'en')));
+    })();
+</script>
+</body>
+</html>
