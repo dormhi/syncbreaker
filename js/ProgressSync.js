@@ -85,13 +85,18 @@ class ProgressSync {
         return blob;
     }
 
+    /** Keys from a saved copy that may become property names (never __proto__ and friends). */
+    static _safeKey(k) {
+        return typeof k === 'string' && k !== '__proto__' && k !== 'constructor' && k !== 'prototype';
+    }
+
     /** Merge two copies: whatever either one has cleared, earned or seen. */
     static merge(a, b) {
         a = a || {};
         b = b || {};
         const out = { v: 1, campaign: ProgressSync._mergeCampaign(a.campaign, b.campaign), endlessBests: {}, coach: {}, guideSeen: !!(a.guideSeen || b.guideSeen) };
         for (const src of [a.endlessBests || {}, b.endlessBests || {}]) {
-            for (const game of Object.keys(src)) {
+            for (const game of Object.keys(src).filter(ProgressSync._safeKey)) {
                 const e = src[game];
                 if (!e || !(Number(e.score) > 0)) continue;
                 const cur = out.endlessBests[game];
@@ -99,11 +104,11 @@ class ProgressSync {
             }
         }
         for (const src of [a.coach || {}, b.coach || {}]) {
-            for (const game of Object.keys(src)) {
+            for (const game of Object.keys(src).filter(ProgressSync._safeKey)) {
                 const flags = src[game];
                 if (!flags || typeof flags !== 'object') continue;
                 const into = out.coach[game] || (out.coach[game] = {});
-                for (const f of Object.keys(flags)) if (flags[f]) into[f] = true;
+                for (const f of Object.keys(flags).filter(ProgressSync._safeKey)) if (flags[f]) into[f] = true;
             }
         }
         return out;
@@ -114,7 +119,7 @@ class ProgressSync {
         if (!a || a.v !== 1) return b && b.v === 1 ? ProgressSync._mergeCampaign(b, b) : null;
         if (!b || b.v !== 1) return ProgressSync._mergeCampaign(a, a);
         const stages = {};
-        for (const id of new Set([...Object.keys(a.stages || {}), ...Object.keys(b.stages || {})])) {
+        for (const id of new Set([...Object.keys(a.stages || {}), ...Object.keys(b.stages || {})].filter(ProgressSync._safeKey))) {
             const la = (a.stages || {})[id] || [], lb = (b.stages || {})[id] || [];
             const list = [];
             for (let i = 0; i < Math.max(la.length, lb.length); i++) {

@@ -1085,13 +1085,15 @@ class GameManager {
             onKey: (e) => { if (e.code === 'Escape') this.state.change(this._profileCancelState); }
         });
 
-        // ── ACCOUNT (the signed-in operator: name, sign out) ──
+        // ── ACCOUNT (the signed-in operator: name, password, sign out) ──
         this.state.register(S.ACCOUNT, {
             enter: () => {
                 this.ui.clearButtons();
                 const cx = VIEW.W / 2;
                 this._accountStatus = '';
-                this.ui.addButton('account-signout', '⏻  SIGN OUT', cx, 420, 240, 44,
+                this.ui.addButton('account-password', 'CHANGE PASSWORD', cx - 130, 420, 240, 44,
+                    () => this._openChangePasswordForm(), { color: '#3b82f6' });
+                this.ui.addButton('account-signout', '⏻  SIGN OUT', cx + 130, 420, 240, 44,
                     () => this._signOut(), { color: '#ef4444' });
                 this.ui.addButton('account-delete', '✕ DELETE OPERATOR', cx, 476, 240, 36,
                     () => this._openDeleteForm(), { color: '#7f1d1d' });
@@ -1257,6 +1259,28 @@ class GameManager {
         this._reloadProgress();
         this._updateAccountButton();
         if (this.state.currentState === S.ACCOUNT) this.state.change(S.MENU);
+    }
+
+    /** CHANGE PASSWORD: current + new password; the server signs out every other browser. */
+    _openChangePasswordForm() {
+        if (!this.profileForm || this._accountBusy || !this.leaderboard.knownOperator()) return;
+        this.profileForm.open('change', {
+            onSubmit: (m, v) => this._changePassword(v.current, v.password),
+            onCancel: () => {}
+        });
+    }
+
+    /** @returns {Promise<string|null>} error to show, or null once the password is changed. */
+    async _changePassword(current, password) {
+        if (!current) return 'Current password is incorrect.';
+        try {
+            if (!(await this.leaderboard.setPassword(password, current))) return 'Current password is incorrect.';
+        } catch (error) {
+            return LeaderboardService.friendlyError(error, 'Something went wrong. Try again.');
+        }
+        if (this.profileForm) this.profileForm.close();
+        this._accountStatus = 'Password changed. Every other browser is signed out.';
+        return null;
     }
 
     /** DELETE OPERATOR: the password, then the operator is erased everywhere and this browser starts fresh. */

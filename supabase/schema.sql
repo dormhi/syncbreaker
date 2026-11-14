@@ -11,7 +11,10 @@
 --     linked to many browsers (operator_links); the browser that created
 --     it owns it (profiles.id = its auth uid).
 --   * Passwords are bcrypt hashes in operator_secrets, which no client role
---     can read; wrong passwords are rate limited (5 per 15 minutes).
+--     can read; wrong passwords are rate limited (5 per 15 minutes), one
+--     check per operator at a time (advisory lock), so parallel guesses
+--     cannot slip past. Changing the password signs out every other
+--     browser; leave_operator() signs this one out.
 --   * One Endless leaderboard per game (endless_game_scores).
 --   * The operator's progress is one JSON blob (operator_progress); the
 --     client merges it with the browser's copy (js/ProgressSync.js).
@@ -37,6 +40,10 @@ create table if not exists public.profiles (
     constraint profiles_display_name_length check (char_length(display_name) between 3 and 16),
     constraint profiles_display_name_characters check (display_name ~ '^[A-Za-z0-9_ -]+$')
 );
+
+-- The browser that created the operator plays as it until it signs out or
+-- another browser changes the password (2026-11-04).
+alter table public.profiles add column if not exists owner_signed_in boolean not null default true;
 
 create unique index if not exists profiles_display_name_lower_key
     on public.profiles (lower(display_name));
@@ -67,6 +74,12 @@ create table if not exists public.operator_failed_logins (
 );
 create index if not exists operator_failed_logins_recent
     on public.operator_failed_logins (profile_id, attempted_at);
+-- The browser that guessed (2026-11-04): a linked browser's own password
+-- checks (change, delete) count only its own mistakes, so strangers
+-- guessing at the sign-in cannot lock the owner out of them.
+alter table public.operator_failed_logins add column if not exists auth_uid uuid;
+create index if not exists operator_failed_logins_by_browser
+    on public.operator_failed_logins (profile_id, auth_uid, attempted_at);
 
 alter table public.operator_secrets enable row level security;
 alter table public.operator_links enable row level security;
@@ -84,7 +97,7 @@ set search_path = public, pg_temp
 as $$
     select coalesce(
         (select l.profile_id from public.operator_links l where l.auth_uid = auth.uid()),
-        (select p.id from public.profiles p where p.id = auth.uid())
+        (select p.id from public.profiles p where p.id = auth.uid() and p.owner_signed_in)
     );
 $$;
 
@@ -144,7 +157,9 @@ end;
 $$;
 
 -- Existing operator without a password (created before this migration):
--- protect it. Changing an existing password needs the current one.
+-- protect it. Changing an existing password needs the current one; a wrong
+-- one returns false (not an error, so the failed attempt is kept and the
+-- rate limit applies). A new password signs out every other browser.
 create or replace function public.set_operator_password(p_password text, p_current_password text default null)
 returns boolean
 language plpgsql
@@ -154,6 +169,7 @@ as $$
 declare
     v_profile uuid := public.current_operator_id();
     v_hash text;
+    v_failures integer;
 begin
     if v_profile is null then
         raise exception 'Profile required';
@@ -161,9 +177,21 @@ begin
     perform public._check_operator_password(p_password);
 
     select s.password_hash into v_hash from public.operator_secrets s where s.profile_id = v_profile;
-    if v_hash is not null and (p_current_password is null
-        or extensions.crypt(p_current_password, v_hash) <> v_hash) then
-        raise exception 'Current password is incorrect';
+    if v_hash is not null then
+        -- One password check per operator at a time, so parallel guesses
+        -- cannot all slip past the count below.
+        perform pg_advisory_xact_lock(hashtext('operator_login:' || v_profile::text));
+        select count(*) into v_failures
+        from public.operator_failed_logins f
+        where f.profile_id = v_profile and f.auth_uid = auth.uid()
+          and f.attempted_at > now() - interval '15 minutes';
+        if v_failures >= 5 then
+            raise exception 'Too many attempts. Try again in 15 minutes';
+        end if;
+        if p_current_password is null or extensions.crypt(p_current_password, v_hash) <> v_hash then
+            insert into public.operator_failed_logins (profile_id, auth_uid) values (v_profile, auth.uid());
+            return false;
+        end if;
     end if;
 
     insert into public.operator_secrets (profile_id, password_hash, updated_at)
@@ -171,6 +199,12 @@ begin
     on conflict (profile_id) do update set
         password_hash = excluded.password_hash,
         updated_at = excluded.updated_at;
+    -- Browsers that signed in with the old password lose the operator,
+    -- the browser that created it too (unless it is the one changing it).
+    delete from public.operator_links l
+    where l.profile_id = v_profile and l.auth_uid is distinct from auth.uid();
+    update public.profiles p set owner_signed_in = false
+    where p.id = v_profile and p.id is distinct from auth.uid() and p.owner_signed_in;
     return true;
 end;
 $$;
@@ -204,6 +238,9 @@ begin
         return;
     end if;
 
+    -- One password check per operator at a time: parallel guesses wait here,
+    -- so each one sees the failures committed before it.
+    perform pg_advisory_xact_lock(hashtext('operator_login:' || v_profile::text));
     select count(*) into v_failures
     from public.operator_failed_logins f
     where f.profile_id = v_profile and f.attempted_at > now() - interval '15 minutes';
@@ -212,7 +249,7 @@ begin
     end if;
 
     if p_password is null or extensions.crypt(p_password, v_hash) <> v_hash then
-        insert into public.operator_failed_logins (profile_id) values (v_profile);
+        insert into public.operator_failed_logins (profile_id, auth_uid) values (v_profile, auth.uid());
         return;
     end if;
 
@@ -224,6 +261,23 @@ begin
 
     return query select * from public.get_my_operator();
 end;
+$$;
+
+-- Sign out: this browser stops playing as the operator on the server too,
+-- so a copied session cannot keep using it.
+create or replace function public.leave_operator()
+returns boolean
+language sql
+security definer
+set search_path = public, pg_temp
+as $$
+    with unlinked as (
+        delete from public.operator_links l where l.auth_uid = auth.uid() returning 1
+    ), owner as (
+        update public.profiles p set owner_signed_in = false
+        where p.id = auth.uid() and p.owner_signed_in returning 1
+    )
+    select exists (select 1 from unlinked) or exists (select 1 from owner);
 $$;
 
 -- ── Endless: one leaderboard per game ──
@@ -448,14 +502,18 @@ begin
 
     select s.password_hash into v_hash from public.operator_secrets s where s.profile_id = v_profile;
     if v_hash is not null then
+        -- Only this browser's own mistakes count: strangers guessing at the
+        -- sign-in cannot block the owner's erasure.
+        perform pg_advisory_xact_lock(hashtext('operator_login:' || v_profile::text));
         select count(*) into v_failures
         from public.operator_failed_logins f
-        where f.profile_id = v_profile and f.attempted_at > now() - interval '15 minutes';
+        where f.profile_id = v_profile and f.auth_uid = auth.uid()
+          and f.attempted_at > now() - interval '15 minutes';
         if v_failures >= 5 then
             raise exception 'Too many attempts. Try again in 15 minutes';
         end if;
         if p_password is null or extensions.crypt(p_password, v_hash) <> v_hash then
-            insert into public.operator_failed_logins (profile_id) values (v_profile);
+            insert into public.operator_failed_logins (profile_id, auth_uid) values (v_profile, auth.uid());
             return false;
         end if;
     end if;
@@ -484,6 +542,9 @@ revoke all on function public.get_my_progress() from public, anon;
 revoke all on function public.save_my_progress(jsonb) from public, anon;
 revoke all on function public.record_consent(text) from public, anon;
 revoke all on function public.delete_my_operator(text) from public, anon;
+revoke all on function public.leave_operator() from public, anon;
+-- The bigserial sequence gets the default grants too; clients never need it.
+revoke all on sequence public.operator_failed_logins_id_seq from anon, authenticated;
 grant execute on function public.current_operator_id() to authenticated;
 grant execute on function public.get_my_operator() to authenticated;
 grant execute on function public.create_operator(text, text) to authenticated;
@@ -495,3 +556,4 @@ grant execute on function public.get_my_progress() to authenticated;
 grant execute on function public.save_my_progress(jsonb) to authenticated;
 grant execute on function public.record_consent(text) to authenticated;
 grant execute on function public.delete_my_operator(text) to authenticated;
+grant execute on function public.leave_operator() to authenticated;

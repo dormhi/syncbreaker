@@ -210,6 +210,9 @@ class LeaderboardService {
     async signOut() {
         await this.initialize();
         await this.flushPending();
+        // The server forgets this browser too, so a copied session cannot keep playing as the operator.
+        const left = await this.client.rpc('leave_operator');
+        if (left && left.error && !/leave_operator/i.test(left.error.message || '')) throw left.error;
         const { error } = await this.client.auth.signOut({ scope: 'local' });
         if (error) throw error;
         this._setProfile(null);
@@ -263,16 +266,21 @@ class LeaderboardService {
         return true;
     }
 
-    /** Protect the current operator (or change its password). */
+    /**
+     * Protect the current operator, or change its password (the current one
+     * is needed then). A new password signs out every other browser.
+     * @returns {Promise<boolean>} false if the current password is wrong.
+     */
     async setPassword(password, currentPassword = null) {
         const passError = LeaderboardService.validatePassword(password);
         if (passError) throw new Error(passError);
         await this.initialize();
-        const { error } = await this.client.rpc('set_operator_password', {
+        const { data, error } = await this.client.rpc('set_operator_password', {
             p_password: password,
             p_current_password: currentPassword
         });
         if (error) throw error;
+        if (data === false) return false;
         if (this.profile) this.profile.hasPassword = true;
         return true;
     }

@@ -1036,6 +1036,16 @@ if (typeof I18n !== 'undefined') {
         'Your operator and all its data are deleted.': 'Operatorün ve bütün verileri silindi.'
     });
 
+    // Changing the password signs out every other browser (security audit, 2026-11-04)
+    I18n.add('tr', {
+        'CHANGE PASSWORD': 'PAROLAYI DEĞİŞTİR',
+        'A new password signs out every other browser that plays as this operator.': 'Yeni parola, bu operatorla oynayan diğer bütün tarayıcılardan çıkış yaptırır.',
+        'SAVE NEW PASSWORD': 'YENİ PAROLAYI KAYDET',
+        'CURRENT PASSWORD': 'ŞU ANKİ PAROLA',
+        'NEW PASSWORD': 'YENİ PAROLA',
+        'Password changed. Every other browser is signed out.': 'Parola değişti. Diğer bütün tarayıcılardan çıkış yapıldı.'
+    });
+
     // Checksum Grid: HINT and the step-by-step lesson (beta feedback, 2026-10-27)
     I18n.add('tr', {
         '💡 HINT': '💡 İPUCU',

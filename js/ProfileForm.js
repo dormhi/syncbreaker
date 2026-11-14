@@ -10,6 +10,7 @@
      secure  password + confirm          (operator created before passwords)
      consent consent box only            (signed in before the privacy notice)
      delete  password                    (delete the operator for good)
+     change  current + new + confirm     (new password; other browsers are signed out)
 
    create, signin and consent carry the privacy consent box (privacy.html):
    values.consent must be ticked to go on.
@@ -86,6 +87,7 @@ class ProfileForm {
             signin: { title: 'SIGN IN', sub: 'Sign in to your operator: your progress comes with it.', cta: 'SIGN IN' },
             secure: { title: 'SECURE YOUR NAME', sub: 'Set a password so you can play this operator from any browser.', cta: 'SAVE PASSWORD' },
             consent: { title: 'YOUR CONSENT', sub: 'Before you play on: read how your operator data is stored and confirm.', cta: 'CONFIRM' },
+            change: { title: 'CHANGE PASSWORD', sub: 'A new password signs out every other browser that plays as this operator.', cta: 'SAVE NEW PASSWORD' },
             delete: { title: 'DELETE OPERATOR', sub: 'Your operator, its progress, Endless scores and consent are deleted from the server for good, on every device. This cannot be undone.', cta: 'DELETE FOREVER' }
         }[m];
         const asksConsent = m === 'create' || m === 'signin' || m === 'consent';
@@ -105,14 +107,19 @@ class ProfileForm {
                 placeholder: '3–16 letters, numbers, _ -'
             }));
         }
+        if (m === 'change') {
+            form.appendChild(this._field('CURRENT PASSWORD', {
+                name: 'current', type: 'password', maxlength: '72', autocomplete: 'current-password'
+            }));
+        }
         if (m !== 'consent') {
-            form.appendChild(this._field('PASSWORD', {
+            form.appendChild(this._field(m === 'change' ? 'NEW PASSWORD' : 'PASSWORD', {
                 name: 'password', type: 'password', maxlength: '72',
                 autocomplete: m === 'signin' || m === 'delete' ? 'current-password' : 'new-password',
                 placeholder: m === 'delete' ? 'your current password' : 'at least 8 characters'
             }));
         }
-        if (m === 'create' || m === 'secure') {
+        if (m === 'create' || m === 'secure' || m === 'change') {
             form.appendChild(this._field('CONFIRM PASSWORD', {
                 name: 'confirm', type: 'password', maxlength: '72', autocomplete: 'new-password'
             }));
@@ -204,12 +211,12 @@ class ProfileForm {
         if (this._busy) return;
         const m = this.mode;
         const box = this.root.querySelector('input[name="consent"]');
-        const values = { name: this._value('username').trim(), password: this._value('password'), consent: !!(box && box.checked) };
+        const values = { name: this._value('username').trim(), password: this._value('password'), current: this._value('current'), consent: !!(box && box.checked) };
         if (box && !values.consent) {
             this.setStatus('Tick the consent box to go on.', true);
             return;
         }
-        if ((m === 'create' || m === 'secure') && values.password !== this._value('confirm')) {
+        if ((m === 'create' || m === 'secure' || m === 'change') && values.password !== this._value('confirm')) {
             this.setStatus('Passwords do not match.', true);
             return;
         }

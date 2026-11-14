@@ -5821,6 +5821,74 @@ suite('RESET deletes every saved game key, lessons included', () => {
 });
 
 // ─────────────────────────────────────────────
+suite('Security audit fixes: password change, server sign-out, safe progress merge', () => {
+    const mod = loadGameManager();
+    const { LeaderboardService, ProgressSync, I18n } = mod;
+
+    // ── A "__proto__" key in a saved copy never reaches Object.prototype ──
+    const saved = JSON.parse('{"v":1,"coach":{"__proto__":{"polluted_flag":true},"stack":{"__proto__":{"x":1},"tutorial":true}},' +
+        '"endlessBests":{"__proto__":{"score":5,"round":1}},"campaign":{"v":1,"stages":{"__proto__":[{"completed":true}]},"gates":[]}}');
+    const m = ProgressSync.merge(ProgressSync.merge({}, null), saved);
+    ok('merge ignores __proto__ keys (no global pollution)', ({}).polluted_flag === undefined && ({}).x === undefined && ({}).completed === undefined);
+    ok('…and keeps the real flags', m.coach.stack.tutorial === true && Object.keys(m.coach).join() === 'stack' &&
+        Object.keys(m.endlessBests).length === 0 && Object.keys(m.campaign.stages).length === 0);
+
+    // ── LeaderboardService: wrong current password, server sign-out ──
+    const calls = [];
+    const script = {};
+    const client = {
+        auth: {
+            getSession: async () => ({ data: { session: { id: 's' } }, error: null }),
+            getUser: async () => ({ data: { user: { id: 'u1' } }, error: null }),
+            signOut: async () => { calls.push(['auth.signOut']); return { error: null }; },
+            signInAnonymously: async () => ({ error: null })
+        },
+        rpc: async (name, args) => { calls.push([name, args]); return script[name] ? script[name](args) : { data: null, error: null }; }
+    };
+    const lb = new LeaderboardService();
+    lb.client = client;
+    script.get_my_operator = () => ({ data: [{ id: 'p1', display_name: 'Neo', has_password: true }], error: null });
+    const run = async () => {
+        script.set_operator_password = (a) => ({ data: a.p_current_password === 'old-pass-1', error: null });
+        ok('wrong current password -> false', (await lb.setPassword('new-pass-22', 'nope-nope')) === false);
+        ok('right current password -> true', (await lb.setPassword('new-pass-22', 'old-pass-1')) === true &&
+            calls.some(([n, a]) => n === 'set_operator_password' && a.p_current_password === 'old-pass-1' && a.p_password === 'new-pass-22'));
+
+        calls.length = 0;
+        await lb.signOut();
+        const order = calls.map(c => c[0]);
+        ok('sign out tells the server first', order.indexOf('leave_operator') >= 0 && order.indexOf('leave_operator') < order.indexOf('auth.signOut') && !lb.profile);
+        script.leave_operator = () => ({ data: null, error: { message: 'Could not find the function public.leave_operator without parameters' } });
+        ok('sign out still works before the database update', (await lb.signOut()) === true);
+        script.leave_operator = () => ({ data: null, error: { message: 'Failed to fetch' } });
+        let failed = false;
+        try { await lb.signOut(); } catch (e) { failed = true; }
+        ok('…but not offline: the server must forget this browser', failed);
+
+        // ── ACCOUNT: CHANGE PASSWORD ──
+        const canvas = makeFakeCanvas();
+        const gm = new mod.GameManager(canvas, makeFakeCtx(canvas));
+        const S = gm.state.STATES;
+        const opened = [];
+        gm.profileForm = { open(m, h) { opened.push(m); this.h = h; }, close() { this.closed = true; } };
+        gm.leaderboard.knownOperator = () => ({ id: 'p1', displayName: 'Neo' });
+        gm.state._handlers[S.ACCOUNT].enter();
+        ok('ACCOUNT has a CHANGE PASSWORD button', gm.ui.buttons.some(b => b.id === 'account-password'));
+        gm._openChangePasswordForm();
+        ok('it opens the change form', opened[opened.length - 1] === 'change');
+        gm.leaderboard.setPassword = async (p, c) => c === 'old-pass-1';
+        ok('a wrong current password is reported', /incorrect/.test(await gm._changePassword('nope-nope', 'new-pass-22')));
+        ok('an empty current password is reported', /incorrect/.test(await gm._changePassword('', 'new-pass-22')));
+        ok('a good change closes the form and says other browsers are out',
+            (await gm._changePassword('old-pass-1', 'new-pass-22')) === null && gm.profileForm.closed && /signed out/.test(gm._accountStatus));
+        I18n.set('tr', { getItem: () => null, setItem: () => {} });
+        ok('the change texts are in Turkish', I18n.t('CHANGE PASSWORD') === 'PAROLAYI DEĞİŞTİR' && I18n.t(gm._accountStatus) !== gm._accountStatus);
+        I18n.set('en', { getItem: () => null, setItem: () => {} });
+    };
+    pendingSuites.push(run());
+});
+
+// ─────────────────────────────────────────────
 Promise.all(pendingSuites).then(() => {
     console.log('\n' + '─'.repeat(50));
     console.log(`PASS ${passed}   FAIL ${failed}`);
