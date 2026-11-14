@@ -965,6 +965,7 @@ if (typeof I18n !== 'undefined') {
         'This browser already plays as an operator.': 'Bu tarayıcı zaten bir operator olarak oynuyor.',
         'Current password is incorrect.': 'Mevcut parola yanlış.',
         'Password must be 8–72 characters.': 'Parola 8–72 karakter olmalı.',
+        'That password is too easy to guess. Pick another one.': 'Bu parolayı tahmin etmek çok kolay. Başka bir tane seç.',
         'Name must be 3–16 letters, numbers, spaces, _ or - .': 'Ad 3–16 karakter olmalı: harf, rakam, boşluk, _ ya da - .',
         'Offline — check your connection.': 'Çevrimdışı — bağlantını kontrol et.',
         'Create your operator profile first.': 'Önce operator profilini oluştur.',

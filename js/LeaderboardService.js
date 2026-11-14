@@ -58,12 +58,26 @@ class LeaderboardService {
         return null;
     }
 
-    static validatePassword(password) {
+    static validatePassword(password, name) {
         const p = String(password || '');
         // bcrypt only uses the first 72 bytes.
         const bytes = (typeof TextEncoder !== 'undefined') ? new TextEncoder().encode(p).length : p.length;
         if (p.length < 8 || bytes > 72) return 'Password must be 8–72 characters.';
+        if (LeaderboardService.isWeakPassword(p, name)) return 'That password is too easy to guess. Pick another one.';
         return null;
+    }
+
+    /** The passwords an attacker tries first: the usual list, one repeated
+        character, or little more than the operator's own name. The server
+        refuses the same ones (_weak_operator_password in supabase/schema.sql). */
+    static isWeakPassword(password, name) {
+        const p = String(password || '');
+        // ASCII lowering only: the list is ASCII, and Turkish İ / ı must not match by accident.
+        const lower = (t) => t.replace(/[A-Z]/g, (c) => c.toLowerCase());
+        if (LeaderboardService.COMMON_PASSWORDS.has(lower(p))) return true;
+        if (/^(.)\1+$/.test(p)) return true;
+        const n = lower(String(name || '').trim());
+        return n.length >= 3 && lower(p).includes(n) && p.length - n.length < 6;
     }
 
     /** Map server errors to messages a player can act on. */
@@ -74,6 +88,7 @@ class LeaderboardService {
         if (/already has an operator/i.test(message)) return 'This browser already plays as an operator.';
         if (/current password/i.test(message)) return 'Current password is incorrect.';
         if (/password must/i.test(message)) return 'Password must be 8–72 characters.';
+        if (/too easy to guess/i.test(message)) return 'That password is too easy to guess. Pick another one.';
         if (/invalid display name/i.test(message)) return 'Name must be 3–16 letters, numbers, spaces, _ or - .';
         if (/failed to fetch|network/i.test(message)) return 'Offline — check your connection.';
         return message || fallback;
@@ -167,7 +182,7 @@ class LeaderboardService {
         const name = String(displayName || '').trim();
         const nameError = LeaderboardService.validateName(name);
         if (nameError) throw new Error(nameError);
-        const passError = LeaderboardService.validatePassword(password);
+        const passError = LeaderboardService.validatePassword(password, name);
         if (passError) throw new Error(passError);
         await this.initialize();
         if (this.profile) return this.profile;
@@ -272,7 +287,7 @@ class LeaderboardService {
      * @returns {Promise<boolean>} false if the current password is wrong.
      */
     async setPassword(password, currentPassword = null) {
-        const passError = LeaderboardService.validatePassword(password);
+        const passError = LeaderboardService.validatePassword(password, this.profile && this.profile.displayName);
         if (passError) throw new Error(passError);
         await this.initialize();
         const { data, error } = await this.client.rpc('set_operator_password', {
@@ -370,3 +385,19 @@ class LeaderboardService {
 
 /** The privacy notice (privacy.html) a consent is given to: its "last updated" date. */
 LeaderboardService.CONSENT_VERSION = '2026-11-02';
+
+/** Passwords refused as too easy to guess; the same list as
+    _weak_operator_password in supabase/schema.sql (keep them in step). */
+LeaderboardService.COMMON_PASSWORDS = new Set([
+    '12345678', '123456789', '1234567890', '87654321', '987654321', '0987654321',
+    '11111111', '00000000', '12341234', '11223344', '12344321', '123123123', '147258369',
+    'password', 'password1', 'password12', 'password123', 'passw0rd', 'p@ssw0rd',
+    'qwertyui', 'qwertyuiop', 'qwerty123', 'qwerty12', '1q2w3e4r', '1q2w3e4r5t', '1qaz2wsx',
+    'qazwsxedc', 'asdfghjk', 'asdfghjkl', 'asdasdasd', 'asdf1234', '1234qwer', 'qwer1234',
+    '123qweasd', 'zxcvbnm1', 'abcd1234', 'abc12345', 'abcdefgh', 'a1b2c3d4', '123456789a',
+    'iloveyou', 'sunshine', 'princess', 'football', 'baseball', 'superman', 'trustno1',
+    'welcome1', 'letmein1', 'admin123', 'administrator', 'starwars', 'computer', 'internet',
+    'whatever', 'syncbreaker', 'operator', 'operator1', 'operator123',
+    'sifre123', 'parola123', '123456789tr', 'galatasaray', 'fenerbahce', 'besiktas',
+    'trabzonspor', 'istanbul', 'istanbul34', 'seniseviyorum'
+]);

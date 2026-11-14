@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Only our own scripts run and only Supabase (and the analytics beacon) is contacted:
+         a second wall in front of the operator form. Update connect-src if the Supabase project changes. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'self' https://szanoeclqztolgijlgef.supabase.co wss://szanoeclqztolgijlgef.supabase.co https://cloudflareinsights.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncBreaker · Privacy</title>
     <meta name="description" content="What SyncBreaker stores, where and why: privacy and storage notice.">
@@ -172,24 +175,6 @@
         <a class="back" href="./">← Oyuna dön</a>
     </section>
 </main>
-<script>
-    // Opens in the game's language (?lang=tr, else the saved sb_lang); the buttons switch it.
-    (function () {
-        var saved = null;
-        try { saved = localStorage.getItem('sb_lang'); } catch (e) { }
-        var asked = (location.search.match(/[?&]lang=(en|tr)\b/) || [])[1];
-        function set(lang) {
-            document.documentElement.lang = lang;
-            var buttons = document.querySelectorAll('[data-set]');
-            for (var i = 0; i < buttons.length; i++) buttons[i].setAttribute('aria-pressed', String(buttons[i].getAttribute('data-set') === lang));
-            document.title = lang === 'tr' ? 'SyncBreaker · Gizlilik' : 'SyncBreaker · Privacy';
-        }
-        document.querySelector('.langs').addEventListener('click', function (e) {
-            var lang = e.target.getAttribute && e.target.getAttribute('data-set');
-            if (lang) set(lang);
-        });
-        set(asked || (saved === 'tr' || saved === 'en' ? saved : (/^tr\b/i.test(navigator.language || '') ? 'tr' : 'en')));
-    })();
-</script>
+<script src="js/privacy.js?v=20261114"></script>
 </body>
 </html>

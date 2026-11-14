@@ -13,8 +13,13 @@
 --   * Passwords are bcrypt hashes in operator_secrets, which no client role
 --     can read; wrong passwords are rate limited (5 per 15 minutes), one
 --     check per operator at a time (advisory lock), so parallel guesses
---     cannot slip past. Changing the password signs out every other
---     browser; leave_operator() signs this one out.
+--     cannot slip past. One browser also gets 10 wrong sign-ins per 15
+--     minutes over ALL operators, so one common password cannot be tried
+--     on every name (password spraying, 2026-11-14); passwords that are
+--     easy to guess are refused. Changing the password signs out every
+--     other browser; leave_operator() signs this one out.
+--   * Clients cannot read the operator list: names show only on the
+--     leaderboards, through the endless_game_entries view (2026-11-14).
 --   * One Endless leaderboard per game (endless_game_scores).
 --   * The operator's progress is one JSON blob (operator_progress); the
 --     client merges it with the browser's copy (js/ProgressSync.js).
@@ -50,10 +55,10 @@ create unique index if not exists profiles_display_name_lower_key
 
 alter table public.profiles enable row level security;
 
--- The leaderboard intentionally exposes only public operator names and scores.
+-- No policies on purpose (2026-11-14): the full operator list (ids, names,
+-- dates) was a ready target list for password spraying. Names reach clients
+-- only through the leaderboard view and the functions below.
 drop policy if exists "authenticated users can read public profiles" on public.profiles;
-create policy "authenticated users can read public profiles"
-    on public.profiles for select to authenticated using (true);
 
 create table if not exists public.operator_secrets (
     profile_id uuid primary key references public.profiles(id) on delete cascade,
@@ -80,6 +85,9 @@ create index if not exists operator_failed_logins_recent
 alter table public.operator_failed_logins add column if not exists auth_uid uuid;
 create index if not exists operator_failed_logins_by_browser
     on public.operator_failed_logins (profile_id, auth_uid, attempted_at);
+-- One browser's wrong sign-ins over all operators (spray limit, 2026-11-14).
+create index if not exists operator_failed_logins_browser_recent
+    on public.operator_failed_logins (auth_uid, attempted_at);
 
 alter table public.operator_secrets enable row level security;
 alter table public.operator_links enable row level security;
@@ -112,6 +120,34 @@ begin
         raise exception 'Password must be 8-72 characters';
     end if;
 end;
+$$;
+
+-- Passwords an attacker tries first (2026-11-14): the usual list, one
+-- repeated character, or little more than the operator's own name.
+-- js/LeaderboardService.js keeps the same list for a friendly message.
+create or replace function public._weak_operator_password(p_password text, p_name text)
+returns boolean
+language sql
+immutable
+set search_path = pg_temp
+as $$
+    select lower(p_password) = any (array[
+            '12345678', '123456789', '1234567890', '87654321', '987654321', '0987654321',
+            '11111111', '00000000', '12341234', '11223344', '12344321', '123123123', '147258369',
+            'password', 'password1', 'password12', 'password123', 'passw0rd', 'p@ssw0rd',
+            'qwertyui', 'qwertyuiop', 'qwerty123', 'qwerty12', '1q2w3e4r', '1q2w3e4r5t', '1qaz2wsx',
+            'qazwsxedc', 'asdfghjk', 'asdfghjkl', 'asdasdasd', 'asdf1234', '1234qwer', 'qwer1234',
+            '123qweasd', 'zxcvbnm1', 'abcd1234', 'abc12345', 'abcdefgh', 'a1b2c3d4', '123456789a',
+            'iloveyou', 'sunshine', 'princess', 'football', 'baseball', 'superman', 'trustno1',
+            'welcome1', 'letmein1', 'admin123', 'administrator', 'starwars', 'computer', 'internet',
+            'whatever', 'syncbreaker', 'operator', 'operator1', 'operator123',
+            'sifre123', 'parola123', '123456789tr', 'galatasaray', 'fenerbahce', 'besiktas',
+            'trabzonspor', 'istanbul', 'istanbul34', 'seniseviyorum'
+        ])
+        or p_password ~ '^(.)\1+$'
+        or (p_name is not null and char_length(btrim(p_name)) >= 3
+            and position(lower(btrim(p_name)) in lower(p_password)) > 0
+            and char_length(p_password) - char_length(btrim(p_name)) < 6);
 $$;
 
 -- Who am I? (profile + whether it is protected by a password)
@@ -147,6 +183,9 @@ begin
         raise exception 'Invalid display name';
     end if;
     perform public._check_operator_password(p_password);
+    if public._weak_operator_password(p_password, v_name) then
+        raise exception 'Password is too easy to guess';
+    end if;
 
     insert into public.profiles (id, display_name) values (auth.uid(), v_name);
     insert into public.operator_secrets (profile_id, password_hash)
@@ -175,6 +214,10 @@ begin
         raise exception 'Profile required';
     end if;
     perform public._check_operator_password(p_password);
+    if public._weak_operator_password(p_password,
+            (select p.display_name from public.profiles p where p.id = v_profile)) then
+        raise exception 'Password is too easy to guess';
+    end if;
 
     select s.password_hash into v_hash from public.operator_secrets s where s.profile_id = v_profile;
     if v_hash is not null then
@@ -227,14 +270,27 @@ begin
         raise exception 'Authentication required';
     end if;
 
+    -- Spray limit (2026-11-14): one browser gets 10 wrong sign-ins per 15
+    -- minutes over all operators together. Its own lock comes first (always
+    -- browser, then operator), so its parallel guesses cannot slip past.
+    perform pg_advisory_xact_lock(hashtext('operator_browser:' || auth.uid()::text));
+    select count(*) into v_failures
+    from public.operator_failed_logins f
+    where f.auth_uid = auth.uid() and f.attempted_at > now() - interval '15 minutes';
+    if v_failures >= 10 then
+        raise exception 'Too many attempts. Try again in 15 minutes';
+    end if;
+
     select p.id, s.password_hash into v_profile, v_hash
     from public.profiles p
     left join public.operator_secrets s on s.profile_id = p.id
     where lower(p.display_name) = lower(btrim(p_display_name));
 
     -- Same (empty) answer for "no such name", "no password set" and
-    -- "wrong password".
+    -- "wrong password", after the same work: a hash is checked either way,
+    -- so the response time does not tell which names exist.
     if v_profile is null or v_hash is null then
+        perform extensions.crypt(coalesce(p_password, ''), '$2a$10$qKx86hhJXaED5Bq.VCreruuOaI7a6ia/KuEGh/YUESYgiJdG1nh6.');
         return;
     end if;
 
@@ -300,16 +356,18 @@ create index if not exists endless_game_scores_ranking
 
 alter table public.endless_game_scores enable row level security;
 
--- Public operator names and scores only, like the old list.
+-- No policies on purpose (2026-11-14): the table carries operator ids.
 drop policy if exists "authenticated users can read endless game scores" on public.endless_game_scores;
-create policy "authenticated users can read endless game scores"
-    on public.endless_game_scores for select to authenticated using (true);
 
+-- The leaderboards: public operator names and scores only. The view runs
+-- with its owner's rights on purpose (security_invoker = false): it is the
+-- only way clients see names, and only names that hold a score.
 create or replace view public.endless_game_entries
-with (security_invoker = true) as
+with (security_invoker = false) as
 select p.display_name, s.game, s.best_score, s.best_round, s.achieved_at
 from public.endless_game_scores s
 join public.profiles p on p.id = s.player_id;
+alter view public.endless_game_entries set (security_invoker = false);
 
 -- A finished run of one game. Keeps the operator's best per game.
 -- The bound below catches malformed values; it is not a full anti-cheat system.
@@ -526,12 +584,12 @@ $$;
 -- ── Permissions ──
 -- New functions are executable by PUBLIC by default; lock them down first.
 revoke all on table public.profiles from anon, authenticated;
-grant select on table public.profiles to authenticated;
 revoke all on table public.endless_game_scores from anon, authenticated;
-grant select on table public.endless_game_scores to authenticated;
+revoke all on public.endless_game_entries from anon, authenticated;
 grant select on public.endless_game_entries to authenticated;
 revoke all on function public.current_operator_id() from public, anon;
 revoke all on function public._check_operator_password(text) from public, anon, authenticated;
+revoke all on function public._weak_operator_password(text, text) from public, anon, authenticated;
 revoke all on function public.get_my_operator() from public, anon;
 revoke all on function public.create_operator(text, text) from public, anon;
 revoke all on function public.set_operator_password(text, text) from public, anon;

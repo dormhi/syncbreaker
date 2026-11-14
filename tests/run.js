@@ -1404,7 +1404,19 @@ suite('LeaderboardService — operator name + password', () => {
     ok('valid name', V.validateName('Neo_01') === null);
     ok('short name rejected', V.validateName('ab') !== null);
     ok('bad characters rejected', V.validateName('neo!') !== null);
-    ok('8-char password ok', V.validatePassword('abcdefgh') === null);
+    ok('8-char password ok', V.validatePassword('kx7-mor-2') === null);
+    ok('common password rejected', /easy to guess/.test(V.validatePassword('12345678')) && /easy to guess/.test(V.validatePassword('PassWord123')));
+    ok('one repeated character rejected', /easy to guess/.test(V.validatePassword('aaaaaaaa')));
+    ok('the name as the password rejected', /easy to guess/.test(V.validatePassword('Neo_0112', 'Neo_01')) && /easy to guess/.test(V.validatePassword('dormhi  ', 'dormhi')));
+    ok('a long password that only contains the name is fine', V.validatePassword('neon-lights-42', 'Neo') === null);
+    ok('the weak password message has a Turkish entry', Object.prototype.hasOwnProperty.call(loadGameManager().I18n.dict.tr, V.validatePassword('12345678')));
+    {
+        // The client's list and the server's list are the same.
+        const sql = require('fs').readFileSync(require('path').join(__dirname, '..', 'supabase', 'schema.sql'), 'utf8');
+        const block = sql.slice(sql.indexOf('_weak_operator_password(p_password text'), sql.indexOf("or p_password ~ '^(.)"));
+        const server = (block.match(/'([^']+)'/g) || []).map((t) => t.slice(1, -1)).sort();
+        ok('client and server refuse the same common passwords', server.length > 50 && JSON.stringify(server) === JSON.stringify([...V.COMMON_PASSWORDS].sort()));
+    }
     ok('7-char password rejected', V.validatePassword('abcdefg') !== null);
     ok('over 72 bytes rejected', V.validatePassword('x'.repeat(73)) !== null);
     ok('duplicate -> taken', /taken/.test(V.friendlyError({ message: 'duplicate key value violates unique constraint' })));
@@ -1448,9 +1460,9 @@ suite('LeaderboardService — operator name + password', () => {
         script.get_my_operator = () => ({ data: [{ id: 'u1', display_name: 'Oldie', has_password: false }], error: null });
         await legacy.loadProfile();
         ok('legacy operator needs a password', legacy.needsPassword());
-        await legacy.setPassword('oldiepass1');
+        await legacy.setPassword('kept-safe-77');
         ok('setPassword clears the prompt', !legacy.needsPassword() &&
-            calls.some(([n, a]) => n === 'set_operator_password' && a.p_password === 'oldiepass1'));
+            calls.some(([n, a]) => n === 'set_operator_password' && a.p_password === 'kept-safe-77'));
 
         // Database not migrated yet: fall back to the old profile lookup.
         const old = make();
